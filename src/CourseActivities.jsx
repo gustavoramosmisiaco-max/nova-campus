@@ -29,6 +29,7 @@ export default function CourseActivities({ courseId }) {
   const [tipoUnidad, setTipoUnidad] = useState('Unidad')
   const [numeroUnidad, setNumeroUnidad] = useState(1)
   const [nombre, setNombre] = useState('')
+  const [tipoInstrumento, setTipoInstrumento] = useState('Lista de cotejo')
   const [proposito, setProposito] = useState('')
   const [competenciaId, setCompetenciaId] = useState('')
   const [detalles, setDetalles] = useState({})
@@ -79,6 +80,7 @@ export default function CourseActivities({ courseId }) {
     setTipoUnidad('Unidad')
     setNumeroUnidad(1)
     setNombre('')
+    setTipoInstrumento('Lista de cotejo')
     setProposito('')
     setCompetenciaId('')
     setDetalles({})
@@ -95,6 +97,7 @@ export default function CourseActivities({ courseId }) {
     setTipoUnidad(a.tipo_unidad || 'Unidad')
     setNumeroUnidad(a.numero_unidad ? Number(a.numero_unidad) : 1)
     setNombre(a.nombre)
+    setTipoInstrumento(a.tipo_instrumento || 'Lista de cotejo')
     setProposito(a.proposito || '')
     const compId = a.competencia ? competencias.find(function (c) { return c.nombre === a.competencia.nombre })?.id : ''
     setCompetenciaId(compId || '')
@@ -137,6 +140,7 @@ export default function CourseActivities({ courseId }) {
       numero_unidad: String(numeroUnidad),
       numero_actividad: numeroActividad,
       nombre: nombre,
+      tipo_instrumento: tipoInstrumento,
       proposito: proposito,
       competencia_id: competenciaId || null,
     }
@@ -284,6 +288,30 @@ export default function CourseActivities({ courseId }) {
               className="w-full rounded-lg px-3 py-2 text-sm outline-none"
               style={inputStyle}
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Instrumento de evaluación de esta actividad</label>
+            <div className="flex gap-2">
+              {['Lista de cotejo', 'Rúbrica'].map(function (t) {
+                const active = tipoInstrumento === t
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={function () { setTipoInstrumento(t) }}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+                    style={
+                      active
+                        ? { backgroundColor: GREEN, color: 'white' }
+                        : { backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }
+                    }
+                  >
+                    {t}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           <div>
