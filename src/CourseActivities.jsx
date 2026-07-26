@@ -56,7 +56,6 @@ export default function CourseActivities({ courseId }) {
       .from('actividades')
       .select('*, competencia:competencias(nombre, codigo), actividad_capacidades(criterio, desempeno, capacidad:capacidades(id, nombre, orden))')
       .eq('course_id', courseId)
-      .order('numero_unidad', { ascending: true })
       .order('created_at', { ascending: true })
 
     if (result.error) {
@@ -129,10 +128,14 @@ export default function CourseActivities({ courseId }) {
     e.preventDefault()
     setError('')
 
+    const existing = editingId ? activities.find(function (a) { return a.id === editingId }) : null
+    const numeroActividad = existing ? existing.numero_actividad : (activities.length + 1)
+
     const payload = {
       course_id: courseId,
       tipo_unidad: tipoUnidad,
       numero_unidad: String(numeroUnidad),
+      numero_actividad: numeroActividad,
       nombre: nombre,
       proposito: proposito,
       competencia_id: competenciaId || null,
@@ -218,6 +221,12 @@ export default function CourseActivities({ courseId }) {
           <h4 className="text-sm font-semibold" style={{ color: NAVY_DARK }}>
             {editingId ? 'Editar actividad' : 'Nueva actividad'}
           </h4>
+
+          {!editingId && (
+            <p className="text-xs font-semibold" style={{ color: GREEN_DARK }}>
+              Esta será la Actividad N.° {activities.length + 1}
+            </p>
+          )}
 
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Tipo</label>
@@ -380,6 +389,9 @@ export default function CourseActivities({ courseId }) {
               >
                 <div className="flex justify-between items-start flex-wrap gap-3">
                   <div>
+                    <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>
+                      Actividad {a.numero_actividad}
+                    </p>
                     <p className="text-xs font-semibold" style={{ color: GREEN_DARK }}>
                       {a.tipo_unidad || 'Unidad'} {a.numero_unidad}
                     </p>
