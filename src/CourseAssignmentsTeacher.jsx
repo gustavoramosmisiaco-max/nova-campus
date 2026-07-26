@@ -20,20 +20,18 @@ export default function CourseAssignmentsTeacher({ courseId }) {
   const [editingId, setEditingId] = useState(null)
 
   const [actividadId, setActividadId] = useState('')
-  const [capacidadId, setCapacidadId] = useState('')
+  const [selectedCapacidades, setSelectedCapacidades] = useState([])
   const [titulo, setTitulo] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [fechaEntrega, setFechaEntrega] = useState('')
   const [puntajeMax, setPuntajeMax] = useState(20)
   const [instrumento, setInstrumento] = useState('')
-  const [competencia, setCompetencia] = useState('')
-  const [capacidad, setCapacidad] = useState('')
-  const [criterio, setCriterio] = useState('')
   const [tema, setTema] = useState('')
-  const [desempeno, setDesempeno] = useState('')
 
   const [selectedAssignment, setSelectedAssignment] = useState(null)
+  const [assignmentCapacidades, setAssignmentCapacidades] = useState([])
   const [submissions, setSubmissions] = useState([])
+  const [submissionScoresMap, setSubmissionScoresMap] = useState({})
   const [loadingSubs, setLoadingSubs] = useState(false)
   const [subsError, setSubsError] = useState('')
 
@@ -49,7 +47,7 @@ export default function CourseAssignmentsTeacher({ courseId }) {
       .from('actividades')
       .select('*, competencia:competencias(nombre), actividad_capacidades(criterio, desempeno, capacidad:capacidades(id, nombre, orden))')
       .eq('course_id', courseId)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: true })
     if (!result.error) setActivities(result.data)
   }
 
@@ -57,7 +55,7 @@ export default function CourseAssignmentsTeacher({ courseId }) {
     setLoading(true)
     const result = await supabase
       .from('assignments')
-      .select('*')
+      .select('*, assignment_capacidades(capacidad:capacidades(nombre))')
       .eq('course_id', courseId)
       .order('fecha_entrega', { ascending: false })
     if (result.error) {
@@ -71,17 +69,13 @@ export default function CourseAssignmentsTeacher({ courseId }) {
   function resetForm() {
     setEditingId(null)
     setActividadId('')
-    setCapacidadId('')
+    setSelectedCapacidades([])
     setTitulo('')
     setDescripcion('')
     setFechaEntrega('')
     setPuntajeMax(20)
     setInstrumento('')
-    setCompetencia('')
-    setCapacidad('')
-    setCriterio('')
     setTema('')
-    setDesempeno('')
   }
 
   function openNewForm() {
@@ -89,24 +83,20 @@ export default function CourseAssignmentsTeacher({ courseId }) {
     setShowForm(true)
   }
 
-  function openEditForm(a) {
+  async function openEditForm(a) {
     setEditingId(a.id)
     setActividadId(a.actividad_id || '')
-    setCapacidadId(a.capacidad_id || '')
     setTitulo(a.titulo)
     setDescripcion(a.descripcion || '')
     const d = new Date(a.fecha_entrega)
     const pad = function (n) { return String(n).padStart(2, '0') }
-    const localFormatted =
-      d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes())
-    setFechaEntrega(localFormatted)
+    setFechaEntrega(d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()))
     setPuntajeMax(a.puntaje_maximo)
     setInstrumento(a.instrumento_evaluacion || '')
-    setCompetencia(a.competencia || '')
-    setCapacidad(a.capacidad || '')
-    setCriterio(a.criterio || '')
     setTema(a.tema || '')
-    setDesempeno(a.desempeno || '')
+
+    const acResult = await supabase.from('assignment_capacidades').select('capacidad_id').eq('assignment_id', a.id)
+    setSelectedCapacidades(!acResult.error ? acResult.data.map(function (x) { return x.capacidad_id }) : [])
     setShowForm(true)
   }
 
@@ -115,61 +105,79 @@ export default function CourseAssignmentsTeacher({ courseId }) {
 
   function handleSelectActividad(id) {
     setActividadId(id)
-    setCapacidadId('')
-    setCapacidad('')
-    setCriterio('')
-    setDesempeno('')
+    setSelectedCapacidades([])
     if (!id) return
     const act = activities.find(function (a) { return a.id === id })
     if (!act) return
-    setCompetencia(act.competencia ? act.competencia.nombre : '')
     setTema(act.nombre || '')
   }
 
-  function handleSelectCapacidad(capId) {
-    setCapacidadId(capId)
-    const ac = capacidadesDeActividad.find(function (x) { return x.capacidad.id === capId })
-    if (!ac) return
-    setCapacidad(ac.capacidad.nombre)
-    setCriterio(ac.criterio || '')
-    setDesempeno(ac.desempeno || '')
+  function toggleCapacidad(capId) {
+    setSelectedCapacidades(function (prev) {
+      return prev.includes(capId) ? prev.filter(function (id) { return id !== capId }) : [...prev, capId]
+    })
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
 
+    if (selectedCapacidades.length === 0) {
+      setError('Selecciona al menos una capacidad a evaluar.')
+      return
+    }
+
+    const acs = capacidadesDeActividad.filter(function (ac) { return selectedCapacidades.includes(ac.capacidad.id) })
+    const competenciaTexto = actividadSeleccionada?.competencia?.nombre || ''
+    const capacidadTexto = acs.map(function (ac) { return ac.capacidad.nombre }).join('; ')
+    const criterioTexto = acs.map(function (ac) { return ac.criterio }).filter(Boolean).join(' | ')
+    const desempenoTexto = acs.map(function (ac) { return ac.desempeno }).filter(Boolean).join(' | ')
+
     const payload = {
       course_id: courseId,
       actividad_id: actividadId || null,
-      capacidad_id: capacidadId || null,
       titulo: titulo,
       descripcion: descripcion,
       fecha_entrega: fechaEntrega,
       puntaje_maximo: puntajeMax,
       instrumento_evaluacion: instrumento,
-      competencia: competencia,
-      capacidad: capacidad,
-      criterio: criterio,
+      competencia: competenciaTexto,
+      capacidad: capacidadTexto,
+      criterio: criterioTexto,
       tema: tema,
-      desempeno: desempeno,
+      desempeno: desempenoTexto,
     }
 
+    let assignmentId = editingId
     let result
     if (editingId) {
       result = await supabase.from('assignments').update(payload).eq('id', editingId)
     } else {
       payload.created_by = session.user.id
-      result = await supabase.from('assignments').insert(payload)
+      result = await supabase.from('assignments').insert(payload).select('id').single()
+      if (!result.error) assignmentId = result.data.id
     }
 
     if (result.error) {
       setError(result.error.message)
-    } else {
-      resetForm()
-      setShowForm(false)
-      loadAssignments()
+      return
     }
+
+    if (editingId) {
+      await supabase.from('assignment_capacidades').delete().eq('assignment_id', assignmentId)
+    }
+    const acsPayload = selectedCapacidades.map(function (capId) {
+      return { assignment_id: assignmentId, capacidad_id: capId }
+    })
+    const acsResult = await supabase.from('assignment_capacidades').insert(acsPayload)
+    if (acsResult.error) {
+      setError(acsResult.error.message)
+      return
+    }
+
+    resetForm()
+    setShowForm(false)
+    loadAssignments()
   }
 
   async function handleDeleteAssignment(id) {
@@ -188,6 +196,16 @@ export default function CourseAssignmentsTeacher({ courseId }) {
     setSelectedAssignment(assignment)
     setLoadingSubs(true)
     setSubsError('')
+
+    const acResult = await supabase
+      .from('assignment_capacidades')
+      .select('capacidad:capacidades(id, nombre, orden)')
+      .eq('assignment_id', assignment.id)
+    const caps = !acResult.error
+      ? acResult.data.map(function (x) { return x.capacidad }).sort(function (a, b) { return (a.orden || 0) - (b.orden || 0) })
+      : []
+    setAssignmentCapacidades(caps)
+
     const result = await supabase
       .from('submissions')
       .select('*, student:profiles!submissions_student_id_fkey(full_name, email)')
@@ -197,9 +215,25 @@ export default function CourseAssignmentsTeacher({ courseId }) {
     if (result.error) {
       setSubsError(result.error.message)
       setSubmissions([])
-    } else {
-      setSubmissions(result.data)
+      setLoadingSubs(false)
+      return
     }
+    setSubmissions(result.data)
+
+    const submissionIds = result.data.map(function (s) { return s.id })
+    let scoresMap = {}
+    if (submissionIds.length > 0) {
+      const scoresResult = await supabase
+        .from('submission_scores')
+        .select('submission_id, capacidad_id, score')
+        .in('submission_id', submissionIds)
+      if (!scoresResult.error) {
+        scoresResult.data.forEach(function (s) {
+          scoresMap[`${s.submission_id}__${s.capacidad_id}`] = s.score
+        })
+      }
+    }
+    setSubmissionScoresMap(scoresMap)
     setLoadingSubs(false)
   }
 
@@ -222,21 +256,40 @@ export default function CourseAssignmentsTeacher({ courseId }) {
     setPreview({ url: result.data.signedUrl, type: ext, name: name })
   }
 
-  async function handleGrade(submissionId, score) {
-    const numScore = Number(score)
+  async function handleGradeCapacidad(submissionId, capacidadId, scoreStr) {
+    const numScore = Number(scoreStr)
     if (isNaN(numScore) || numScore < 0 || numScore > 20) {
       alert('La nota debe ser un número entre 0 y 20.')
       return
     }
-    const result = await supabase
-      .from('submissions')
-      .update({ score: numScore, graded_by: session.user.id, graded_at: new Date().toISOString() })
-      .eq('id', submissionId)
-    if (result.error) {
-      alert('Error al calificar: ' + result.error.message)
-    } else {
-      openSubmissions(selectedAssignment)
+
+    const upsertResult = await supabase
+      .from('submission_scores')
+      .upsert(
+        { submission_id: submissionId, capacidad_id: capacidadId, score: numScore, graded_by: session.user.id, graded_at: new Date().toISOString() },
+        { onConflict: 'submission_id,capacidad_id' }
+      )
+    if (upsertResult.error) {
+      alert('Error al calificar: ' + upsertResult.error.message)
+      return
     }
+
+    const allScoresResult = await supabase
+      .from('submission_scores')
+      .select('score')
+      .eq('submission_id', submissionId)
+    const values = (allScoresResult.data || []).map(function (s) { return s.score }).filter(function (s) { return s != null })
+    const avg = values.length > 0 ? values.reduce(function (a, b) { return a + b }, 0) / values.length : null
+
+    await supabase
+      .from('submissions')
+      .update({ score: avg, graded_by: session.user.id, graded_at: new Date().toISOString() })
+      .eq('id', submissionId)
+
+    setSubmissionScoresMap(function (prev) {
+      return { ...prev, [`${submissionId}__${capacidadId}`]: numScore }
+    })
+    openSubmissions(selectedAssignment)
   }
 
   if (selectedAssignment) {
@@ -254,12 +307,7 @@ export default function CourseAssignmentsTeacher({ courseId }) {
           Entrega: {new Date(selectedAssignment.fecha_entrega).toLocaleString('es-PE')}
         </p>
         {selectedAssignment.instrumento_evaluacion && (
-          <p className="text-xs text-slate-500 mb-1">Instrumento: {selectedAssignment.instrumento_evaluacion}</p>
-        )}
-        {selectedAssignment.competencia && (
-          <p className="text-xs mb-4" style={{ color: '#2f7a1f' }}>
-            Competencia: {selectedAssignment.competencia}
-          </p>
+          <p className="text-xs text-slate-500 mb-4">Instrumento: {selectedAssignment.instrumento_evaluacion}</p>
         )}
 
         {subsError && <p className="text-red-500 text-sm mb-3">{subsError}</p>}
@@ -274,21 +322,21 @@ export default function CourseAssignmentsTeacher({ courseId }) {
               return (
                 <li
                   key={s.id}
-                  className="rounded-xl p-4 flex justify-between items-center flex-wrap gap-3"
+                  className="rounded-xl p-4"
                   style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}
                 >
-                  <div>
-                    <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{s.student ? s.student.full_name : ''}</p>
-                    <p className="text-xs text-slate-500">
-                      Entregado: {new Date(s.submitted_at).toLocaleString('es-PE')}
-                    </p>
-                    {s.score != null && (
-                      <p className={'text-xs font-semibold ' + getLetterColor(s.score)}>
-                        Nota actual: {s.score} — {getLetterGrade(s.score)}
+                  <div className="flex justify-between items-start flex-wrap gap-3 mb-3">
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{s.student ? s.student.full_name : ''}</p>
+                      <p className="text-xs text-slate-500">
+                        Entregado: {new Date(s.submitted_at).toLocaleString('es-PE')}
                       </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
+                      {s.score != null && (
+                        <p className={'text-xs font-semibold ' + getLetterColor(s.score)}>
+                          Promedio de esta tarea: {s.score.toFixed(1)} — {getLetterGrade(s.score)}
+                        </p>
+                      )}
+                    </div>
                     <button
                       onClick={function () { handlePreview(s.file_url) }}
                       className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
@@ -296,20 +344,40 @@ export default function CourseAssignmentsTeacher({ courseId }) {
                     >
                       Ver archivo
                     </button>
-                    <input
-                      type="number"
-                      min="0"
-                      max="20"
-                      step="0.5"
-                      defaultValue={s.score != null ? s.score : ''}
-                      placeholder="Nota"
-                      className="w-16 rounded-lg text-sm px-2 py-1.5 outline-none"
-                      style={inputStyle}
-                      onBlur={function (e) {
-                        if (e.target.value) handleGrade(s.id, e.target.value)
-                      }}
-                    />
                   </div>
+
+                  {assignmentCapacidades.length === 0 ? (
+                    <p className="text-xs text-slate-400">Esta tarea no tiene capacidades vinculadas.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {assignmentCapacidades.map(function (cap) {
+                        const key = `${s.id}__${cap.id}`
+                        const currentScore = submissionScoresMap[key]
+                        return (
+                          <div
+                            key={cap.id}
+                            className="flex justify-between items-center rounded-lg px-3 py-2"
+                            style={{ backgroundColor: 'white', border: '1px solid #E5E9F0' }}
+                          >
+                            <span className="text-xs" style={{ color: NAVY_DARK }}>{cap.nombre}</span>
+                            <input
+                              type="number"
+                              min="0"
+                              max="20"
+                              step="0.5"
+                              defaultValue={currentScore != null ? currentScore : ''}
+                              placeholder="Nota"
+                              className="w-16 rounded-lg text-sm px-2 py-1 outline-none"
+                              style={inputStyle}
+                              onBlur={function (e) {
+                                if (e.target.value) handleGradeCapacidad(s.id, cap.id, e.target.value)
+                              }}
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </li>
               )
             })}
@@ -366,32 +434,41 @@ export default function CourseAssignmentsTeacher({ courseId }) {
               className="w-full rounded-lg px-3 py-2 text-sm outline-none"
               style={inputStyle}
             >
-              <option value="">-- Sin actividad (completar manualmente) --</option>
+              <option value="">-- Selecciona una actividad --</option>
               {activities.map(function (a) {
-                return <option key={a.id} value={a.id}>{a.tipo_unidad} {a.numero_unidad} · {a.nombre}</option>
+                return <option key={a.id} value={a.id}>Actividad {a.numero_actividad} · {a.nombre}</option>
               })}
             </select>
           </div>
 
           {actividadId && capacidadesDeActividad.length > 0 && (
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>
-                ¿Qué capacidad evalúa esta tarea?
+              <label className="block text-xs font-medium mb-2" style={{ color: NAVY_DARK }}>
+                ¿Qué capacidad(es) evalúa esta tarea? (puedes marcar varias)
               </label>
-              <select
-                value={capacidadId}
-                onChange={function (e) { handleSelectCapacidad(e.target.value) }}
-                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-                style={inputStyle}
-              >
-                <option value="">-- Selecciona --</option>
+              <div className="space-y-1.5">
                 {capacidadesDeActividad
                   .slice()
                   .sort(function (x, y) { return (x.capacidad.orden || 0) - (y.capacidad.orden || 0) })
                   .map(function (ac) {
-                    return <option key={ac.capacidad.id} value={ac.capacidad.id}>{ac.capacidad.nombre}</option>
+                    const checked = selectedCapacidades.includes(ac.capacidad.id)
+                    return (
+                      <label
+                        key={ac.capacidad.id}
+                        className="flex items-start gap-2 text-sm rounded-lg px-3 py-2 cursor-pointer"
+                        style={{ backgroundColor: 'white', border: '1px solid #D6DCE5' }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={function () { toggleCapacidad(ac.capacidad.id) }}
+                          className="mt-0.5"
+                        />
+                        <span style={{ color: NAVY_DARK }}>{ac.capacidad.nombre}</span>
+                      </label>
+                    )
                   })}
-              </select>
+              </div>
             </div>
           )}
 
@@ -426,65 +503,6 @@ export default function CourseAssignmentsTeacher({ courseId }) {
               className="w-full rounded-lg px-3 py-2 text-sm outline-none"
               style={inputStyle}
             />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>
-              Competencia {actividadId ? '(heredada, editable)' : ''}
-            </label>
-            <input
-              type="text"
-              value={competencia}
-              onChange={function (e) { setCompetencia(e.target.value) }}
-              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-              style={inputStyle}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Capacidad</label>
-              <input
-                type="text"
-                value={capacidad}
-                onChange={function (e) { setCapacidad(e.target.value) }}
-                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Criterio de evaluación</label>
-              <input
-                type="text"
-                value={criterio}
-                onChange={function (e) { setCriterio(e.target.value) }}
-                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-                style={inputStyle}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Tema</label>
-              <input
-                type="text"
-                value={tema}
-                onChange={function (e) { setTema(e.target.value) }}
-                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Desempeño (opcional)</label>
-              <input
-                type="text"
-                value={desempeno}
-                onChange={function (e) { setDesempeno(e.target.value) }}
-                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-                style={inputStyle}
-              />
-            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -548,9 +566,10 @@ export default function CourseAssignmentsTeacher({ courseId }) {
                     {a.instrumento_evaluacion && (
                       <p className="text-xs text-slate-500">Instrumento: {a.instrumento_evaluacion}</p>
                     )}
-                    {a.tema && <p className="text-xs text-slate-500">Tema: {a.tema}</p>}
-                    {a.competencia && (
-                      <p className="text-xs mt-1" style={{ color: '#2f7a1f' }}>{a.competencia}</p>
+                    {a.assignment_capacidades && a.assignment_capacidades.length > 0 && (
+                      <p className="text-xs mt-1" style={{ color: '#2f7a1f' }}>
+                        {a.assignment_capacidades.map(function (ac) { return ac.capacidad.nombre }).join(' · ')}
+                      </p>
                     )}
                   </div>
                   <div className="flex gap-2">
