@@ -56,7 +56,8 @@ export default function CourseActivities({ courseId }) {
       .from('actividades')
       .select('*, competencia:competencias(nombre, codigo), actividad_capacidades(criterio, desempeno, capacidad:capacidades(id, nombre, orden))')
       .eq('course_id', courseId)
-      .order('created_at', { ascending: false })
+      .order('numero_unidad', { ascending: true })
+      .order('created_at', { ascending: true })
 
     if (result.error) {
       setError(result.error.message)
@@ -383,6 +384,9 @@ export default function CourseActivities({ courseId }) {
                       {a.tipo_unidad || 'Unidad'} {a.numero_unidad}
                     </p>
                     <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{a.nombre}</p>
+                    <p className="text-xs text-slate-400">
+                      Creada: {new Date(a.created_at).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </p>
                     {a.proposito && <p className="text-xs text-slate-500 mt-1">Propósito: {a.proposito}</p>}
                     {a.competencia && (
                       <p className="text-xs text-slate-500 mt-1">{a.competencia.codigo} — {a.competencia.nombre}</p>
