@@ -9,7 +9,7 @@ const GREEN_DARK = '#2f7a1f'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 const TIPOS_UNIDAD = ['Unidad', 'Experiencia de aprendizaje']
-const NUMEROS_UNIDAD = [1, 2, 3, 4, 5, 6]
+const NUMEROS_UNIDAD = [1, 2, 3, 4, 5, 6, 7, 8]
 
 function getArea(nombreCurso) {
   return nombreCurso === 'Matematica' ? 'Matematica' : 'Ciencia y Tecnologia'
