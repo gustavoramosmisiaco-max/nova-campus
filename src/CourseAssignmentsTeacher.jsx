@@ -138,7 +138,7 @@ export default function CourseAssignmentsTeacher({ courseId }) {
       actividad_id: actividadId || null,
       titulo: titulo,
       descripcion: descripcion,
-      fecha_entrega: fechaEntrega,
+      fecha_entrega: fechaEntrega ? `${fechaEntrega}:00-05:00` : fechaEntrega,
       puntaje_maximo: puntajeMax,
       instrumento_evaluacion: instrumento,
       competencia: competenciaTexto,
