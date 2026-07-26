@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 import CourseMaterials from './CourseMaterials'
+import CourseActivities from './CourseActivities'
 import CourseAssignmentsTeacher from './CourseAssignmentsTeacher'
 import CourseZoomTeacher from './CourseZoomTeacher'
 
@@ -30,6 +31,7 @@ function CourseDetailTeacher({ course, onBack }) {
 
   const tabs = [
     { id: 'materiales', label: 'Materiales' },
+    { id: 'actividades', label: 'Actividades' },
     { id: 'tareas', label: 'Tareas' },
     { id: 'zoom', label: 'Videoclases' },
   ]
@@ -59,7 +61,7 @@ function CourseDetailTeacher({ course, onBack }) {
         {scheduleText(course.course_schedules)}
       </p>
 
-      <div className="flex gap-2 mb-6 border-b" style={{ borderColor: '#E5E9F0' }}>
+      <div className="flex gap-2 mb-6 border-b flex-wrap" style={{ borderColor: '#E5E9F0' }}>
         {tabs.map(function (t) {
           const active = tab === t.id
           return (
@@ -81,6 +83,7 @@ function CourseDetailTeacher({ course, onBack }) {
 
       <div className="bg-white rounded-2xl p-6" style={{ border: '1px solid #E5E9F0' }}>
         {tab === 'materiales' && <CourseMaterials courseId={course.id} canUpload={true} />}
+        {tab === 'actividades' && <CourseActivities courseId={course.id} />}
         {tab === 'tareas' && <CourseAssignmentsTeacher courseId={course.id} />}
         {tab === 'zoom' && <CourseZoomTeacher courseId={course.id} />}
       </div>

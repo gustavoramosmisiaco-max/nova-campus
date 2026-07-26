@@ -12,15 +12,23 @@ const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', colo
 
 export default function CourseAssignmentsTeacher({ courseId }) {
   const { session } = useAuth()
+  const [activities, setActivities] = useState([])
   const [assignments, setAssignments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
+
+  const [actividadId, setActividadId] = useState('')
   const [titulo, setTitulo] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [fechaEntrega, setFechaEntrega] = useState('')
   const [puntajeMax, setPuntajeMax] = useState(20)
+  const [competencia, setCompetencia] = useState('')
+  const [capacidad, setCapacidad] = useState('')
+  const [criterio, setCriterio] = useState('')
+  const [tema, setTema] = useState('')
+  const [desempeno, setDesempeno] = useState('')
 
   const [selectedAssignment, setSelectedAssignment] = useState(null)
   const [submissions, setSubmissions] = useState([])
@@ -30,8 +38,18 @@ export default function CourseAssignmentsTeacher({ courseId }) {
   const [preview, setPreview] = useState(null)
 
   useEffect(function () {
+    loadActivities()
     loadAssignments()
   }, [courseId])
+
+  async function loadActivities() {
+    const result = await supabase
+      .from('actividades')
+      .select('*, competencia:competencias(nombre), actividad_capacidades(capacidad:capacidades(nombre))')
+      .eq('course_id', courseId)
+      .order('created_at', { ascending: false })
+    if (!result.error) setActivities(result.data)
+  }
 
   async function loadAssignments() {
     setLoading(true)
@@ -50,10 +68,16 @@ export default function CourseAssignmentsTeacher({ courseId }) {
 
   function resetForm() {
     setEditingId(null)
+    setActividadId('')
     setTitulo('')
     setDescripcion('')
     setFechaEntrega('')
     setPuntajeMax(20)
+    setCompetencia('')
+    setCapacidad('')
+    setCriterio('')
+    setTema('')
+    setDesempeno('')
   }
 
   function openNewForm() {
@@ -63,17 +87,34 @@ export default function CourseAssignmentsTeacher({ courseId }) {
 
   function openEditForm(a) {
     setEditingId(a.id)
+    setActividadId(a.actividad_id || '')
     setTitulo(a.titulo)
     setDescripcion(a.descripcion || '')
     const d = new Date(a.fecha_entrega)
-    const pad = function (n) {
-      return String(n).padStart(2, '0')
-    }
+    const pad = function (n) { return String(n).padStart(2, '0') }
     const localFormatted =
       d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes())
     setFechaEntrega(localFormatted)
     setPuntajeMax(a.puntaje_maximo)
+    setCompetencia(a.competencia || '')
+    setCapacidad(a.capacidad || '')
+    setCriterio(a.criterio || '')
+    setTema(a.tema || '')
+    setDesempeno(a.desempeno || '')
     setShowForm(true)
+  }
+
+  function handleSelectActividad(id) {
+    setActividadId(id)
+    if (!id) return
+    const act = activities.find(function (a) { return a.id === id })
+    if (!act) return
+    setCompetencia(act.competencia ? act.competencia.nombre : '')
+    const caps = (act.actividad_capacidades || []).map(function (ac) { return ac.capacidad.nombre })
+    setCapacidad(caps.join('; '))
+    setCriterio(act.criterio || '')
+    setDesempeno(act.desempeno || '')
+    setTema(act.nombre || '')
   }
 
   async function handleSubmit(e) {
@@ -82,10 +123,16 @@ export default function CourseAssignmentsTeacher({ courseId }) {
 
     const payload = {
       course_id: courseId,
+      actividad_id: actividadId || null,
       titulo: titulo,
       descripcion: descripcion,
       fecha_entrega: fechaEntrega,
       puntaje_maximo: puntajeMax,
+      competencia: competencia,
+      capacidad: capacidad,
+      criterio: criterio,
+      tema: tema,
+      desempeno: desempeno,
     }
 
     let result
@@ -183,9 +230,14 @@ export default function CourseAssignmentsTeacher({ courseId }) {
           ← Volver a tareas
         </button>
         <h3 className="text-lg font-bold mb-1" style={{ color: NAVY_DARK }}>{selectedAssignment.titulo}</h3>
-        <p className="text-slate-500 text-sm mb-4">
+        <p className="text-slate-500 text-sm mb-1">
           Entrega: {new Date(selectedAssignment.fecha_entrega).toLocaleString('es-PE')}
         </p>
+        {selectedAssignment.competencia && (
+          <p className="text-xs mb-4" style={{ color: '#2f7a1f' }}>
+            Competencia: {selectedAssignment.competencia}
+          </p>
+        )}
 
         {subsError && <p className="text-red-500 text-sm mb-3">{subsError}</p>}
         {loadingSubs && <p className="text-slate-400 text-sm">Cargando entregas...</p>}
@@ -265,6 +317,12 @@ export default function CourseAssignmentsTeacher({ courseId }) {
         </button>
       </div>
 
+      {activities.length === 0 && showForm && (
+        <p className="text-xs mb-3" style={{ color: '#B91C1C' }}>
+          No tienes actividades creadas aún. Ve a la pestaña "Actividades" y crea una primero — así la tarea heredará su competencia, capacidad y criterio automáticamente.
+        </p>
+      )}
+
       {showForm && (
         <form
           onSubmit={handleSubmit}
@@ -274,6 +332,24 @@ export default function CourseAssignmentsTeacher({ courseId }) {
           <h4 className="text-sm font-semibold" style={{ color: NAVY_DARK }}>
             {editingId ? 'Editar tarea' : 'Nueva tarea'}
           </h4>
+
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>
+              Actividad de aprendizaje
+            </label>
+            <select
+              value={actividadId}
+              onChange={function (e) { handleSelectActividad(e.target.value) }}
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+              style={inputStyle}
+            >
+              <option value="">-- Sin actividad (completar manualmente) --</option>
+              {activities.map(function (a) {
+                return <option key={a.id} value={a.id}>{a.numero_unidad ? `${a.numero_unidad} · ` : ''}{a.nombre}</option>
+              })}
+            </select>
+          </div>
+
           <input
             type="text"
             value={titulo}
@@ -283,6 +359,7 @@ export default function CourseAssignmentsTeacher({ courseId }) {
             className="w-full rounded-lg px-3 py-2 text-sm outline-none"
             style={inputStyle}
           />
+
           <textarea
             value={descripcion}
             onChange={function (e) { setDescripcion(e.target.value) }}
@@ -291,6 +368,66 @@ export default function CourseAssignmentsTeacher({ courseId }) {
             className="w-full rounded-lg px-3 py-2 text-sm outline-none"
             style={inputStyle}
           />
+
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>
+              Competencia {actividadId ? '(heredada de la actividad, editable)' : ''}
+            </label>
+            <input
+              type="text"
+              value={competencia}
+              onChange={function (e) { setCompetencia(e.target.value) }}
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+              style={inputStyle}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Capacidad</label>
+              <input
+                type="text"
+                value={capacidad}
+                onChange={function (e) { setCapacidad(e.target.value) }}
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Criterio de evaluación</label>
+              <input
+                type="text"
+                value={criterio}
+                onChange={function (e) { setCriterio(e.target.value) }}
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Tema</label>
+              <input
+                type="text"
+                value={tema}
+                onChange={function (e) { setTema(e.target.value) }}
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Desempeño (opcional)</label>
+              <input
+                type="text"
+                value={desempeno}
+                onChange={function (e) { setDesempeno(e.target.value) }}
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Fecha y hora de entrega</label>
@@ -316,7 +453,9 @@ export default function CourseAssignmentsTeacher({ courseId }) {
               />
             </div>
           </div>
+
           {error && <p className="text-red-500 text-sm">{error}</p>}
+
           <button
             type="submit"
             className="font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
@@ -338,37 +477,43 @@ export default function CourseAssignmentsTeacher({ courseId }) {
             return (
               <li
                 key={a.id}
-                className="rounded-xl p-4 flex justify-between items-center flex-wrap gap-3"
+                className="rounded-xl p-4"
                 style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}
               >
-                <div>
-                  <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{a.titulo}</p>
-                  <p className="text-xs text-slate-500">
-                    Entrega: {new Date(a.fecha_entrega).toLocaleString('es-PE')}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={function () { openSubmissions(a) }}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
-                    style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
-                  >
-                    Ver entregas
-                  </button>
-                  <button
-                    onClick={function () { openEditForm(a) }}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
-                    style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={function () { handleDeleteAssignment(a.id) }}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90"
-                    style={{ backgroundColor: '#B91C1C' }}
-                  >
-                    Eliminar
-                  </button>
+                <div className="flex justify-between items-start flex-wrap gap-3">
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{a.titulo}</p>
+                    <p className="text-xs text-slate-500">
+                      Entrega: {new Date(a.fecha_entrega).toLocaleString('es-PE')}
+                    </p>
+                    {a.tema && <p className="text-xs text-slate-500">Tema: {a.tema}</p>}
+                    {a.competencia && (
+                      <p className="text-xs mt-1" style={{ color: '#2f7a1f' }}>{a.competencia}</p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={function () { openSubmissions(a) }}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+                      style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+                    >
+                      Ver entregas
+                    </button>
+                    <button
+                      onClick={function () { openEditForm(a) }}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+                      style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+                    >
+                      Editar
+                    </button>
+                    <button
+                      onClick={function () { handleDeleteAssignment(a.id) }}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90"
+                      style={{ backgroundColor: '#B91C1C' }}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
                 </div>
               </li>
             )
