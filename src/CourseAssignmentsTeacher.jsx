@@ -20,10 +20,12 @@ export default function CourseAssignmentsTeacher({ courseId }) {
   const [editingId, setEditingId] = useState(null)
 
   const [actividadId, setActividadId] = useState('')
+  const [capacidadId, setCapacidadId] = useState('')
   const [titulo, setTitulo] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [fechaEntrega, setFechaEntrega] = useState('')
   const [puntajeMax, setPuntajeMax] = useState(20)
+  const [instrumento, setInstrumento] = useState('')
   const [competencia, setCompetencia] = useState('')
   const [capacidad, setCapacidad] = useState('')
   const [criterio, setCriterio] = useState('')
@@ -45,7 +47,7 @@ export default function CourseAssignmentsTeacher({ courseId }) {
   async function loadActivities() {
     const result = await supabase
       .from('actividades')
-      .select('*, competencia:competencias(nombre), actividad_capacidades(capacidad:capacidades(nombre))')
+      .select('*, competencia:competencias(nombre), actividad_capacidades(criterio, desempeno, capacidad:capacidades(id, nombre, orden))')
       .eq('course_id', courseId)
       .order('created_at', { ascending: false })
     if (!result.error) setActivities(result.data)
@@ -69,10 +71,12 @@ export default function CourseAssignmentsTeacher({ courseId }) {
   function resetForm() {
     setEditingId(null)
     setActividadId('')
+    setCapacidadId('')
     setTitulo('')
     setDescripcion('')
     setFechaEntrega('')
     setPuntajeMax(20)
+    setInstrumento('')
     setCompetencia('')
     setCapacidad('')
     setCriterio('')
@@ -88,6 +92,7 @@ export default function CourseAssignmentsTeacher({ courseId }) {
   function openEditForm(a) {
     setEditingId(a.id)
     setActividadId(a.actividad_id || '')
+    setCapacidadId(a.capacidad_id || '')
     setTitulo(a.titulo)
     setDescripcion(a.descripcion || '')
     const d = new Date(a.fecha_entrega)
@@ -96,6 +101,7 @@ export default function CourseAssignmentsTeacher({ courseId }) {
       d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes())
     setFechaEntrega(localFormatted)
     setPuntajeMax(a.puntaje_maximo)
+    setInstrumento(a.instrumento_evaluacion || '')
     setCompetencia(a.competencia || '')
     setCapacidad(a.capacidad || '')
     setCriterio(a.criterio || '')
@@ -104,17 +110,29 @@ export default function CourseAssignmentsTeacher({ courseId }) {
     setShowForm(true)
   }
 
+  const actividadSeleccionada = activities.find(function (a) { return a.id === actividadId })
+  const capacidadesDeActividad = actividadSeleccionada ? actividadSeleccionada.actividad_capacidades : []
+
   function handleSelectActividad(id) {
     setActividadId(id)
+    setCapacidadId('')
+    setCapacidad('')
+    setCriterio('')
+    setDesempeno('')
     if (!id) return
     const act = activities.find(function (a) { return a.id === id })
     if (!act) return
     setCompetencia(act.competencia ? act.competencia.nombre : '')
-    const caps = (act.actividad_capacidades || []).map(function (ac) { return ac.capacidad.nombre })
-    setCapacidad(caps.join('; '))
-    setCriterio(act.criterio || '')
-    setDesempeno(act.desempeno || '')
     setTema(act.nombre || '')
+  }
+
+  function handleSelectCapacidad(capId) {
+    setCapacidadId(capId)
+    const ac = capacidadesDeActividad.find(function (x) { return x.capacidad.id === capId })
+    if (!ac) return
+    setCapacidad(ac.capacidad.nombre)
+    setCriterio(ac.criterio || '')
+    setDesempeno(ac.desempeno || '')
   }
 
   async function handleSubmit(e) {
@@ -124,10 +142,12 @@ export default function CourseAssignmentsTeacher({ courseId }) {
     const payload = {
       course_id: courseId,
       actividad_id: actividadId || null,
+      capacidad_id: capacidadId || null,
       titulo: titulo,
       descripcion: descripcion,
       fecha_entrega: fechaEntrega,
       puntaje_maximo: puntajeMax,
+      instrumento_evaluacion: instrumento,
       competencia: competencia,
       capacidad: capacidad,
       criterio: criterio,
@@ -233,6 +253,9 @@ export default function CourseAssignmentsTeacher({ courseId }) {
         <p className="text-slate-500 text-sm mb-1">
           Entrega: {new Date(selectedAssignment.fecha_entrega).toLocaleString('es-PE')}
         </p>
+        {selectedAssignment.instrumento_evaluacion && (
+          <p className="text-xs text-slate-500 mb-1">Instrumento: {selectedAssignment.instrumento_evaluacion}</p>
+        )}
         {selectedAssignment.competencia && (
           <p className="text-xs mb-4" style={{ color: '#2f7a1f' }}>
             Competencia: {selectedAssignment.competencia}
@@ -319,7 +342,7 @@ export default function CourseAssignmentsTeacher({ courseId }) {
 
       {activities.length === 0 && showForm && (
         <p className="text-xs mb-3" style={{ color: '#B91C1C' }}>
-          No tienes actividades creadas aún. Ve a la pestaña "Actividades" y crea una primero — así la tarea heredará su competencia, capacidad y criterio automáticamente.
+          No tienes actividades creadas aún. Ve a la pestaña "Actividades" y crea una primero.
         </p>
       )}
 
@@ -345,10 +368,32 @@ export default function CourseAssignmentsTeacher({ courseId }) {
             >
               <option value="">-- Sin actividad (completar manualmente) --</option>
               {activities.map(function (a) {
-                return <option key={a.id} value={a.id}>{a.numero_unidad ? `${a.numero_unidad} · ` : ''}{a.nombre}</option>
+                return <option key={a.id} value={a.id}>{a.tipo_unidad} {a.numero_unidad} · {a.nombre}</option>
               })}
             </select>
           </div>
+
+          {actividadId && capacidadesDeActividad.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>
+                ¿Qué capacidad evalúa esta tarea?
+              </label>
+              <select
+                value={capacidadId}
+                onChange={function (e) { handleSelectCapacidad(e.target.value) }}
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={inputStyle}
+              >
+                <option value="">-- Selecciona --</option>
+                {capacidadesDeActividad
+                  .slice()
+                  .sort(function (x, y) { return (x.capacidad.orden || 0) - (y.capacidad.orden || 0) })
+                  .map(function (ac) {
+                    return <option key={ac.capacidad.id} value={ac.capacidad.id}>{ac.capacidad.nombre}</option>
+                  })}
+              </select>
+            </div>
+          )}
 
           <input
             type="text"
@@ -371,7 +416,21 @@ export default function CourseAssignmentsTeacher({ courseId }) {
 
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>
-              Competencia {actividadId ? '(heredada de la actividad, editable)' : ''}
+              Instrumento de evaluación
+            </label>
+            <input
+              type="text"
+              value={instrumento}
+              onChange={function (e) { setInstrumento(e.target.value) }}
+              placeholder="Ej: Lista de cotejo, Rúbrica, Prueba escrita"
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>
+              Competencia {actividadId ? '(heredada, editable)' : ''}
             </label>
             <input
               type="text"
@@ -486,6 +545,9 @@ export default function CourseAssignmentsTeacher({ courseId }) {
                     <p className="text-xs text-slate-500">
                       Entrega: {new Date(a.fecha_entrega).toLocaleString('es-PE')}
                     </p>
+                    {a.instrumento_evaluacion && (
+                      <p className="text-xs text-slate-500">Instrumento: {a.instrumento_evaluacion}</p>
+                    )}
                     {a.tema && <p className="text-xs text-slate-500">Tema: {a.tema}</p>}
                     {a.competencia && (
                       <p className="text-xs mt-1" style={{ color: '#2f7a1f' }}>{a.competencia}</p>

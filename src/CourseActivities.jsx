@@ -8,6 +8,8 @@ const GREEN = '#5DAA47'
 const GREEN_DARK = '#2f7a1f'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
+const TIPOS_UNIDAD = ['Unidad', 'Experiencia de aprendizaje']
+const NUMEROS_UNIDAD = [1, 2, 3, 4, 5, 6]
 
 function getArea(nombreCurso) {
   return nombreCurso === 'Matematica' ? 'Matematica' : 'Ciencia y Tecnologia'
@@ -24,12 +26,12 @@ export default function CourseActivities({ courseId }) {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
 
-  const [numeroUnidad, setNumeroUnidad] = useState('')
+  const [tipoUnidad, setTipoUnidad] = useState('Unidad')
+  const [numeroUnidad, setNumeroUnidad] = useState(1)
   const [nombre, setNombre] = useState('')
+  const [proposito, setProposito] = useState('')
   const [competenciaId, setCompetenciaId] = useState('')
-  const [selectedCapacidades, setSelectedCapacidades] = useState([])
-  const [criterio, setCriterio] = useState('')
-  const [desempeno, setDesempeno] = useState('')
+  const [detalles, setDetalles] = useState({})
 
   useEffect(function () {
     init()
@@ -52,7 +54,7 @@ export default function CourseActivities({ courseId }) {
   async function loadActivities() {
     const result = await supabase
       .from('actividades')
-      .select('*, competencia:competencias(nombre, codigo), actividad_capacidades(capacidad:capacidades(id, nombre))')
+      .select('*, competencia:competencias(nombre, codigo), actividad_capacidades(criterio, desempeno, capacidad:capacidades(id, nombre, orden))')
       .eq('course_id', courseId)
       .order('created_at', { ascending: false })
 
@@ -68,18 +70,18 @@ export default function CourseActivities({ courseId }) {
       setCapacidadesDisponibles([])
       return
     }
-    const result = await supabase.from('capacidades').select('*').eq('competencia_id', compId).order('nombre')
+    const result = await supabase.from('capacidades').select('*').eq('competencia_id', compId).order('orden')
     setCapacidadesDisponibles(result.data || [])
   }
 
   function resetForm() {
     setEditingId(null)
-    setNumeroUnidad('')
+    setTipoUnidad('Unidad')
+    setNumeroUnidad(1)
     setNombre('')
+    setProposito('')
     setCompetenciaId('')
-    setSelectedCapacidades([])
-    setCriterio('')
-    setDesempeno('')
+    setDetalles({})
     setCapacidadesDisponibles([])
   }
 
@@ -90,21 +92,35 @@ export default function CourseActivities({ courseId }) {
 
   async function openEditForm(a) {
     setEditingId(a.id)
-    setNumeroUnidad(a.numero_unidad || '')
+    setTipoUnidad(a.tipo_unidad || 'Unidad')
+    setNumeroUnidad(a.numero_unidad ? Number(a.numero_unidad) : 1)
     setNombre(a.nombre)
-    setCriterio(a.criterio || '')
-    setDesempeno(a.desempeno || '')
+    setProposito(a.proposito || '')
     const compId = a.competencia ? competencias.find(function (c) { return c.nombre === a.competencia.nombre })?.id : ''
     setCompetenciaId(compId || '')
     if (compId) await loadCapacidadesFor(compId)
-    const capIds = (a.actividad_capacidades || []).map(function (ac) { return ac.capacidad.id })
-    setSelectedCapacidades(capIds)
+
+    const newDetalles = {}
+    ;(a.actividad_capacidades || []).forEach(function (ac) {
+      newDetalles[ac.capacidad.id] = { checked: true, criterio: ac.criterio || '', desempeno: ac.desempeno || '' }
+    })
+    setDetalles(newDetalles)
     setShowForm(true)
   }
 
   function toggleCapacidad(id) {
-    setSelectedCapacidades(function (prev) {
-      return prev.includes(id) ? prev.filter(function (c) { return c !== id }) : [...prev, id]
+    setDetalles(function (prev) {
+      const existing = prev[id]
+      if (existing && existing.checked) {
+        return { ...prev, [id]: { ...existing, checked: false } }
+      }
+      return { ...prev, [id]: { checked: true, criterio: existing?.criterio || '', desempeno: existing?.desempeno || '' } }
+    })
+  }
+
+  function updateDetalle(id, field, value) {
+    setDetalles(function (prev) {
+      return { ...prev, [id]: { ...prev[id], [field]: value } }
     })
   }
 
@@ -114,11 +130,11 @@ export default function CourseActivities({ courseId }) {
 
     const payload = {
       course_id: courseId,
-      numero_unidad: numeroUnidad,
+      tipo_unidad: tipoUnidad,
+      numero_unidad: String(numeroUnidad),
       nombre: nombre,
+      proposito: proposito,
       competencia_id: competenciaId || null,
-      criterio: criterio,
-      desempeno: desempeno,
     }
 
     let actividadId = editingId
@@ -139,9 +155,16 @@ export default function CourseActivities({ courseId }) {
     if (editingId) {
       await supabase.from('actividad_capacidades').delete().eq('actividad_id', actividadId)
     }
-    if (selectedCapacidades.length > 0) {
-      const capsPayload = selectedCapacidades.map(function (capId) {
-        return { actividad_id: actividadId, capacidad_id: capId }
+
+    const selectedIds = Object.keys(detalles).filter(function (id) { return detalles[id].checked })
+    if (selectedIds.length > 0) {
+      const capsPayload = selectedIds.map(function (capId) {
+        return {
+          actividad_id: actividadId,
+          capacidad_id: capId,
+          criterio: detalles[capId].criterio || '',
+          desempeno: detalles[capId].desempeno || '',
+        }
       })
       const capsResult = await supabase.from('actividad_capacidades').insert(capsPayload)
       if (capsResult.error) {
@@ -195,32 +218,74 @@ export default function CourseActivities({ courseId }) {
             {editingId ? 'Editar actividad' : 'Nueva actividad'}
           </h4>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>
-                Unidad / Experiencia de aprendizaje
-              </label>
-              <input
-                type="text"
-                value={numeroUnidad}
-                onChange={function (e) { setNumeroUnidad(e.target.value) }}
-                placeholder="Ej: Unidad 3"
-                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-                style={inputStyle}
-              />
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Tipo</label>
+            <div className="flex gap-2 mb-2">
+              {TIPOS_UNIDAD.map(function (t) {
+                const active = tipoUnidad === t
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={function () { setTipoUnidad(t) }}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+                    style={
+                      active
+                        ? { backgroundColor: GREEN, color: 'white' }
+                        : { backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }
+                    }
+                  >
+                    {t}
+                  </button>
+                )
+              })}
             </div>
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Nombre de la actividad</label>
-              <input
-                type="text"
-                value={nombre}
-                onChange={function (e) { setNombre(e.target.value) }}
-                required
-                placeholder="Ej: La célula y sus funciones"
-                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-                style={inputStyle}
-              />
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Número</label>
+            <div className="flex gap-2 flex-wrap">
+              {NUMEROS_UNIDAD.map(function (n) {
+                const active = numeroUnidad === n
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={function () { setNumeroUnidad(n) }}
+                    className="w-9 h-9 rounded-lg text-sm font-semibold transition"
+                    style={
+                      active
+                        ? { backgroundColor: NAVY, color: 'white' }
+                        : { backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }
+                    }
+                  >
+                    {n}
+                  </button>
+                )
+              })}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Nombre de la actividad</label>
+            <input
+              type="text"
+              value={nombre}
+              onChange={function (e) { setNombre(e.target.value) }}
+              required
+              placeholder="Ej: La célula y sus funciones"
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Propósito</label>
+            <textarea
+              value={proposito}
+              onChange={function (e) { setProposito(e.target.value) }}
+              rows={2}
+              placeholder="Propósito de aprendizaje de esta actividad"
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+              style={inputStyle}
+            />
           </div>
 
           <div>
@@ -229,7 +294,7 @@ export default function CourseActivities({ courseId }) {
               value={competenciaId}
               onChange={async function (e) {
                 setCompetenciaId(e.target.value)
-                setSelectedCapacidades([])
+                setDetalles({})
                 await loadCapacidadesFor(e.target.value)
               }}
               className="w-full rounded-lg px-3 py-2 text-sm outline-none"
@@ -244,55 +309,50 @@ export default function CourseActivities({ courseId }) {
 
           {capacidadesDisponibles.length > 0 && (
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>
-                Capacidades (elige una o varias)
+              <label className="block text-xs font-medium mb-2" style={{ color: NAVY_DARK }}>
+                Capacidades a evaluar (marca una o varias — cada una con su propio criterio y desempeño)
               </label>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {capacidadesDisponibles.map(function (cap) {
-                  const checked = selectedCapacidades.includes(cap.id)
+                  const det = detalles[cap.id]
+                  const checked = det?.checked || false
                   return (
-                    <label
-                      key={cap.id}
-                      className="flex items-start gap-2 text-sm rounded-lg px-3 py-2 cursor-pointer"
-                      style={{ backgroundColor: 'white', border: '1px solid #D6DCE5' }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={function () { toggleCapacidad(cap.id) }}
-                        className="mt-0.5"
-                      />
-                      <span style={{ color: NAVY_DARK }}>{cap.nombre}</span>
-                    </label>
+                    <div key={cap.id} className="rounded-lg p-3" style={{ backgroundColor: 'white', border: '1px solid #D6DCE5' }}>
+                      <label className="flex items-start gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={function () { toggleCapacidad(cap.id) }}
+                          className="mt-0.5"
+                        />
+                        <span style={{ color: NAVY_DARK }}>{cap.nombre}</span>
+                      </label>
+                      {checked && (
+                        <div className="mt-2 pl-6 space-y-2">
+                          <input
+                            type="text"
+                            value={det?.criterio || ''}
+                            onChange={function (e) { updateDetalle(cap.id, 'criterio', e.target.value) }}
+                            placeholder="Criterio de evaluación para esta capacidad"
+                            className="w-full rounded-lg px-3 py-1.5 text-xs outline-none"
+                            style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }}
+                          />
+                          <input
+                            type="text"
+                            value={det?.desempeno || ''}
+                            onChange={function (e) { updateDetalle(cap.id, 'desempeno', e.target.value) }}
+                            placeholder="Desempeño para esta capacidad (opcional)"
+                            className="w-full rounded-lg px-3 py-1.5 text-xs outline-none"
+                            style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }}
+                          />
+                        </div>
+                      )}
+                    </div>
                   )
                 })}
               </div>
             </div>
           )}
-
-          <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Criterio de evaluación</label>
-            <textarea
-              value={criterio}
-              onChange={function (e) { setCriterio(e.target.value) }}
-              rows={2}
-              placeholder="Ej: Registra datos con precisión usando instrumentos adecuados"
-              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-              style={inputStyle}
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Desempeño (opcional)</label>
-            <textarea
-              value={desempeno}
-              onChange={function (e) { setDesempeno(e.target.value) }}
-              rows={2}
-              placeholder="Desempeño precisado de la sesión"
-              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-              style={inputStyle}
-            />
-          </div>
 
           {error && <p className="text-red-500 text-sm">{error}</p>}
 
@@ -320,28 +380,29 @@ export default function CourseActivities({ courseId }) {
                 <div className="flex justify-between items-start flex-wrap gap-3">
                   <div>
                     <p className="text-xs font-semibold" style={{ color: GREEN_DARK }}>
-                      {a.numero_unidad || 'Sin unidad'}
+                      {a.tipo_unidad || 'Unidad'} {a.numero_unidad}
                     </p>
                     <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{a.nombre}</p>
+                    {a.proposito && <p className="text-xs text-slate-500 mt-1">Propósito: {a.proposito}</p>}
                     {a.competencia && (
                       <p className="text-xs text-slate-500 mt-1">{a.competencia.codigo} — {a.competencia.nombre}</p>
                     )}
                     {a.actividad_capacidades && a.actividad_capacidades.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {a.actividad_capacidades.map(function (ac) {
-                          return (
-                            <span
-                              key={ac.capacidad.id}
-                              className="text-xs px-2 py-0.5 rounded-full"
-                              style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
-                            >
-                              {ac.capacidad.nombre}
-                            </span>
-                          )
-                        })}
+                      <div className="mt-2 space-y-1.5">
+                        {a.actividad_capacidades
+                          .slice()
+                          .sort(function (x, y) { return (x.capacidad.orden || 0) - (y.capacidad.orden || 0) })
+                          .map(function (ac, i) {
+                            return (
+                              <div key={i} className="text-xs rounded-lg px-2 py-1.5" style={{ backgroundColor: 'white', border: '1px solid #E5E9F0' }}>
+                                <p className="font-medium" style={{ color: NAVY }}>{ac.capacidad.nombre}</p>
+                                {ac.criterio && <p className="text-slate-500">Criterio: {ac.criterio}</p>}
+                                {ac.desempeno && <p className="text-slate-500">Desempeño: {ac.desempeno}</p>}
+                              </div>
+                            )
+                          })}
                       </div>
                     )}
-                    {a.criterio && <p className="text-xs text-slate-500 mt-2">Criterio: {a.criterio}</p>}
                   </div>
                   <div className="flex gap-2">
                     <button

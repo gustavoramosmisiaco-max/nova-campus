@@ -5,6 +5,7 @@ import CourseMaterials from './CourseMaterials'
 import CourseActivities from './CourseActivities'
 import CourseAssignmentsTeacher from './CourseAssignmentsTeacher'
 import CourseZoomTeacher from './CourseZoomTeacher'
+import RegistroAuxiliar from './RegistroAuxiliar'
 
 const DIAS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 const GRADOS = [1, 2, 3, 4, 5]
@@ -33,6 +34,7 @@ function CourseDetailTeacher({ course, onBack }) {
     { id: 'materiales', label: 'Materiales' },
     { id: 'actividades', label: 'Actividades' },
     { id: 'tareas', label: 'Tareas' },
+    { id: 'registro', label: 'Registro Auxiliar' },
     { id: 'zoom', label: 'Videoclases' },
   ]
 
@@ -85,6 +87,14 @@ function CourseDetailTeacher({ course, onBack }) {
         {tab === 'materiales' && <CourseMaterials courseId={course.id} canUpload={true} />}
         {tab === 'actividades' && <CourseActivities courseId={course.id} />}
         {tab === 'tareas' && <CourseAssignmentsTeacher courseId={course.id} />}
+        {tab === 'registro' && (
+          <RegistroAuxiliar
+            courseId={course.id}
+            courseNombre={course.nombre}
+            courseGrado={course.grado}
+            courseGrupo={course.grupo}
+          />
+        )}
         {tab === 'zoom' && <CourseZoomTeacher courseId={course.id} />}
       </div>
     </div>
