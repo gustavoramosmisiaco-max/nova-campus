@@ -1,26 +1,35 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
+import { useAuth } from './AuthContext'
 import { getLetterGrade } from './gradeUtils'
 
 const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN_DARK = '#2f7a1f'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 
-const NIVELES_RUBRICA = [
-  { letra: 'AD', nombre: 'Logro destacado', rango: '18-20', color: '#2f7a1f' },
-  { letra: 'A', nombre: 'Logro esperado', rango: '14-17', color: '#1d5c8f' },
-  { letra: 'B', nombre: 'En proceso', rango: '11-13', color: '#B45309' },
-  { letra: 'C', nombre: 'En inicio', rango: '0-10', color: '#B91C1C' },
+const NIVELES = [
+  { letra: 'AD', nombre: 'Logro destacado', color: '#2f7a1f' },
+  { letra: 'A', nombre: 'Logro esperado', color: '#1d5c8f' },
+  { letra: 'B', nombre: 'En proceso', color: '#B45309' },
+  { letra: 'C', nombre: 'En inicio', color: '#B91C1C' },
 ]
+
+const tableCell = { border: '1px solid #94A3B8', padding: '6px 8px', fontSize: '12px' }
+const tableHeadCell = { ...tableCell, backgroundColor: '#F4F6F9', fontWeight: 700, color: NAVY_DARK }
+
+function todayFormatted() {
+  const d = new Date()
+  const pad = function (n) { return String(n).padStart(2, '0') }
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`
+}
 
 function average(numbers) {
   if (numbers.length === 0) return null
   return numbers.reduce(function (a, b) { return a + b }, 0) / numbers.length
 }
 
-export default function InstrumentoEvaluacion({ courseId }) {
+export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGrado, courseGrupo }) {
+  const { profile } = useAuth()
   const [activities, setActivities] = useState([])
   const [selectedId, setSelectedId] = useState('')
   const [loading, setLoading] = useState(true)
@@ -35,7 +44,7 @@ export default function InstrumentoEvaluacion({ courseId }) {
     setLoading(true)
     const result = await supabase
       .from('actividades')
-      .select('id, nombre, numero_actividad, tipo_instrumento, actividad_capacidades(criterio, capacidad:capacidades(id, nombre, orden))')
+      .select('id, nombre, numero_actividad, proposito, tipo_instrumento, competencia:competencias(nombre), actividad_capacidades(criterio, desempeno, desc_ad, desc_a, desc_b, desc_c, capacidad:capacidades(id, nombre, orden))')
       .eq('course_id', courseId)
       .order('created_at', { ascending: true })
     if (!result.error) setActivities(result.data)
@@ -56,10 +65,7 @@ export default function InstrumentoEvaluacion({ courseId }) {
       .slice()
       .sort(function (x, y) { return (x.capacidad.orden || 0) - (y.capacidad.orden || 0) })
 
-    const assignResult = await supabase
-      .from('assignments')
-      .select('id')
-      .eq('actividad_id', actividadId)
+    const assignResult = await supabase.from('assignments').select('id').eq('actividad_id', actividadId)
     if (assignResult.error) {
       setError(assignResult.error.message)
       setLoading(false)
@@ -77,14 +83,13 @@ export default function InstrumentoEvaluacion({ courseId }) {
       setLoading(false)
       return
     }
-    const students = enrollResult.data.map(function (e) { return e.student }).sort(function (a, b) { return a.full_name.localeCompare(b.full_name) })
+    const students = enrollResult.data
+      .map(function (e) { return e.student })
+      .sort(function (a, b) { return a.full_name.localeCompare(b.full_name) })
 
     let cellValues = {}
     if (assignmentIds.length > 0) {
-      const subsResult = await supabase
-        .from('submissions')
-        .select('id, student_id')
-        .in('assignment_id', assignmentIds)
+      const subsResult = await supabase.from('submissions').select('id, student_id').in('assignment_id', assignmentIds)
       if (!subsResult.error) {
         const submissionIds = subsResult.data.map(function (s) { return s.id })
         const subMap = {}
@@ -112,6 +117,7 @@ export default function InstrumentoEvaluacion({ courseId }) {
     }
 
     setMatrix({
+      actividad: actividad,
       tipoInstrumento: actividad.tipo_instrumento || 'Lista de cotejo',
       capacidades: capacidades,
       students: students,
@@ -146,87 +152,227 @@ export default function InstrumentoEvaluacion({ courseId }) {
           <p className="text-slate-400 text-sm">Cargando...</p>
         ) : !matrix || matrix.capacidades.length === 0 ? (
           <p className="text-slate-400 text-sm">Esta actividad no tiene capacidades vinculadas.</p>
+        ) : matrix.tipoInstrumento === 'Rúbrica' ? (
+          <RubricaView matrix={matrix} courseGrado={courseGrado} courseGrupo={courseGrupo} docente={profile?.full_name} />
         ) : (
-          <>
-            <p className="text-xs font-semibold mb-3" style={{ color: GREEN_DARK }}>
-              {matrix.tipoInstrumento}
-            </p>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr style={{ borderBottom: '1px solid #E5E9F0' }}>
-                    <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Criterio</th>
-                    {matrix.students.map(function (s) {
-                      return (
-                        <th key={s.id} className="text-center py-2 px-2 font-semibold text-xs" style={{ color: NAVY_DARK }}>
-                          {s.full_name}
-                        </th>
-                      )
-                    })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {matrix.capacidades.map(function (cap) {
-                    return (
-                      <tr key={cap.capacidad.id} style={{ borderBottom: '1px solid #F4F6F9' }}>
-                        <td className="py-2 pr-3" style={{ color: NAVY_DARK }}>
-                          <p className="font-medium">{cap.capacidad.nombre}</p>
-                          {cap.criterio && <p className="text-xs text-slate-500">{cap.criterio}</p>}
-                        </td>
-                        {matrix.students.map(function (s) {
-                          const score = matrix.cellValues[`${s.id}__${cap.capacidad.id}`]
-                          if (matrix.tipoInstrumento === 'Rúbrica') {
-                            const nivel = score != null ? NIVELES_RUBRICA.find(function (n) { return n.letra === getLetterGrade(score) }) : null
-                            return (
-                              <td key={s.id} className="text-center py-2 px-2 text-xs">
-                                {score != null ? (
-                                  <span className="font-semibold" style={{ color: nivel?.color }}>
-                                    {nivel?.letra} ({score.toFixed(1)})
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-300">—</span>
-                                )}
-                              </td>
-                            )
-                          }
-                          return (
-                            <td key={s.id} className="text-center py-2 px-2 text-xs">
-                              {score == null ? (
-                                <span className="text-slate-300">—</span>
-                              ) : score >= 11 ? (
-                                <span className="font-semibold" style={{ color: '#2f7a1f' }}>Logrado ✓</span>
-                              ) : (
-                                <span className="font-semibold" style={{ color: '#B91C1C' }}>No logrado</span>
-                              )}
-                            </td>
-                          )
-                        })}
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {matrix.tipoInstrumento === 'Rúbrica' && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {NIVELES_RUBRICA.map(function (n) {
-                  return (
-                    <span
-                      key={n.letra}
-                      className="text-xs px-2.5 py-1 rounded-full"
-                      style={{ backgroundColor: '#F4F6F9', color: n.color, border: '1px solid #E5E9F0' }}
-                    >
-                      {n.letra} = {n.nombre} ({n.rango})
-                    </span>
-                  )
-                })}
-              </div>
-            )}
-          </>
+          <ListaCotejoView matrix={matrix} courseGrado={courseGrado} courseGrupo={courseGrupo} />
         )
       )}
+    </div>
+  )
+}
+
+function HeaderBlock({ courseGrado, courseGrupo, extra }) {
+  return (
+    <table style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '16px' }}>
+      <tbody>
+        <tr>
+          <td style={tableHeadCell}>Fecha:</td>
+          <td style={tableCell}>{todayFormatted()}</td>
+          <td style={tableHeadCell}>Grado:</td>
+          <td style={tableCell}>{courseGrado}° SECUNDARIA</td>
+          <td style={tableHeadCell}>Sección:</td>
+          <td style={tableCell}>{courseGrupo}</td>
+        </tr>
+        {extra}
+      </tbody>
+    </table>
+  )
+}
+
+function ListaCotejoView({ matrix, courseGrado, courseGrupo }) {
+  const a = matrix.actividad
+  return (
+    <div className="overflow-x-auto">
+      <HeaderBlock
+        courseGrado={courseGrado}
+        courseGrupo={courseGrupo}
+        extra={
+          <>
+            <tr>
+              <td style={tableHeadCell}>Propósito:</td>
+              <td style={tableCell} colSpan={5}>{a.proposito || '—'}</td>
+            </tr>
+            <tr>
+              <td style={tableHeadCell}>Competencia:</td>
+              <td style={tableCell} colSpan={5}>{a.competencia?.nombre || '—'}</td>
+            </tr>
+            <tr>
+              <td style={tableHeadCell}>Actividad:</td>
+              <td style={tableCell} colSpan={5}>{a.nombre}</td>
+            </tr>
+          </>
+        }
+      />
+
+      <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+        <thead>
+          <tr>
+            <td style={{ ...tableHeadCell, textAlign: 'center' }} colSpan={matrix.capacidades.length}>
+              CRITERIO DE EVALUACIÓN
+            </td>
+          </tr>
+          <tr>
+            {matrix.capacidades.map(function (cap, i) {
+              return (
+                <td key={cap.capacidad.id} style={{ ...tableHeadCell, textAlign: 'center' }}>
+                  capacidad {i + 1}
+                </td>
+              )
+            })}
+          </tr>
+          <tr>
+            {matrix.capacidades.map(function (cap) {
+              return (
+                <td key={cap.capacidad.id} style={{ ...tableCell, color: '#1d5c8f', verticalAlign: 'top' }}>
+                  <p style={{ marginBottom: 4 }}>{cap.criterio || cap.capacidad.nombre}</p>
+                  {cap.desempeno && <p style={{ color: NAVY_DARK }}>{cap.desempeno}</p>}
+                </td>
+              )
+            })}
+          </tr>
+        </thead>
+      </table>
+
+      <table style={{ borderCollapse: 'collapse', width: '100%', marginTop: '-1px' }}>
+        <thead>
+          <tr>
+            <td style={{ ...tableHeadCell, width: 40 }}>N°</td>
+            <td style={{ ...tableHeadCell, minWidth: 220 }}>APELLIDOS Y NOMBRES</td>
+            {matrix.capacidades.map(function (cap) {
+              return (
+                <td key={cap.capacidad.id} style={{ ...tableHeadCell, textAlign: 'center' }} colSpan={4}>
+                  calificación
+                </td>
+              )
+            })}
+          </tr>
+          <tr>
+            <td style={tableHeadCell}></td>
+            <td style={tableHeadCell}></td>
+            {matrix.capacidades.map(function (cap) {
+              return NIVELES.map(function (n) {
+                return (
+                  <td key={cap.capacidad.id + n.letra} style={{ ...tableHeadCell, textAlign: 'center', color: n.color }}>
+                    {n.letra}
+                  </td>
+                )
+              })
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {matrix.students.map(function (s, idx) {
+            return (
+              <tr key={s.id}>
+                <td style={{ ...tableCell, textAlign: 'center' }}>{idx + 1}</td>
+                <td style={tableCell}>{s.full_name}</td>
+                {matrix.capacidades.map(function (cap) {
+                  const score = matrix.cellValues[`${s.id}__${cap.capacidad.id}`]
+                  const letra = score != null ? getLetterGrade(score) : null
+                  return NIVELES.map(function (n) {
+                    return (
+                      <td key={cap.capacidad.id + n.letra} style={{ ...tableCell, textAlign: 'center' }}>
+                        {letra === n.letra ? <span style={{ fontWeight: 700, color: n.color }}>X</span> : ''}
+                      </td>
+                    )
+                  })
+                })}
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function RubricaView({ matrix, courseGrado, courseGrupo, docente }) {
+  const a = matrix.actividad
+  return (
+    <div className="overflow-x-auto space-y-8">
+      <HeaderBlock
+        courseGrado={courseGrado}
+        courseGrupo={courseGrupo}
+        extra={
+          <>
+            <tr>
+              <td style={tableHeadCell}>Competencia:</td>
+              <td style={tableCell} colSpan={5}>{a.competencia?.nombre || '—'}</td>
+            </tr>
+            <tr>
+              <td style={tableHeadCell}>Propósito:</td>
+              <td style={tableCell} colSpan={5}>{a.proposito || '—'}</td>
+            </tr>
+            <tr>
+              <td style={tableHeadCell}>Actividad:</td>
+              <td style={tableCell} colSpan={5}>{a.nombre}</td>
+            </tr>
+            <tr>
+              <td style={tableHeadCell}>Docente:</td>
+              <td style={tableCell} colSpan={5}>{docente || '—'}</td>
+            </tr>
+          </>
+        }
+      />
+
+      {matrix.capacidades.map(function (cap) {
+        return (
+          <div key={cap.capacidad.id}>
+            <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+              <thead>
+                <tr>
+                  <td style={{ ...tableHeadCell, textAlign: 'center' }} colSpan={5}>CAPACIDADES/CRITERIOS</td>
+                </tr>
+                <tr>
+                  <td style={{ ...tableCell, width: '18%', fontWeight: 700, color: NAVY_DARK }}>
+                    {cap.capacidad.nombre}
+                    {cap.criterio && <p style={{ fontWeight: 400, marginTop: 4, color: '#475569' }}>{cap.criterio}</p>}
+                  </td>
+                  {NIVELES.map(function (n) {
+                    const descKey = 'desc_' + n.letra.toLowerCase()
+                    return (
+                      <td key={n.letra} style={{ ...tableCell, verticalAlign: 'top' }}>
+                        <p style={{ fontWeight: 700, color: n.color, marginBottom: 4 }}>{n.letra}</p>
+                        <p>{cap[descKey] || '—'}</p>
+                      </td>
+                    )
+                  })}
+                </tr>
+              </thead>
+            </table>
+
+            <table style={{ borderCollapse: 'collapse', width: '100%', marginTop: '-1px' }}>
+              <thead>
+                <tr>
+                  <td style={{ ...tableHeadCell, width: 40 }}>N°</td>
+                  <td style={{ ...tableHeadCell, minWidth: 220 }}>Apellidos y Nombres</td>
+                  <td style={{ ...tableHeadCell, textAlign: 'center' }}>Calificación</td>
+                </tr>
+              </thead>
+              <tbody>
+                {matrix.students.map(function (s, idx) {
+                  const score = matrix.cellValues[`${s.id}__${cap.capacidad.id}`]
+                  const nivel = score != null ? NIVELES.find(function (n) { return n.letra === getLetterGrade(score) }) : null
+                  return (
+                    <tr key={s.id}>
+                      <td style={{ ...tableCell, textAlign: 'center' }}>{idx + 1}</td>
+                      <td style={tableCell}>{s.full_name}</td>
+                      <td style={{ ...tableCell, textAlign: 'center' }}>
+                        {nivel ? (
+                          <span style={{ fontWeight: 700, color: nivel.color }}>{nivel.letra} ({score.toFixed(1)})</span>
+                        ) : (
+                          <span style={{ color: '#94A3B8' }}>—</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      })}
     </div>
   )
 }

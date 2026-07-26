@@ -89,7 +89,14 @@ function CourseDetailTeacher({ course, onBack }) {
         {tab === 'materiales' && <CourseMaterials courseId={course.id} canUpload={true} />}
         {tab === 'actividades' && <CourseActivities courseId={course.id} />}
         {tab === 'tareas' && <CourseAssignmentsTeacher courseId={course.id} />}
-        {tab === 'instrumento' && <InstrumentoEvaluacion courseId={course.id} />}
+        {tab === 'instrumento' && (
+          <InstrumentoEvaluacion
+            courseId={course.id}
+            courseNombre={course.nombre}
+            courseGrado={course.grado}
+            courseGrupo={course.grupo}
+          />
+        )}
         {tab === 'registro' && (
           <RegistroAuxiliar
             courseId={course.id}

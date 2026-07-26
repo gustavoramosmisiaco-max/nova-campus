@@ -55,7 +55,7 @@ export default function CourseActivities({ courseId }) {
   async function loadActivities() {
     const result = await supabase
       .from('actividades')
-      .select('*, competencia:competencias(nombre, codigo), actividad_capacidades(criterio, desempeno, capacidad:capacidades(id, nombre, orden))')
+      .select('*, competencia:competencias(nombre, codigo), actividad_capacidades(criterio, desempeno, desc_ad, desc_a, desc_b, desc_c, capacidad:capacidades(id, nombre, orden))')
       .eq('course_id', courseId)
       .order('created_at', { ascending: true })
 
@@ -105,7 +105,15 @@ export default function CourseActivities({ courseId }) {
 
     const newDetalles = {}
     ;(a.actividad_capacidades || []).forEach(function (ac) {
-      newDetalles[ac.capacidad.id] = { checked: true, criterio: ac.criterio || '', desempeno: ac.desempeno || '' }
+      newDetalles[ac.capacidad.id] = {
+        checked: true,
+        criterio: ac.criterio || '',
+        desempeno: ac.desempeno || '',
+        desc_ad: ac.desc_ad || '',
+        desc_a: ac.desc_a || '',
+        desc_b: ac.desc_b || '',
+        desc_c: ac.desc_c || '',
+      }
     })
     setDetalles(newDetalles)
     setShowForm(true)
@@ -172,6 +180,10 @@ export default function CourseActivities({ courseId }) {
           capacidad_id: capId,
           criterio: detalles[capId].criterio || '',
           desempeno: detalles[capId].desempeno || '',
+          desc_ad: detalles[capId].desc_ad || '',
+          desc_a: detalles[capId].desc_a || '',
+          desc_b: detalles[capId].desc_b || '',
+          desc_c: detalles[capId].desc_c || '',
         }
       })
       const capsResult = await supabase.from('actividad_capacidades').insert(capsPayload)
@@ -367,22 +379,61 @@ export default function CourseActivities({ courseId }) {
                       </label>
                       {checked && (
                         <div className="mt-2 pl-6 space-y-2">
-                          <input
-                            type="text"
-                            value={det?.criterio || ''}
-                            onChange={function (e) { updateDetalle(cap.id, 'criterio', e.target.value) }}
-                            placeholder="Criterio de evaluación para esta capacidad"
-                            className="w-full rounded-lg px-3 py-1.5 text-xs outline-none"
-                            style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }}
-                          />
-                          <input
-                            type="text"
-                            value={det?.desempeno || ''}
-                            onChange={function (e) { updateDetalle(cap.id, 'desempeno', e.target.value) }}
-                            placeholder="Desempeño para esta capacidad (opcional)"
-                            className="w-full rounded-lg px-3 py-1.5 text-xs outline-none"
-                            style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }}
-                          />
+                          {tipoInstrumento === 'Rúbrica' ? (
+                            <>
+                              <textarea
+                                value={det?.desc_ad || ''}
+                                onChange={function (e) { updateDetalle(cap.id, 'desc_ad', e.target.value) }}
+                                placeholder="Descripción nivel AD (Logro destacado)"
+                                rows={2}
+                                className="w-full rounded-lg px-3 py-1.5 text-xs outline-none"
+                                style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }}
+                              />
+                              <textarea
+                                value={det?.desc_a || ''}
+                                onChange={function (e) { updateDetalle(cap.id, 'desc_a', e.target.value) }}
+                                placeholder="Descripción nivel A (Logro esperado)"
+                                rows={2}
+                                className="w-full rounded-lg px-3 py-1.5 text-xs outline-none"
+                                style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }}
+                              />
+                              <textarea
+                                value={det?.desc_b || ''}
+                                onChange={function (e) { updateDetalle(cap.id, 'desc_b', e.target.value) }}
+                                placeholder="Descripción nivel B (En proceso)"
+                                rows={2}
+                                className="w-full rounded-lg px-3 py-1.5 text-xs outline-none"
+                                style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }}
+                              />
+                              <textarea
+                                value={det?.desc_c || ''}
+                                onChange={function (e) { updateDetalle(cap.id, 'desc_c', e.target.value) }}
+                                placeholder="Descripción nivel C (En inicio)"
+                                rows={2}
+                                className="w-full rounded-lg px-3 py-1.5 text-xs outline-none"
+                                style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }}
+                              />
+                            </>
+                          ) : (
+                            <>
+                              <input
+                                type="text"
+                                value={det?.criterio || ''}
+                                onChange={function (e) { updateDetalle(cap.id, 'criterio', e.target.value) }}
+                                placeholder="Criterio de evaluación para esta capacidad"
+                                className="w-full rounded-lg px-3 py-1.5 text-xs outline-none"
+                                style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }}
+                              />
+                              <input
+                                type="text"
+                                value={det?.desempeno || ''}
+                                onChange={function (e) { updateDetalle(cap.id, 'desempeno', e.target.value) }}
+                                placeholder="Desempeño para esta capacidad (opcional)"
+                                className="w-full rounded-lg px-3 py-1.5 text-xs outline-none"
+                                style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }}
+                              />
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
