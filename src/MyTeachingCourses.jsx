@@ -121,7 +121,7 @@ export default function MyTeachingCourses() {
     setLoading(true)
     const result = await supabase
       .from('courses')
-      .select('id, nombre, grupo, grado, course_schedules(*), enrollments(count), asignaturas!inner(activo)')
+      .select('id, nombre, grupo, grado, course_schedules(*), enrollments(count), asignaturas!inner(activo, areas_curriculares(nombre))')
       .eq('docente_id', session.user.id)
       .eq('asignaturas.activo', true)
       .order('grado', { ascending: true })
@@ -200,48 +200,63 @@ export default function MyTeachingCourses() {
           <p className="text-slate-400 text-sm">No tienes cursos en esta aula.</p>
         </div>
       ) : (
-        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {filteredCourses.map(function (c) {
-            return (
-              <button
-                key={c.id}
-                onClick={function () { setSelectedCourse(c) }}
-                className="text-left bg-white rounded-2xl p-5 space-y-2 transition hover:-translate-y-0.5"
-                style={{
-                  border: '1px solid #E5E9F0',
-                  boxShadow: '0 1px 3px rgba(15,42,74,0.06)',
-                }}
-              >
-                <div className="flex items-center justify-between">
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center"
-                    style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}
-                  >
-                    <BookIcon />
+        <div className="space-y-8">
+          {(function () {
+            const areasUnicas = [...new Set(filteredCourses.map(function (c) { return c.asignaturas?.areas_curriculares?.nombre || 'Otras' }))]
+            return areasUnicas.map(function (areaNombre) {
+              const cursosDelArea = filteredCourses.filter(function (c) {
+                return (c.asignaturas?.areas_curriculares?.nombre || 'Otras') === areaNombre
+              })
+              return (
+                <div key={areaNombre}>
+                  <h3 className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>{areaNombre}</h3>
+                  <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                    {cursosDelArea.map(function (c) {
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={function () { setSelectedCourse(c) }}
+                          className="text-left bg-white rounded-2xl p-5 space-y-2 transition hover:-translate-y-0.5"
+                          style={{
+                            border: '1px solid #E5E9F0',
+                            boxShadow: '0 1px 3px rgba(15,42,74,0.06)',
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div
+                              className="w-10 h-10 rounded-xl flex items-center justify-center"
+                              style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}
+                            >
+                              <BookIcon />
+                            </div>
+                            <span
+                              className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                              style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}
+                            >
+                              {gradoLabel(c.grado)}
+                            </span>
+                          </div>
+
+                          <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>
+                            {c.nombre}{' '}
+                            <span className="text-slate-400 text-sm font-medium">(Sección {c.grupo})</span>
+                          </h3>
+
+                          <p className="text-sm text-slate-500">
+                            {scheduleText(c.course_schedules)}
+                          </p>
+
+                          <p className="text-sm font-medium" style={{ color: GREEN_DARK }}>
+                            {c.enrollments?.[0]?.count ?? 0} alumno(s) matriculado(s)
+                          </p>
+                        </button>
+                      )
+                    })}
                   </div>
-                  <span
-                    className="text-xs font-semibold px-2.5 py-1 rounded-full"
-                    style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}
-                  >
-                    {gradoLabel(c.grado)}
-                  </span>
                 </div>
-
-                <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>
-                  {c.nombre}{' '}
-                  <span className="text-slate-400 text-sm font-medium">(Sección {c.grupo})</span>
-                </h3>
-
-                <p className="text-sm text-slate-500">
-                  {scheduleText(c.course_schedules)}
-                </p>
-
-                <p className="text-sm font-medium" style={{ color: GREEN_DARK }}>
-                  {c.enrollments?.[0]?.count ?? 0} alumno(s) matriculado(s)
-                </p>
-              </button>
-            )
-          })}
+              )
+            })
+          })()}
         </div>
       )}
     </div>
