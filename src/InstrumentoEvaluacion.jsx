@@ -177,9 +177,23 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
     doc.text(`Competencia: ${a.competencia?.nombre || '—'}`, 14, 33)
     doc.text(`Actividad: ${a.nombre}`, 14, 39)
 
+    // Bloque de detalle: capacidad, criterio y desempeño (igual que en pantalla)
+    autoTable(doc, {
+      startY: 44,
+      head: [matrix.capacidades.map(function (cap) { return cap.capacidad.nombre })],
+      body: [matrix.capacidades.map(function (cap) {
+        return `Criterio: ${cap.criterio || '—'}\n\nDesempeño: ${cap.desempeno || '—'}`
+      })],
+      styles: { fontSize: 7, cellWidth: 'wrap', valign: 'top' },
+      headStyles: { fillColor: [15, 42, 74], halign: 'center' },
+      margin: { left: 14, right: 14 },
+    })
+
+    const detailEndY = doc.lastAutoTable.finalY + 4
+
     const head = [
-      ['N°', 'Apellidos y Nombres', ...matrix.capacidades.flatMap(function (cap, i) {
-        return NIVELES.map(function (n) { return `Cap.${i + 1} ${n.letra}` })
+      ['N°', 'Apellidos y Nombres', ...matrix.capacidades.flatMap(function (cap) {
+        return NIVELES.map(function (n) { return `${cap.capacidad.nombre.slice(0, 12)}… ${n.letra}` })
       })]
     ]
     const body = matrix.students.map(function (s, idx) {
@@ -195,10 +209,10 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
     })
 
     autoTable(doc, {
-      startY: 44,
+      startY: detailEndY,
       head: head,
       body: body,
-      styles: { fontSize: 7, halign: 'center' },
+      styles: { fontSize: 6.5, halign: 'center' },
       headStyles: { fillColor: [15, 42, 74] },
       columnStyles: { 1: { halign: 'left' } },
       margin: { left: 14, right: 14 },
@@ -372,10 +386,10 @@ function ListaCotejoView({ matrix, courseGrado, courseGrupo }) {
             </td>
           </tr>
           <tr>
-            {matrix.capacidades.map(function (cap, i) {
+            {matrix.capacidades.map(function (cap) {
               return (
                 <td key={cap.capacidad.id} style={{ ...tableHeadCell, textAlign: 'center' }}>
-                  capacidad {i + 1}
+                  {cap.capacidad.nombre}
                 </td>
               )
             })}
@@ -384,8 +398,8 @@ function ListaCotejoView({ matrix, courseGrado, courseGrupo }) {
             {matrix.capacidades.map(function (cap) {
               return (
                 <td key={cap.capacidad.id} style={{ ...tableCell, color: '#1d5c8f', verticalAlign: 'top' }}>
-                  <p style={{ marginBottom: 4 }}>{cap.criterio || cap.capacidad.nombre}</p>
-                  {cap.desempeno && <p style={{ color: NAVY_DARK }}>{cap.desempeno}</p>}
+                  <p style={{ marginBottom: 4 }}><strong>Criterio:</strong> {cap.criterio || '—'}</p>
+                  <p style={{ color: NAVY_DARK }}><strong>Desempeño:</strong> {cap.desempeno || '—'}</p>
                 </td>
               )
             })}
