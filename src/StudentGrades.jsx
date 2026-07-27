@@ -4,14 +4,63 @@ import { useAuth } from './AuthContext'
 import { getLetterGrade, getLetterColor } from './gradeUtils'
 
 const DESCRIPCION_NIVEL = {
-  AD: 'Logro destacado',
-  A: 'Logro esperado',
-  B: 'En proceso',
-  C: 'En inicio',
+  AD: 'El estudiante demuestra un nivel superior al esperado para la competencia, resolviendo situaciones incluso más complejas.',
+  A: 'El estudiante alcanza el nivel esperado de la competencia para el grado o ciclo.',
+  B: 'El estudiante está próximo a alcanzar el nivel esperado y requiere acompañamiento para consolidarlo.',
+  C: 'El estudiante evidencia dificultades importantes y necesita mayor tiempo y apoyo para desarrollar la competencia.',
+}
+
+const RGB_TITULO = [46, 117, 182]
+const RGB_METADATA = [222, 235, 247]
+const RGB_AREA = [84, 130, 53]
+const RGB_CURSO = [29, 92, 143]
+const RGB_TABLA_HEAD = [31, 78, 121]
+const RGB_NIVEL = { AD: [47, 122, 31], A: [29, 92, 143], B: [180, 83, 9], C: [185, 28, 28] }
+
+const COLOR_TITULO_ARGB = 'FF2E75B6'
+const COLOR_METADATA_ARGB = 'FFDEEBF7'
+const COLOR_AREA_ARGB = 'FF548235'
+const COLOR_CURSO_ARGB = 'FF1D5C8F'
+const COLOR_TABLA_HEAD_ARGB = 'FF1F4E79'
+const NIVEL_COLOR_ARGB = { AD: 'FF2F7A1F', A: 'FF1D5C8F', B: 'FFB45309', C: 'FFB91C1C' }
+
+function coloredBlock(doc, y, text, fillColor, textColor, fontSize, bold, pageWidth, align) {
+  doc.setFontSize(fontSize)
+  doc.setFont(undefined, bold ? 'bold' : 'normal')
+  const maxWidth = pageWidth - 20
+  const lines = doc.splitTextToSize(text, maxWidth)
+  const lineHeight = fontSize * 0.42 + 1.2
+  const blockHeight = lines.length * lineHeight + 2.5
+  if (fillColor) {
+    doc.setFillColor(fillColor[0], fillColor[1], fillColor[2])
+    doc.rect(10, y, pageWidth - 20, blockHeight, 'F')
+  }
+  doc.setTextColor(textColor[0], textColor[1], textColor[2])
+  lines.forEach(function (line, i) {
+    if (align === 'center') {
+      doc.text(line, pageWidth / 2, y + lineHeight * (i + 1), { align: 'center' })
+    } else {
+      doc.text(line, 14, y + lineHeight * (i + 1))
+    }
+  })
+  doc.setFont(undefined, 'normal')
+  doc.setTextColor(0, 0, 0)
+  return y + blockHeight + 0.8
+}
+
+async function descargarWorkbook(workbook, filename) {
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
 }
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -160,67 +209,149 @@ export default function StudentGrades() {
 
   function exportPDF() {
     const doc = new jsPDF()
-    doc.setFontSize(14)
-    doc.text('Reporte de Notas — Nova Campus', 14, 15)
-    doc.setFontSize(10)
-    doc.text(`Alumno: ${profile?.full_name || ''}`, 14, 22)
-    doc.text(
-      `Promedio general: ${promedioGeneral != null ? promedioGeneral.toFixed(1) + ' — Nivel de logro: ' + getLetterGrade(promedioGeneral) : '—'}`,
-      14, 28
-    )
+    const pageWidth = doc.internal.pageSize.getWidth()
+    let y = 4
 
-    let startY = 35
-    courses.forEach(function (c) {
-      doc.setFontSize(11)
-      doc.text(`${c.nombre} (${c.grado}° Sección ${c.grupo})`, 14, startY)
-      const rows = c.assignments.map(function (a) {
-        return [
-          a.titulo,
-          a.tema || '—',
-          a.competencia || '—',
-          a.score != null ? getLetterGrade(a.score) : (a.pending ? 'Pendiente' : '—'),
-          a.isAutoZero ? 'No entregó' : '',
-        ]
+    y = coloredBlock(doc, y, 'REPORTE DE NOTAS', RGB_TITULO, [255, 255, 255], 14, true, pageWidth, 'center')
+    y = coloredBlock(doc, y, `Alumno: ${profile?.full_name || ''}`, RGB_METADATA, [0, 0, 0], 9, true, pageWidth)
+    y = coloredBlock(
+      doc, y,
+      `Promedio general: ${promedioGeneral != null ? promedioGeneral.toFixed(1) + ' — Nivel de logro: ' + getLetterGrade(promedioGeneral) + ' (' + DESCRIPCION_NIVEL[getLetterGrade(promedioGeneral)] + ')' : '—'}`,
+      RGB_METADATA, [0, 0, 0], 9, true, pageWidth
+    )
+    y += 2
+
+    areaGroups.forEach(function (area) {
+      if (y > doc.internal.pageSize.getHeight() - 40) { doc.addPage(); y = 4 }
+
+      const areaTexto = `${area.nombre} — Promedio: ${area.promedio != null ? area.promedio.toFixed(1) + ' (' + getLetterGrade(area.promedio) + ')' : '—'}`
+      y = coloredBlock(doc, y, areaTexto, RGB_AREA, [255, 255, 255], 11, true, pageWidth)
+      if (area.promedio != null) {
+        y = coloredBlock(doc, y, DESCRIPCION_NIVEL[getLetterGrade(area.promedio)], null, [80, 80, 80], 8, false, pageWidth)
+      }
+
+      area.cursos.forEach(function (c) {
+        if (y > doc.internal.pageSize.getHeight() - 40) { doc.addPage(); y = 4 }
+
+        const cursoTexto = `${c.nombre} (${c.grado}° Sección ${c.grupo}) — Promedio: ${c.promedio != null ? c.promedio.toFixed(1) + ' (' + getLetterGrade(c.promedio) + ')' : '—'}`
+        y = coloredBlock(doc, y, cursoTexto, RGB_CURSO, [255, 255, 255], 9, true, pageWidth)
+
+        if (c.assignments.length === 0) {
+          y = coloredBlock(doc, y, 'Aún no hay tareas registradas.', null, [100, 100, 100], 8, false, pageWidth)
+          return
+        }
+
+        const rows = c.assignments.map(function (a) {
+          return [
+            a.titulo,
+            a.tema || '—',
+            a.score != null ? getLetterGrade(a.score) : (a.pending ? 'Pendiente' : '—'),
+            a.isAutoZero ? 'No entregó' : '',
+          ]
+        })
+
+        autoTable(doc, {
+          startY: y,
+          head: [['Tarea', 'Tema', 'Nota', 'Obs.']],
+          body: rows,
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: RGB_TABLA_HEAD, textColor: [255, 255, 255] },
+          margin: { left: 10, right: 10 },
+          didParseCell: function (data) {
+            if (data.section === 'body' && data.column.index === 2) {
+              const val = data.cell.raw
+              if (RGB_NIVEL[val]) {
+                data.cell.styles.textColor = RGB_NIVEL[val]
+                data.cell.styles.fontStyle = 'bold'
+              }
+            }
+          },
+        })
+        y = doc.lastAutoTable.finalY + 4
       })
-      autoTable(doc, {
-        startY: startY + 3,
-        head: [['Tarea', 'Tema', 'Competencia', 'Nota', 'Obs.']],
-        body: rows,
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [15, 42, 74] },
-        margin: { left: 14, right: 14 },
-      })
-      startY = doc.lastAutoTable.finalY + 10
+      y += 2
     })
 
     doc.save(`Reporte_Notas_${(profile?.full_name || 'alumno').replace(/\s+/g, '_')}.pdf`)
   }
 
-  function exportExcel() {
-    const rows = []
-    courses.forEach(function (c) {
-      c.assignments.forEach(function (a) {
-        rows.push({
-          Curso: c.nombre,
-          Grado: `${c.grado}°`,
-          Seccion: c.grupo,
-          Tarea: a.titulo,
-          Tema: a.tema || '',
-          Competencia: a.competencia || '',
-          Capacidad: a.capacidad || '',
-          Criterio: a.criterio || '',
-          Desempeño: a.desempeno || '',
-          'Fecha de entrega': new Date(a.fecha_entrega).toLocaleDateString('es-PE'),
-          Nota: a.score != null ? getLetterGrade(a.score) : (a.pending ? 'Pendiente' : ''),
-          Observación: a.isAutoZero ? 'No entregó (C automático)' : '',
+  async function exportExcel() {
+    const workbook = new ExcelJS.Workbook()
+    const ws = workbook.addWorksheet('Notas')
+    const totalCols = 4
+    ws.getColumn(1).width = 40
+    ws.getColumn(2).width = 30
+    ws.getColumn(3).width = 14
+    ws.getColumn(4).width = 20
+
+    function mergedRow(rowNum, text, fillArgb, fontArgb, size, bold) {
+      ws.mergeCells(rowNum, 1, rowNum, totalCols)
+      const cell = ws.getCell(rowNum, 1)
+      cell.value = text
+      cell.font = { bold: bold, size: size || 11, color: { argb: fontArgb || 'FF000000' } }
+      if (fillArgb) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillArgb } }
+      cell.alignment = { vertical: 'middle', wrapText: true }
+      ws.getRow(rowNum).height = size >= 14 ? 26 : 18
+    }
+
+    mergedRow(1, 'REPORTE DE NOTAS', COLOR_TITULO_ARGB, 'FFFFFFFF', 14, true)
+    mergedRow(2, `Alumno: ${profile?.full_name || ''}`, COLOR_METADATA_ARGB, 'FF000000', 11, false)
+    mergedRow(
+      3,
+      `Promedio general: ${promedioGeneral != null ? promedioGeneral.toFixed(1) + ' — Nivel de logro: ' + getLetterGrade(promedioGeneral) + ' (' + DESCRIPCION_NIVEL[getLetterGrade(promedioGeneral)] + ')' : '—'}`,
+      COLOR_METADATA_ARGB, 'FF000000', 11, true
+    )
+
+    let r = 5
+    areaGroups.forEach(function (area) {
+      const areaTexto = `${area.nombre} — Promedio: ${area.promedio != null ? area.promedio.toFixed(1) + ' (' + getLetterGrade(area.promedio) + ')' : '—'}`
+      mergedRow(r, areaTexto, COLOR_AREA_ARGB, 'FFFFFFFF', 12, true)
+      r++
+      if (area.promedio != null) {
+        mergedRow(r, DESCRIPCION_NIVEL[getLetterGrade(area.promedio)], null, 'FF475569', 9, false)
+        r++
+      }
+
+      area.cursos.forEach(function (c) {
+        const cursoTexto = `${c.nombre} (${c.grado}° Sección ${c.grupo}) — Promedio: ${c.promedio != null ? c.promedio.toFixed(1) + ' (' + getLetterGrade(c.promedio) + ')' : '—'}`
+        mergedRow(r, cursoTexto, COLOR_CURSO_ARGB, 'FFFFFFFF', 10, true)
+        r++
+
+        if (c.assignments.length === 0) {
+          mergedRow(r, 'Aún no hay tareas registradas.', null, 'FF94A3B8', 9, false)
+          r++
+          r++
+          return
+        }
+
+        const headerRow = ws.getRow(r)
+        ;['Tarea', 'Tema', 'Nota', 'Observación'].forEach(function (text, i) {
+          const cell = headerRow.getCell(i + 1)
+          cell.value = text
+          cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_TABLA_HEAD_ARGB } }
         })
+        r++
+
+        c.assignments.forEach(function (a) {
+          const letra = a.score != null ? getLetterGrade(a.score) : (a.pending ? 'Pendiente' : '—')
+          const row = ws.getRow(r)
+          row.getCell(1).value = a.titulo
+          row.getCell(2).value = a.tema || '—'
+          row.getCell(3).value = letra
+          row.getCell(3).font = { bold: true, color: { argb: NIVEL_COLOR_ARGB[letra] || 'FF000000' } }
+          row.getCell(4).value = a.isAutoZero ? 'No entregó' : ''
+          for (let c2 = 1; c2 <= 4; c2++) {
+            row.getCell(c2).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
+          }
+          r++
+        })
+        r++
       })
+      r++
     })
 
-    const ws = XLSX.utils.json_to_sheet(rows)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Notas')
-    XLSX.writeFile(wb, `Reporte_Notas_${(profile?.full_name || 'alumno').replace(/\s+/g, '_')}.xlsx`)
+    await descargarWorkbook(workbook, `Reporte_Notas_${(profile?.full_name || 'alumno').replace(/\s+/g, '_')}.xlsx`)
   }
 
   if (loading) return <p className="text-slate-400 text-sm">Cargando tu reporte de notas...</p>
@@ -307,7 +438,7 @@ export default function StudentGrades() {
                             </p>
                             {c.promedio != null && (
                               <p className="text-xs text-slate-400">
-                                Nivel de logro: {getLetterGrade(c.promedio)} ({DESCRIPCION_NIVEL[getLetterGrade(c.promedio)]})
+                                Nivel de logro: {getLetterGrade(c.promedio)}
                               </p>
                             )}
                           </div>
