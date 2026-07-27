@@ -6,6 +6,7 @@ import AsignaturasManager from './AsignaturasManager'
 import CierrePeriodo from './CierrePeriodo'
 import ImportarEstudiantes from './ImportarEstudiantes'
 import ImportarDocentes from './ImportarDocentes'
+import EstudiantesList from './EstudiantesList'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -20,6 +21,7 @@ export default function AdminDashboard() {
     { id: 'cursos', label: 'Cursos', icon: BookIcon },
     { id: 'matriculas', label: 'Matrículas', icon: UsersIcon },
     { id: 'asignaturas', label: 'Asignaturas', icon: BookIcon },
+    { id: 'estudiantes', label: 'Estudiantes', icon: UsersIcon },
     { id: 'importar', label: 'Importar Estudiantes', icon: UsersIcon },
     { id: 'importar-docentes', label: 'Importar Docentes', icon: UsersIcon },
     { id: 'periodo', label: 'Cierre de Periodo', icon: BookIcon },
@@ -52,7 +54,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-6 space-y-1">
+        <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
           {menuItems.map(function (item) {
             const Icon = item.icon
             const active = tab === item.id
@@ -131,6 +133,7 @@ export default function AdminDashboard() {
           {tab === 'cursos' && <CoursesManager />}
           {tab === 'matriculas' && <EnrollmentsManager />}
           {tab === 'asignaturas' && <AsignaturasManager />}
+          {tab === 'estudiantes' && <EstudiantesList />}
           {tab === 'importar' && <ImportarEstudiantes />}
           {tab === 'importar-docentes' && <ImportarDocentes />}
           {tab === 'periodo' && <CierrePeriodo />}
