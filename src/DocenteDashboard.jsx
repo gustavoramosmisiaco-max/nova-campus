@@ -12,7 +12,7 @@ export default function DocenteDashboard() {
   const [activeSection, setActiveSection] = useState('cursos')
 
   const menuItems = [
-    { id: 'cursos', label: 'Mis Cursos', icon: BookIcon },
+    { id: 'cursos', label: 'Mis Asignaturas', icon: BookIcon },
   ]
 
   const initials = (profile?.full_name || 'DO')

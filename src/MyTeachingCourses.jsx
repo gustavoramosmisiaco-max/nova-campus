@@ -43,7 +43,7 @@ function CourseDetailTeacher({ course, onBack }) {
         className="text-sm font-semibold mb-4 hover:underline flex items-center gap-1"
         style={{ color: NAVY }}
       >
-        ← Volver a mis cursos
+        ← Volver a mis asignaturas
       </button>
 
       <div className="flex items-center gap-3 mb-1 flex-wrap">
@@ -153,7 +153,7 @@ export default function MyTeachingCourses() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-2" style={{ color: NAVY_DARK }}>Mis Cursos</h2>
+      <h2 className="text-2xl font-bold mb-2" style={{ color: NAVY_DARK }}>Mis Asignaturas</h2>
       <p className="text-sm text-slate-400 mb-5">Elige el aula (grado) a la que quieres ingresar</p>
 
       {gradosConCursos.length > 0 && (

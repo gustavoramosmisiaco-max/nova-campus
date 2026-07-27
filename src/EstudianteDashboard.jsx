@@ -13,7 +13,7 @@ export default function EstudianteDashboard() {
   const [activeSection, setActiveSection] = useState('cursos')
 
   const menuItems = [
-    { id: 'cursos', label: 'Mis Cursos', icon: BookIcon },
+    { id: 'cursos', label: 'Mis Asignaturas', icon: BookIcon },
     { id: 'notas', label: 'Notas', icon: ChartIcon },
     { id: 'zoom', label: 'Clases en vivo', icon: VideoIcon },
   ]

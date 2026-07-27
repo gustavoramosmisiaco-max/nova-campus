@@ -36,7 +36,7 @@ function CourseDetailStudent({ course, onBack }) {
         className="text-sm font-semibold mb-4 hover:underline flex items-center gap-1"
         style={{ color: NAVY }}
       >
-        ← Volver a mis cursos
+        ← Volver a mis asignaturas
       </button>
 
       <div className="flex items-center gap-3 mb-1 flex-wrap">
@@ -296,7 +296,7 @@ export default function MyCourses() {
   return (
     <div>
       <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <h2 className="text-2xl font-bold" style={{ color: NAVY_DARK }}>Mis Cursos</h2>
+        <h2 className="text-2xl font-bold" style={{ color: NAVY_DARK }}>Mis Asignaturas</h2>
         {miGrado && (
           <span
             className="text-xs font-semibold px-3 py-1.5 rounded-full"
