@@ -39,7 +39,7 @@ export default function StudentGrades() {
 
     const enrollResult = await supabase
       .from('enrollments')
-      .select('id, course:courses!inner(id, nombre, grupo, grado, asignaturas!inner(activo))')
+      .select('id, course:courses!inner(id, nombre, grupo, grado, asignaturas!inner(activo, areas_curriculares(nombre)))')
       .eq('student_id', session.user.id)
       .eq('status', 'activo')
       .eq('course.asignaturas.activo', true)
@@ -114,8 +114,33 @@ export default function StudentGrades() {
         .map(function (a) { return a.score })
         .filter(function (s) { return s != null })
 
+    const enrichedCourses = courseList.map(function (c) {
+      const courseAssignments = assignmentsResult.data
+        .filter(function (a) { return a.course_id === c.id })
+        .map(function (a) {
+          const submittedScore = submissionsMap[a.id]
+          const isPastDue = new Date(a.fecha_entrega) < now
+          const noSubmission = submittedScore == null
+
+          // Regla: tarea vencida sin entrega -> C automático (0)
+          const autoZero = isPastDue && noSubmission
+          const finalScore = autoZero ? 0 : (submittedScore != null ? submittedScore : null)
+
+          return {
+            ...a,
+            score: finalScore,
+            isAutoZero: autoZero,
+            pending: !isPastDue && noSubmission, // aún no vence y no entregó: no cuenta todavía
+          }
+        })
+
+      const gradedScores = courseAssignments
+        .map(function (a) { return a.score })
+        .filter(function (s) { return s != null })
+
       return {
         ...c,
+        areaNombre: c.asignaturas?.areas_curriculares?.nombre || 'Otras',
         assignments: courseAssignments,
         promedio: average(gradedScores),
       }
@@ -125,10 +150,29 @@ export default function StudentGrades() {
     setLoading(false)
   }
 
+  const areaGroups = (function () {
+    const map = {}
+    courses.forEach(function (c) {
+      if (!map[c.areaNombre]) map[c.areaNombre] = []
+      map[c.areaNombre].push(c)
+    })
+    return Object.keys(map).map(function (areaNombre) {
+      const cursosArea = map[areaNombre]
+      const promediosValidos = cursosArea.map(function (c) { return c.promedio }).filter(function (p) { return p != null })
+      return {
+        nombre: areaNombre,
+        cursos: cursosArea,
+        promedio: average(promediosValidos),
+      }
+    }).sort(function (a, b) { return a.nombre.localeCompare(b.nombre) })
+  })()
+
+  const promediosDeArea = areaGroups.map(function (a) { return a.promedio }).filter(function (p) { return p != null })
+  const promedioGeneral = average(promediosDeArea)
+
   const allGradedScores = courses.flatMap(function (c) {
     return c.assignments.map(function (a) { return a.score }).filter(function (s) { return s != null })
   })
-  const promedioGeneral = average(allGradedScores)
 
   function scoreLabel(a) {
     if (a.score != null) {
@@ -253,63 +297,86 @@ export default function StudentGrades() {
           <p className="text-slate-400 text-sm">Aún no estás matriculado en ningún curso.</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {courses.map(function (c) {
+        <div className="space-y-8">
+          {areaGroups.map(function (area) {
             return (
-              <div key={c.id} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
-                <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
-                  <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>
-                    {c.nombre} <span className="text-slate-400 text-sm font-medium">({c.grado}° Sección {c.grupo})</span>
-                  </h3>
+              <div key={area.nombre}>
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                  <h3 className="text-base font-bold" style={{ color: NAVY_DARK }}>{area.nombre}</h3>
                   <div className="text-right">
-                    <p className="text-xs text-slate-500">Promedio del curso</p>
-                    <p className={'text-lg font-bold ' + getLetterColor(c.promedio)}>
-                      {c.promedio != null ? c.promedio.toFixed(1) : '—'}
+                    <p className="text-xs text-slate-500">Promedio de área</p>
+                    <p className={'text-base font-bold ' + getLetterColor(area.promedio)}>
+                      {area.promedio != null ? area.promedio.toFixed(1) : '—'}
+                      {area.promedio != null && (
+                        <span className="text-xs font-normal text-slate-400 ml-1">
+                          — {getLetterGrade(area.promedio)} ({DESCRIPCION_NIVEL[getLetterGrade(area.promedio)]})
+                        </span>
+                      )}
                     </p>
-                    {c.promedio != null && (
-                      <p className="text-xs text-slate-400">
-                        Nivel de logro: {getLetterGrade(c.promedio)} ({DESCRIPCION_NIVEL[getLetterGrade(c.promedio)]})
-                      </p>
-                    )}
                   </div>
                 </div>
 
-                {c.assignments.length === 0 ? (
-                  <p className="text-slate-400 text-sm">Aún no hay tareas registradas.</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid #E5E9F0' }}>
-                          <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Tarea</th>
-                          <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Tema</th>
-                          <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Competencia</th>
-                          <th className="text-right py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Nota</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {c.assignments.map(function (a) {
-                          return (
-                            <tr key={a.id} style={{ borderBottom: '1px solid #F4F6F9' }}>
-                              <td className="py-2 pr-3" style={{ color: NAVY_DARK }}>{a.titulo}</td>
-                              <td className="py-2 pr-3 text-slate-500">{a.tema || '—'}</td>
-                              <td className="py-2 pr-3 text-slate-500 max-w-xs">{a.competencia || '—'}</td>
-                              <td className="py-2 pr-3 text-right">
-                                {a.score != null ? (
-                                  <span className={'font-semibold ' + getLetterColor(a.score)}>
-                                    {scoreLabel(a)}
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-400">{scoreLabel(a)}</span>
-                                )}
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                <div className="space-y-4">
+                  {area.cursos.map(function (c) {
+                    return (
+                      <div key={c.id} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
+                        <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+                          <h4 className="text-lg font-bold" style={{ color: NAVY_DARK }}>
+                            {c.nombre} <span className="text-slate-400 text-sm font-medium">({c.grado}° Sección {c.grupo})</span>
+                          </h4>
+                          <div className="text-right">
+                            <p className="text-xs text-slate-500">Promedio del curso</p>
+                            <p className={'text-lg font-bold ' + getLetterColor(c.promedio)}>
+                              {c.promedio != null ? c.promedio.toFixed(1) : '—'}
+                            </p>
+                            {c.promedio != null && (
+                              <p className="text-xs text-slate-400">
+                                Nivel de logro: {getLetterGrade(c.promedio)} ({DESCRIPCION_NIVEL[getLetterGrade(c.promedio)]})
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {c.assignments.length === 0 ? (
+                          <p className="text-slate-400 text-sm">Aún no hay tareas registradas.</p>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr style={{ borderBottom: '1px solid #E5E9F0' }}>
+                                  <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Tarea</th>
+                                  <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Tema</th>
+                                  <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Competencia</th>
+                                  <th className="text-right py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Nota</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {c.assignments.map(function (a) {
+                                  return (
+                                    <tr key={a.id} style={{ borderBottom: '1px solid #F4F6F9' }}>
+                                      <td className="py-2 pr-3" style={{ color: NAVY_DARK }}>{a.titulo}</td>
+                                      <td className="py-2 pr-3 text-slate-500">{a.tema || '—'}</td>
+                                      <td className="py-2 pr-3 text-slate-500 max-w-xs">{a.competencia || '—'}</td>
+                                      <td className="py-2 pr-3 text-right">
+                                        {a.score != null ? (
+                                          <span className={'font-semibold ' + getLetterColor(a.score)}>
+                                            {scoreLabel(a)}
+                                          </span>
+                                        ) : (
+                                          <span className="text-slate-400">{scoreLabel(a)}</span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             )
           })}
