@@ -12,10 +12,6 @@ const NAVY = '#1d5c8f'
 const GREEN = '#5DAA47'
 const GREEN_DARK = '#2f7a1f'
 
-function gradoLabel(g) {
-  return g ? `${g}° de Secundaria` : 'Sin grado'
-}
-
 function scheduleText(schedules) {
   if (!schedules || schedules.length === 0) return 'Sin horario definido'
   const sorted = [...schedules].sort(function (a, b) { return a.dia_semana - b.dia_semana })
@@ -24,14 +20,14 @@ function scheduleText(schedules) {
     .join(' · ')
 }
 
-function CourseDetailStudent({ course, onBack }) {
-  const [tab, setTab] = useState('materiales')
+function gradoLabel(g) {
+  return g ? `${g}° de Secundaria` : 'Sin grado'
+}
 
-  const tabs = [
-    { id: 'materiales', label: 'Materiales' },
-    { id: 'tareas', label: 'Tareas' },
-    { id: 'zoom', label: 'Videoclases' },
-  ]
+function CourseDetailStudent({ course, onBack }) {
+  const [tab, setTab] = useState('actividades')
+  const [selectedUnidad, setSelectedUnidad] = useState(null)
+  const [selectedActividad, setSelectedActividad] = useState(null)
 
   return (
     <div>
@@ -58,32 +54,203 @@ function CourseDetailStudent({ course, onBack }) {
         {scheduleText(course.course_schedules)}
       </p>
 
+      {!selectedUnidad && !selectedActividad && (
+        <div className="flex gap-2 mb-6 border-b" style={{ borderColor: '#E5E9F0' }}>
+          {[{ id: 'actividades', label: 'Actividades' }, { id: 'zoom', label: 'Videoclases' }].map(function (t) {
+            const active = tab === t.id
+            return (
+              <button
+                key={t.id}
+                onClick={function () { setTab(t.id) }}
+                className="px-4 py-2.5 text-sm font-semibold border-b-2 transition"
+                style={active ? { borderColor: GREEN, color: NAVY_DARK } : { borderColor: 'transparent', color: '#94A3B8' }}
+              >
+                {t.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      <div className="bg-white rounded-2xl p-6" style={{ border: '1px solid #E5E9F0' }}>
+        {tab === 'zoom' && !selectedUnidad && !selectedActividad && (
+          <CourseZoomStudent courseId={course.id} />
+        )}
+
+        {tab === 'actividades' && (
+          <>
+            {selectedActividad ? (
+              <ActividadContenidoStudent
+                actividad={selectedActividad}
+                onBack={function () { setSelectedActividad(null) }}
+              />
+            ) : selectedUnidad ? (
+              <UnidadActividadesStudent
+                unidad={selectedUnidad}
+                onBack={function () { setSelectedUnidad(null) }}
+                onSelectActividad={setSelectedActividad}
+              />
+            ) : (
+              <UnidadesListStudent courseId={course.id} onSelectUnidad={setSelectedUnidad} />
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function UnidadesListStudent({ courseId, onSelectUnidad }) {
+  const [unidades, setUnidades] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(function () {
+    loadUnidades()
+  }, [courseId])
+
+  async function loadUnidades() {
+    setLoading(true)
+    const result = await supabase
+      .from('unidades')
+      .select('*, actividades(count)')
+      .eq('course_id', courseId)
+      .order('numero', { ascending: true })
+    if (result.error) setError(result.error.message)
+    else setUnidades(result.data)
+    setLoading(false)
+  }
+
+  if (loading) return <p className="text-slate-400 text-sm">Cargando...</p>
+  if (error) return <p className="text-red-500 text-sm">{error}</p>
+
+  return (
+    <div>
+      <h3 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>Unidades y Experiencias de Aprendizaje</h3>
+      {unidades.length === 0 ? (
+        <p className="text-slate-400 text-sm">Aún no hay carpetas creadas por tu docente.</p>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {unidades.map(function (u) {
+            return (
+              <button
+                key={u.id}
+                onClick={function () { onSelectUnidad(u) }}
+                className="text-left rounded-xl p-4 transition hover:-translate-y-0.5"
+                style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <FolderIcon />
+                  <span className="text-xs font-semibold" style={{ color: GREEN_DARK }}>{u.tipo} {u.numero}</span>
+                </div>
+                <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>{u.nombre || `${u.tipo} ${u.numero}`}</p>
+                <p className="text-xs text-slate-400 mt-1">{u.actividades?.[0]?.count ?? 0} actividad(es)</p>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function UnidadActividadesStudent({ unidad, onBack, onSelectActividad }) {
+  const [activities, setActivities] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(function () {
+    loadActivities()
+  }, [unidad.id])
+
+  async function loadActivities() {
+    setLoading(true)
+    const result = await supabase
+      .from('actividades')
+      .select('*, competencia:competencias(nombre, codigo)')
+      .eq('unidad_id', unidad.id)
+      .order('created_at', { ascending: true })
+    if (result.error) setError(result.error.message)
+    else setActivities(result.data)
+    setLoading(false)
+  }
+
+  if (loading) return <p className="text-slate-400 text-sm">Cargando...</p>
+  if (error) return <p className="text-red-500 text-sm">{error}</p>
+
+  return (
+    <div>
+      <button onClick={onBack} className="text-sm font-semibold mb-4 hover:underline flex items-center gap-1" style={{ color: NAVY }}>
+        ← Volver a carpetas
+      </button>
+
+      <div className="flex items-center gap-2 mb-4">
+        <FolderIcon big />
+        <div>
+          <p className="text-xs font-semibold" style={{ color: GREEN_DARK }}>{unidad.tipo} {unidad.numero}</p>
+          <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>{unidad.nombre || `${unidad.tipo} ${unidad.numero}`}</h3>
+        </div>
+      </div>
+
+      {activities.length === 0 ? (
+        <p className="text-slate-400 text-sm">Aún no hay actividades en esta carpeta.</p>
+      ) : (
+        <ul className="space-y-3">
+          {activities.map(function (a) {
+            return (
+              <li key={a.id} style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }} className="rounded-xl p-4">
+                <button onClick={function () { onSelectActividad(a) }} className="text-left w-full">
+                  <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>Actividad {a.numero_actividad} · {a.nombre}</p>
+                  {a.competencia && <p className="text-xs text-slate-500 mt-1">{a.competencia.codigo} — {a.competencia.nombre}</p>}
+                  <p className="text-xs mt-1" style={{ color: GREEN_DARK }}>Ver materiales y tareas →</p>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function ActividadContenidoStudent({ actividad, onBack }) {
+  const [tab, setTab] = useState('materiales')
+
+  return (
+    <div>
+      <button onClick={onBack} className="text-sm font-semibold mb-4 hover:underline flex items-center gap-1" style={{ color: NAVY }}>
+        ← Volver a la carpeta
+      </button>
+
+      <h3 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>
+        Actividad {actividad.numero_actividad} · {actividad.nombre}
+      </h3>
+
       <div className="flex gap-2 mb-6 border-b" style={{ borderColor: '#E5E9F0' }}>
-        {tabs.map(function (t) {
+        {[{ id: 'materiales', label: 'Materiales' }, { id: 'tareas', label: 'Tareas' }].map(function (t) {
           const active = tab === t.id
           return (
-            <button
-              key={t.id}
-              onClick={function () { setTab(t.id) }}
+            <button key={t.id} onClick={function () { setTab(t.id) }}
               className="px-4 py-2.5 text-sm font-semibold border-b-2 transition"
-              style={
-                active
-                  ? { borderColor: GREEN, color: NAVY_DARK }
-                  : { borderColor: 'transparent', color: '#94A3B8' }
-              }
-            >
+              style={active ? { borderColor: GREEN, color: NAVY_DARK } : { borderColor: 'transparent', color: '#94A3B8' }}>
               {t.label}
             </button>
           )
         })}
       </div>
 
-      <div className="bg-white rounded-2xl p-6" style={{ border: '1px solid #E5E9F0' }}>
-        {tab === 'materiales' && <CourseMaterials courseId={course.id} canUpload={false} />}
-        {tab === 'tareas' && <CourseAssignmentsStudent courseId={course.id} />}
-        {tab === 'zoom' && <CourseZoomStudent courseId={course.id} />}
-      </div>
+      {tab === 'materiales' && <CourseMaterials courseId={actividad.course_id} actividadId={actividad.id} canUpload={false} />}
+      {tab === 'tareas' && <CourseAssignmentsStudent courseId={actividad.course_id} actividadId={actividad.id} />}
     </div>
+  )
+}
+
+function FolderIcon({ big }) {
+  const size = big ? 28 : 18
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+    </svg>
   )
 }
 

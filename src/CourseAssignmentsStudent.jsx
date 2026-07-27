@@ -8,7 +8,7 @@ const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
 const GREEN = '#5DAA47'
 
-export default function CourseAssignmentsStudent({ courseId }) {
+export default function CourseAssignmentsStudent({ courseId, actividadId }) {
   const { session } = useAuth()
   const [assignments, setAssignments] = useState([])
   const [submissionsMap, setSubmissionsMap] = useState({})
@@ -19,18 +19,19 @@ export default function CourseAssignmentsStudent({ courseId }) {
 
   useEffect(function () {
     loadAssignments()
-  }, [courseId])
+  }, [courseId, actividadId])
 
   async function loadAssignments() {
     setLoading(true)
     setError('')
 
-    const result = await supabase
+    let query = supabase
       .from('assignments')
       .select('*')
-      .eq('course_id', courseId)
       .order('fecha_entrega', { ascending: false })
+    query = actividadId ? query.eq('actividad_id', actividadId) : query.eq('course_id', courseId)
 
+    const result = await query
     if (result.error) {
       setError(result.error.message)
       setLoading(false)
@@ -72,7 +73,7 @@ export default function CourseAssignmentsStudent({ courseId }) {
     setError('')
 
     const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')
-    const path = `${courseId}/${assignment.id}/${session.user.id}_${Date.now()}_${safeName}`
+    const path = `${assignment.course_id}/${assignment.id}/${session.user.id}_${Date.now()}_${safeName}`
 
     const uploadResult = await supabase.storage.from('entregas').upload(path, file, { upsert: true })
     if (uploadResult.error) {
@@ -126,7 +127,7 @@ export default function CourseAssignmentsStudent({ courseId }) {
       {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
 
       {assignments.length === 0 ? (
-        <p className="text-slate-400 text-sm">Aún no hay tareas para este curso.</p>
+        <p className="text-slate-400 text-sm">Aún no hay tareas aquí.</p>
       ) : (
         <ul className="space-y-3">
           {assignments.map(function (a) {
@@ -148,19 +149,21 @@ export default function CourseAssignmentsStudent({ courseId }) {
                     {a.descripcion && (
                       <p className="text-sm text-slate-500 mt-1">{a.descripcion}</p>
                     )}
+                    {a.instrumento_evaluacion && (
+                      <p className="text-xs text-slate-500 mt-1">Instrumento: {a.instrumento_evaluacion}</p>
+                    )}
                     <p className="text-xs text-slate-500 mt-1">
                       Entrega: {dueDate.toLocaleString('es-PE')}
                       {isPast && !submission ? (
                         <span className="ml-2 font-semibold text-red-500">Vencida</span>
                       ) : null}
                     </p>
-                    <p className="text-xs text-slate-500">Puntaje máximo: {a.puntaje_maximo}</p>
                   </div>
 
                   <div className="text-right">
                     {isGraded ? (
                       <p className={'text-sm font-bold ' + getLetterColor(submission.score)}>
-                        {submission.score} — {getLetterGrade(submission.score)}
+                        {getLetterGrade(submission.score)}
                       </p>
                     ) : submission ? (
                       <span
