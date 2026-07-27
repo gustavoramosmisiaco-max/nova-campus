@@ -32,9 +32,10 @@ export default function StudentGrades() {
 
     const enrollResult = await supabase
       .from('enrollments')
-      .select('id, course:courses(id, nombre, grupo, grado)')
+      .select('id, course:courses!inner(id, nombre, grupo, grado, asignaturas!inner(activo))')
       .eq('student_id', session.user.id)
       .eq('status', 'activo')
+      .eq('course.asignaturas.activo', true)
 
     if (enrollResult.error) {
       setError(enrollResult.error.message)
