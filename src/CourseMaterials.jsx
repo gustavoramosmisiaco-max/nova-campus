@@ -114,12 +114,23 @@ export default function CourseMaterials({ courseId, actividadId, canUpload }) {
             <label className="block text-sm font-medium mb-1" style={{ color: NAVY_DARK }}>
               Archivo (PDF o Word)
             </label>
-            <input
-              type="file"
-              accept=".pdf,.doc,.docx"
-              onChange={function (e) { setFile(e.target.files[0]) }}
-              className="w-full text-sm text-slate-600"
-            />
+            <div className="flex items-center gap-3 flex-wrap">
+              <label
+                className="text-sm font-semibold px-4 py-2 rounded-lg cursor-pointer transition hover:opacity-90"
+                style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+              >
+                Adjuntar archivo
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  onChange={function (e) { setFile(e.target.files[0]) }}
+                  className="hidden"
+                />
+              </label>
+              <span className="text-sm text-slate-500">
+                {file ? file.name : 'Ningún archivo seleccionado'}
+              </span>
+            </div>
           </div>
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <button
