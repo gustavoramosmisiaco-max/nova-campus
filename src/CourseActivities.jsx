@@ -753,9 +753,10 @@ function ActividadTareas({ actividad }) {
 
     const justResult = await supabase
       .from('justificaciones')
-      .select('*, student:profiles(full_name)')
+      .select('*, student:profiles!justificaciones_student_id_fkey(full_name)')
       .eq('assignment_id', a.id)
       .order('created_at', { ascending: false })
+    if (justResult.error) console.error('Error cargando justificaciones:', justResult.error)
     setJustificaciones(!justResult.error ? justResult.data : [])
 
     setLoadingSubs(false)
