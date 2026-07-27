@@ -616,6 +616,7 @@ function ActividadTareas({ actividad }) {
   const [assignmentCapacidades, setAssignmentCapacidades] = useState([])
   const [submissions, setSubmissions] = useState([])
   const [submissionScoresMap, setSubmissionScoresMap] = useState({})
+  const [justificaciones, setJustificaciones] = useState([])
   const [loadingSubs, setLoadingSubs] = useState(false)
   const [preview, setPreview] = useState(null)
 
@@ -749,6 +750,14 @@ function ActividadTareas({ actividad }) {
       if (!scoresResult.error) scoresResult.data.forEach(function (s) { scoresMap[`${s.submission_id}__${s.capacidad_id}`] = s.score })
     }
     setSubmissionScoresMap(scoresMap)
+
+    const justResult = await supabase
+      .from('justificaciones')
+      .select('*, student:profiles(full_name)')
+      .eq('assignment_id', a.id)
+      .order('created_at', { ascending: false })
+    setJustificaciones(!justResult.error ? justResult.data : [])
+
     setLoadingSubs(false)
   }
 
@@ -759,6 +768,14 @@ function ActividadTareas({ actividad }) {
     const name = parts[parts.length - 1]
     const ext = name.split('.').pop().toLowerCase()
     setPreview({ url: result.data.signedUrl, type: ext, name: name })
+  }
+
+  async function handleRevisarJustificacion(justId, nuevoEstado) {
+    await supabase
+      .from('justificaciones')
+      .update({ estado: nuevoEstado, reviewed_by: session.user.id, reviewed_at: new Date().toISOString() })
+      .eq('id', justId)
+    openSubmissions(selectedAssignment)
   }
 
   async function handleGradeCapacidad(submissionId, capacidadId, scoreStr) {
@@ -785,6 +802,47 @@ function ActividadTareas({ actividad }) {
         <h3 className="text-lg font-bold mb-1" style={{ color: NAVY_DARK }}>{selectedAssignment.titulo}</h3>
         <p className="text-slate-500 text-sm mb-4">Entrega: {new Date(selectedAssignment.fecha_entrega).toLocaleString('es-PE')}</p>
 
+        {justificaciones.filter(function (j) { return j.estado === 'pendiente' }).length > 0 && (
+          <div className="mb-5 rounded-xl p-4" style={{ backgroundColor: '#FFF7E6', border: '1px solid #F5D98A' }}>
+            <h4 className="text-sm font-bold mb-3" style={{ color: '#B45309' }}>Justificaciones pendientes de revisión</h4>
+            <ul className="space-y-3">
+              {justificaciones.filter(function (j) { return j.estado === 'pendiente' }).map(function (j) {
+                return (
+                  <li key={j.id} className="rounded-lg p-3" style={{ backgroundColor: 'white', border: '1px solid #E5E9F0' }}>
+                    <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{j.student?.full_name}</p>
+                    <p className="text-sm text-slate-600 mt-1">{j.mensaje}</p>
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      {j.file_url && (
+                        <button
+                          onClick={function () { handlePreview(j.file_url) }}
+                          className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+                          style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+                        >
+                          Ver evidencia
+                        </button>
+                      )}
+                      <button
+                        onClick={function () { handleRevisarJustificacion(j.id, 'aprobada') }}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90"
+                        style={{ backgroundColor: GREEN }}
+                      >
+                        Aprobar (habilitar entrega)
+                      </button>
+                      <button
+                        onClick={function () { handleRevisarJustificacion(j.id, 'rechazada') }}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90"
+                        style={{ backgroundColor: '#B91C1C' }}
+                      >
+                        Rechazar
+                      </button>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )}
+
         {loadingSubs ? <p className="text-slate-400 text-sm">Cargando...</p> : submissions.length === 0 ? (
           <p className="text-slate-400 text-sm">Ningún alumno ha entregado aún.</p>
         ) : (
@@ -795,7 +853,16 @@ function ActividadTareas({ actividad }) {
                   <div className="flex justify-between items-start flex-wrap gap-3 mb-3">
                     <div>
                       <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{s.student?.full_name}</p>
-                      {s.score != null && <p className={'text-xs font-semibold ' + getLetterColor(s.score)}>Promedio: {getLetterGrade(s.score)}</p>}
+                      {s.score != null ? (
+                        <p className={'text-xs font-semibold ' + getLetterColor(s.score)}>Promedio: {getLetterGrade(s.score)}</p>
+                      ) : (
+                        <span
+                          className="text-xs font-semibold px-2 py-0.5 rounded-full inline-block mt-1"
+                          style={{ backgroundColor: '#FFF7E6', color: '#B45309' }}
+                        >
+                          Sin calificar
+                        </span>
+                      )}
                     </div>
                     <button onClick={function () { handlePreview(s.file_url) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>Ver archivo</button>
                   </div>

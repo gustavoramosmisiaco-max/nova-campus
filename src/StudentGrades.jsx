@@ -132,7 +132,7 @@ export default function StudentGrades() {
 
       if (!subsResult.error) {
         subsResult.data.forEach(function (s) {
-          submissionsMap[s.assignment_id] = s.score
+          submissionsMap[s.assignment_id] = { score: s.score, entregado: true }
         })
       }
     }
@@ -143,19 +143,22 @@ export default function StudentGrades() {
       const courseAssignments = assignmentsResult.data
         .filter(function (a) { return a.course_id === c.id })
         .map(function (a) {
-          const submittedScore = submissionsMap[a.id]
+          const submission = submissionsMap[a.id]
           const isPastDue = new Date(a.fecha_entrega) < now
-          const noSubmission = submittedScore == null
+          const entregado = Boolean(submission)
+          const calificado = entregado && submission.score != null
 
-          // Regla: tarea vencida sin entrega -> C automático (0)
-          const autoZero = isPastDue && noSubmission
-          const finalScore = autoZero ? 0 : (submittedScore != null ? submittedScore : null)
+          // Regla: tarea vencida SIN entrega -> C automático (0). Si entregó pero no lo calificaron, NO se autocalifica.
+          const autoZero = isPastDue && !entregado
+          const finalScore = autoZero ? 0 : (calificado ? submission.score : null)
 
           return {
             ...a,
             score: finalScore,
             isAutoZero: autoZero,
-            pending: !isPastDue && noSubmission, // aún no vence y no entregó: no cuenta todavía
+            entregado: entregado,
+            noCalificado: entregado && !calificado,
+            pending: !isPastDue && !entregado, // aún no vence y no entregó: no cuenta todavía
           }
         })
 
@@ -204,6 +207,7 @@ export default function StudentGrades() {
       const suffix = a.isAutoZero ? ' — No entregó' : ''
       return `${getLetterGrade(a.score)}${suffix}`
     }
+    if (a.noCalificado) return 'No calificado'
     return 'Pendiente (aún no vence)'
   }
 
