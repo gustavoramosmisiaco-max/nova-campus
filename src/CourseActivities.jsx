@@ -617,7 +617,9 @@ function ActividadTareas({ actividad }) {
   const [submissions, setSubmissions] = useState([])
   const [submissionScoresMap, setSubmissionScoresMap] = useState({})
   const [justificaciones, setJustificaciones] = useState([])
+  const [enrolledStudents, setEnrolledStudents] = useState([])
   const [loadingSubs, setLoadingSubs] = useState(false)
+  const [aplicandoCeros, setAplicandoCeros] = useState(false)
   const [preview, setPreview] = useState(null)
 
   useEffect(function () {
@@ -759,6 +761,13 @@ function ActividadTareas({ actividad }) {
     if (justResult.error) console.error('Error cargando justificaciones:', justResult.error)
     setJustificaciones(!justResult.error ? justResult.data : [])
 
+    const enrollResult = await supabase
+      .from('enrollments')
+      .select('student:profiles(id, full_name)')
+      .eq('course_id', actividad.course_id)
+      .eq('status', 'activo')
+    setEnrolledStudents(!enrollResult.error ? enrollResult.data.map(function (e) { return e.student }) : [])
+
     setLoadingSubs(false)
   }
 
@@ -795,6 +804,64 @@ function ActividadTareas({ actividad }) {
     await supabase.from('submissions').update({ score: avg, graded_by: session.user.id, graded_at: new Date().toISOString() }).eq('id', submissionId)
     openSubmissions(selectedAssignment)
   }
+
+  async function registrarCeroParaEstudiante(studentId) {
+    const nowIso = new Date().toISOString()
+
+    const insertResult = await supabase
+      .from('submissions')
+      .insert({
+        assignment_id: selectedAssignment.id,
+        student_id: studentId,
+        file_url: null,
+        submitted_at: nowIso,
+        score: 0,
+        graded_by: session.user.id,
+        graded_at: nowIso,
+      })
+      .select('id')
+      .single()
+
+    if (insertResult.error) {
+      alert('Error al registrar 0: ' + insertResult.error.message)
+      return
+    }
+
+    const submissionId = insertResult.data.id
+    if (assignmentCapacidades.length > 0) {
+      const scoresPayload = assignmentCapacidades.map(function (cap) {
+        return {
+          submission_id: submissionId,
+          capacidad_id: cap.id,
+          score: 0,
+          graded_by: session.user.id,
+          graded_at: nowIso,
+        }
+      })
+      await supabase.from('submission_scores').insert(scoresPayload)
+    }
+  }
+
+  async function handleZeroUnStudent(studentId) {
+    if (!confirm('¿Registrar 0 (C) para este estudiante en esta tarea? Se guardará como que no entregó.')) return
+    await registrarCeroParaEstudiante(studentId)
+    openSubmissions(selectedAssignment)
+  }
+
+  async function handleZeroTodos() {
+    if (missingStudents.length === 0) return
+    if (!confirm(`¿Registrar 0 (C) para los ${missingStudents.length} estudiante(s) que no entregaron esta tarea?`)) return
+    setAplicandoCeros(true)
+    for (const student of missingStudents) {
+      await registrarCeroParaEstudiante(student.id)
+    }
+    setAplicandoCeros(false)
+    openSubmissions(selectedAssignment)
+  }
+
+  const submittedStudentIds = new Set(submissions.map(function (s) { return s.student_id }))
+  const missingStudents = enrolledStudents.filter(function (s) { return !submittedStudentIds.has(s.id) })
+  const yaVencio = selectedAssignment ? new Date(selectedAssignment.fecha_entrega) < new Date() : false
 
   if (selectedAssignment) {
     return (
@@ -844,6 +911,40 @@ function ActividadTareas({ actividad }) {
           </div>
         )}
 
+        {yaVencio && missingStudents.length > 0 && (
+          <div className="mb-5 rounded-xl p-4" style={{ backgroundColor: '#FDECEC', border: '1px solid #F5C6C6' }}>
+            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+              <h4 className="text-sm font-bold" style={{ color: '#B91C1C' }}>
+                {missingStudents.length} estudiante(s) no entregaron esta tarea (vencida)
+              </h4>
+              <button
+                onClick={handleZeroTodos}
+                disabled={aplicandoCeros}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: '#B91C1C' }}
+              >
+                {aplicandoCeros ? 'Registrando...' : `Registrar 0 (C) a todos`}
+              </button>
+            </div>
+            <ul className="space-y-2">
+              {missingStudents.map(function (s) {
+                return (
+                  <li key={s.id} className="flex justify-between items-center rounded-lg px-3 py-2" style={{ backgroundColor: 'white', border: '1px solid #E5E9F0' }}>
+                    <span className="text-sm" style={{ color: NAVY_DARK }}>{s.full_name}</span>
+                    <button
+                      onClick={function () { handleZeroUnStudent(s.id) }}
+                      className="text-xs font-semibold px-3 py-1 rounded-lg text-white transition hover:opacity-90"
+                      style={{ backgroundColor: '#B91C1C' }}
+                    >
+                      Registrar 0 (C)
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )}
+
         {loadingSubs ? <p className="text-slate-400 text-sm">Cargando...</p> : submissions.length === 0 ? (
           <p className="text-slate-400 text-sm">Ningún alumno ha entregado aún.</p>
         ) : (
@@ -855,7 +956,9 @@ function ActividadTareas({ actividad }) {
                     <div>
                       <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{s.student?.full_name}</p>
                       {s.score != null ? (
-                        <p className={'text-xs font-semibold ' + getLetterColor(s.score)}>Promedio: {getLetterGrade(s.score)}</p>
+                        <p className={'text-xs font-semibold ' + getLetterColor(s.score)}>
+                          Promedio: {getLetterGrade(s.score)}{s.file_url == null ? ' (no entregó)' : ''}
+                        </p>
                       ) : (
                         <span
                           className="text-xs font-semibold px-2 py-0.5 rounded-full inline-block mt-1"
@@ -865,7 +968,9 @@ function ActividadTareas({ actividad }) {
                         </span>
                       )}
                     </div>
-                    <button onClick={function () { handlePreview(s.file_url) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>Ver archivo</button>
+                    {s.file_url && (
+                      <button onClick={function () { handlePreview(s.file_url) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>Ver archivo</button>
+                    )}
                   </div>
                   <div className="space-y-2">
                     {assignmentCapacidades.map(function (cap) {
