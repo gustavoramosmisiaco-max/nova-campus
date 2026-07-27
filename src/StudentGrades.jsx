@@ -114,30 +114,6 @@ export default function StudentGrades() {
         .map(function (a) { return a.score })
         .filter(function (s) { return s != null })
 
-    const enrichedCourses = courseList.map(function (c) {
-      const courseAssignments = assignmentsResult.data
-        .filter(function (a) { return a.course_id === c.id })
-        .map(function (a) {
-          const submittedScore = submissionsMap[a.id]
-          const isPastDue = new Date(a.fecha_entrega) < now
-          const noSubmission = submittedScore == null
-
-          // Regla: tarea vencida sin entrega -> C automático (0)
-          const autoZero = isPastDue && noSubmission
-          const finalScore = autoZero ? 0 : (submittedScore != null ? submittedScore : null)
-
-          return {
-            ...a,
-            score: finalScore,
-            isAutoZero: autoZero,
-            pending: !isPastDue && noSubmission, // aún no vence y no entregó: no cuenta todavía
-          }
-        })
-
-      const gradedScores = courseAssignments
-        .map(function (a) { return a.score })
-        .filter(function (s) { return s != null })
-
       return {
         ...c,
         areaNombre: c.asignaturas?.areas_curriculares?.nombre || 'Otras',
