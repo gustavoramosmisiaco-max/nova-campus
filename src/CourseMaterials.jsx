@@ -6,7 +6,7 @@ const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
 const GREEN = '#5DAA47'
 
-export default function CourseMaterials({ courseId, canUpload }) {
+export default function CourseMaterials({ courseId, actividadId, canUpload }) {
   const { session } = useAuth()
   const [materials, setMaterials] = useState([])
   const [loading, setLoading] = useState(true)
@@ -17,16 +17,14 @@ export default function CourseMaterials({ courseId, canUpload }) {
 
   useEffect(function () {
     loadMaterials()
-  }, [courseId])
+  }, [courseId, actividadId])
 
   async function loadMaterials() {
     setLoading(true)
-    const result = await supabase
-      .from('materials')
-      .select('*')
-      .eq('course_id', courseId)
-      .order('created_at', { ascending: false })
+    let query = supabase.from('materials').select('*').order('created_at', { ascending: false })
+    query = actividadId ? query.eq('actividad_id', actividadId) : query.eq('course_id', courseId)
 
+    const result = await query
     if (result.error) setError(result.error.message)
     else setMaterials(result.data)
     setLoading(false)
@@ -38,7 +36,7 @@ export default function CourseMaterials({ courseId, canUpload }) {
     setError('')
     setUploading(true)
 
-    const path = `${courseId}/${Date.now()}_${file.name}`
+    const path = `${courseId}/${actividadId || 'general'}/${Date.now()}_${file.name}`
 
     const uploadResult = await supabase.storage.from('materiales').upload(path, file)
 
@@ -50,6 +48,7 @@ export default function CourseMaterials({ courseId, canUpload }) {
 
     const insertResult = await supabase.from('materials').insert({
       course_id: courseId,
+      actividad_id: actividadId || null,
       titulo: titulo || file.name,
       file_url: path,
       file_type: file.type,
@@ -137,7 +136,7 @@ export default function CourseMaterials({ courseId, canUpload }) {
       {loading ? (
         <p className="text-slate-400 text-sm">Cargando materiales...</p>
       ) : materials.length === 0 ? (
-        <p className="text-slate-400 text-sm">Aún no hay materiales para este curso.</p>
+        <p className="text-slate-400 text-sm">Aún no hay materiales aquí.</p>
       ) : (
         <ul className="space-y-3">
           {materials.map(function (m) {

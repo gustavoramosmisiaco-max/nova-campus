@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
-import CourseMaterials from './CourseMaterials'
 import CourseActivities from './CourseActivities'
-import CourseAssignmentsTeacher from './CourseAssignmentsTeacher'
 import CourseZoomTeacher from './CourseZoomTeacher'
 import RegistroAuxiliar from './RegistroAuxiliar'
 import InstrumentoEvaluacion from './InstrumentoEvaluacion'
@@ -29,12 +27,10 @@ function scheduleText(schedules) {
 }
 
 function CourseDetailTeacher({ course, onBack }) {
-  const [tab, setTab] = useState('materiales')
+  const [tab, setTab] = useState('actividades')
 
   const tabs = [
-    { id: 'materiales', label: 'Materiales' },
     { id: 'actividades', label: 'Actividades' },
-    { id: 'tareas', label: 'Tareas' },
     { id: 'instrumento', label: 'Instrumento de Evaluación' },
     { id: 'registro', label: 'Registro Auxiliar' },
     { id: 'zoom', label: 'Videoclases' },
@@ -86,9 +82,7 @@ function CourseDetailTeacher({ course, onBack }) {
       </div>
 
       <div className="bg-white rounded-2xl p-6" style={{ border: '1px solid #E5E9F0' }}>
-        {tab === 'materiales' && <CourseMaterials courseId={course.id} canUpload={true} />}
         {tab === 'actividades' && <CourseActivities courseId={course.id} />}
-        {tab === 'tareas' && <CourseAssignmentsTeacher courseId={course.id} />}
         {tab === 'instrumento' && (
           <InstrumentoEvaluacion
             courseId={course.id}
