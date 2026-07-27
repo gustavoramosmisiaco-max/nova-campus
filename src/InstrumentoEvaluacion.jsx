@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 import { getLetterGrade } from './gradeUtils'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 const NAVY_DARK = '#0F2A4A'
 
@@ -35,6 +37,14 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [matrix, setMatrix] = useState(null)
+  const [institucion, setInstitucion] = useState(function () {
+    return localStorage.getItem('nova_institucion') || ''
+  })
+
+  function saveInstitucion(value) {
+    setInstitucion(value)
+    localStorage.setItem('nova_institucion', value)
+  }
 
   useEffect(function () {
     loadActivities()
@@ -151,24 +161,148 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
     setLoading(false)
   }
 
+  function exportarListaCotejoPDF() {
+    if (!institucion.trim()) {
+      alert('Completa el nombre de la institución educativa antes de exportar.')
+      return
+    }
+    const a = matrix.actividad
+    const doc = new jsPDF({ orientation: 'landscape' })
+
+    doc.setFontSize(13)
+    doc.text(institucion, 14, 14)
+    doc.setFontSize(10)
+    doc.text(`Fecha: ${todayFormatted()}   Grado: ${courseGrado}° SECUNDARIA   Sección: ${courseGrupo}`, 14, 21)
+    doc.text(`Propósito: ${a.proposito || '—'}`, 14, 27)
+    doc.text(`Competencia: ${a.competencia?.nombre || '—'}`, 14, 33)
+    doc.text(`Actividad: ${a.nombre}`, 14, 39)
+
+    const head = [
+      ['N°', 'Apellidos y Nombres', ...matrix.capacidades.flatMap(function (cap, i) {
+        return NIVELES.map(function (n) { return `Cap.${i + 1} ${n.letra}` })
+      })]
+    ]
+    const body = matrix.students.map(function (s, idx) {
+      const row = [idx + 1, s.full_name]
+      matrix.capacidades.forEach(function (cap) {
+        const score = matrix.cellValues[`${s.id}__${cap.capacidad.id}`]
+        const letra = score != null ? getLetterGrade(score) : null
+        NIVELES.forEach(function (n) {
+          row.push(letra === n.letra ? 'X' : '')
+        })
+      })
+      return row
+    })
+
+    autoTable(doc, {
+      startY: 44,
+      head: head,
+      body: body,
+      styles: { fontSize: 7, halign: 'center' },
+      headStyles: { fillColor: [15, 42, 74] },
+      columnStyles: { 1: { halign: 'left' } },
+      margin: { left: 14, right: 14 },
+    })
+
+    doc.save(`Lista_Cotejo_${courseNombre}_Actividad${a.numero_actividad}.pdf`)
+  }
+
+  function exportarRubricaPDF() {
+    if (!institucion.trim()) {
+      alert('Completa el nombre de la institución educativa antes de exportar.')
+      return
+    }
+    const a = matrix.actividad
+    const doc = new jsPDF({ orientation: 'landscape' })
+
+    doc.setFontSize(13)
+    doc.text(institucion, 14, 14)
+    doc.setFontSize(10)
+    doc.text(`Fecha: ${todayFormatted()}   Grado: ${courseGrado}° SECUNDARIA   Sección: ${courseGrupo}`, 14, 21)
+    doc.text(`Competencia: ${a.competencia?.nombre || '—'}`, 14, 27)
+    doc.text(`Propósito: ${a.proposito || '—'}`, 14, 33)
+    doc.text(`Actividad: ${a.nombre}   Docente: ${profile?.full_name || ''}`, 14, 39)
+
+    let startY = 46
+    matrix.capacidades.forEach(function (cap) {
+      doc.setFontSize(10)
+      doc.text(cap.capacidad.nombre, 14, startY)
+      startY += 4
+
+      autoTable(doc, {
+        startY: startY,
+        head: [['AD', 'A', 'B', 'C']],
+        body: [NIVELES.map(function (n) { return cap['desc_' + n.letra.toLowerCase()] || '—' })],
+        styles: { fontSize: 7 },
+        headStyles: { fillColor: [15, 42, 74] },
+        margin: { left: 14, right: 14 },
+      })
+      startY = doc.lastAutoTable.finalY + 4
+
+      const rosterBody = matrix.students.map(function (s, idx) {
+        const score = matrix.cellValues[`${s.id}__${cap.capacidad.id}`]
+        const letra = score != null ? getLetterGrade(score) : '—'
+        return [idx + 1, s.full_name, letra]
+      })
+      autoTable(doc, {
+        startY: startY,
+        head: [['N°', 'Apellidos y Nombres', 'Calificación']],
+        body: rosterBody,
+        styles: { fontSize: 7 },
+        headStyles: { fillColor: [15, 42, 74] },
+        margin: { left: 14, right: 14 },
+      })
+      startY = doc.lastAutoTable.finalY + 10
+    })
+
+    doc.save(`Rubrica_${courseNombre}_Actividad${a.numero_actividad}.pdf`)
+  }
+
   return (
     <div>
       <h3 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>Instrumento de Evaluación</h3>
 
-      <div className="mb-5 max-w-md">
-        <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Actividad</label>
-        <select
-          value={selectedId}
-          onChange={function (e) { loadMatrix(e.target.value) }}
-          className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-          style={inputStyle}
-        >
-          <option value="">-- Selecciona una actividad --</option>
-          {activities.map(function (a) {
-            return <option key={a.id} value={a.id}>Actividad {a.numero_actividad} · {a.nombre}</option>
-          })}
-        </select>
+      <div className="grid md:grid-cols-2 gap-3 mb-5">
+        <div>
+          <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Actividad</label>
+          <select
+            value={selectedId}
+            onChange={function (e) { loadMatrix(e.target.value) }}
+            className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+            style={inputStyle}
+          >
+            <option value="">-- Selecciona una actividad --</option>
+            {activities.map(function (a) {
+              return <option key={a.id} value={a.id}>Actividad {a.numero_actividad} · {a.nombre}</option>
+            })}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>
+            Institución educativa (para exportar)
+          </label>
+          <input
+            type="text"
+            value={institucion}
+            onChange={function (e) { saveInstitucion(e.target.value) }}
+            placeholder="Ej: I.E.P. Señor de Luren"
+            className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+            style={inputStyle}
+          />
+        </div>
       </div>
+
+      {matrix && matrix.capacidades.length > 0 && (
+        <div className="flex justify-end mb-3">
+          <button
+            onClick={matrix.tipoInstrumento === 'Rúbrica' ? exportarRubricaPDF : exportarListaCotejoPDF}
+            className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+            style={{ backgroundColor: '#5DAA47' }}
+          >
+            Exportar PDF
+          </button>
+        </div>
+      )}
 
       {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
 
