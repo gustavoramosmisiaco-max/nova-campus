@@ -7,6 +7,7 @@ import CierrePeriodo from './CierrePeriodo'
 import ImportarEstudiantes from './ImportarEstudiantes'
 import ImportarDocentes from './ImportarDocentes'
 import EstudiantesList from './EstudiantesList'
+import DocentesList from './DocentesList'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -22,6 +23,7 @@ export default function AdminDashboard() {
     { id: 'matriculas', label: 'Matrículas', icon: UsersIcon },
     { id: 'asignaturas', label: 'Asignaturas', icon: BookIcon },
     { id: 'estudiantes', label: 'Estudiantes', icon: UsersIcon },
+    { id: 'docentes', label: 'Docentes', icon: UsersIcon },
     { id: 'importar', label: 'Importar Estudiantes', icon: UsersIcon },
     { id: 'importar-docentes', label: 'Importar Docentes', icon: UsersIcon },
     { id: 'periodo', label: 'Cierre de Periodo', icon: BookIcon },
@@ -134,6 +136,7 @@ export default function AdminDashboard() {
           {tab === 'matriculas' && <EnrollmentsManager />}
           {tab === 'asignaturas' && <AsignaturasManager />}
           {tab === 'estudiantes' && <EstudiantesList />}
+          {tab === 'docentes' && <DocentesList />}
           {tab === 'importar' && <ImportarEstudiantes />}
           {tab === 'importar-docentes' && <ImportarDocentes />}
           {tab === 'periodo' && <CierrePeriodo />}
