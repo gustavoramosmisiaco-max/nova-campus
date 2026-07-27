@@ -4,7 +4,7 @@ import { useAuth } from './AuthContext'
 import { getLetterGrade } from './gradeUtils'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 
 const NAVY_DARK = '#0F2A4A'
 
@@ -30,6 +30,24 @@ function average(numbers) {
   if (numbers.length === 0) return null
   return numbers.reduce(function (a, b) { return a + b }, 0) / numbers.length
 }
+
+async function descargarWorkbook(workbook, filename) {
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+const COLOR_INSTITUCION = 'FF1F4E79'
+const COLOR_TITULO = 'FF2E75B6'
+const COLOR_METADATA = 'FFDEEBF7'
+const COLOR_CAPACIDAD = 'FF548235'
+const COLOR_TABLA_HEAD = 'FF1F4E79'
+const NIVEL_COLOR_ARGB = { AD: 'FF2F7A1F', A: 'FF1D5C8F', B: 'FFB45309', C: 'FFB91C1C' }
 
 export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGrado, courseGrupo }) {
   const { profile } = useAuth()
@@ -275,80 +293,180 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
     doc.save(`Rubrica_${courseNombre}_Actividad${a.numero_actividad}.pdf`)
   }
 
-  function exportarListaCotejoExcel() {
+  async function exportarListaCotejoExcel() {
     if (!institucion.trim()) {
       alert('Completa el nombre de la institución educativa antes de exportar.')
       return
     }
     const a = matrix.actividad
-    const rows = []
-    rows.push([institucion])
-    rows.push(['LISTA DE COTEJO'])
-    rows.push([`Fecha: ${todayFormatted()}`, `Grado: ${courseGrado}° SECUNDARIA`, `Sección: ${courseGrupo}`])
-    rows.push([`Propósito: ${a.proposito || '—'}`])
-    rows.push([`Competencia: ${a.competencia?.nombre || '—'}`])
-    rows.push([`Actividad: ${a.nombre}`])
-    rows.push([])
+    const totalCols = 2 + matrix.capacidades.length
 
+    const workbook = new ExcelJS.Workbook()
+    const ws = workbook.addWorksheet('Lista de Cotejo')
+
+    ws.getColumn(1).width = 14.75
+    ws.getColumn(2).width = 43.375
+    for (let i = 3; i <= totalCols; i++) ws.getColumn(i).width = 21.625
+
+    function mergedRow(rowNum, text, fillArgb, fontArgb, size, bold) {
+      ws.mergeCells(rowNum, 1, rowNum, totalCols)
+      const cell = ws.getCell(rowNum, 1)
+      cell.value = text
+      cell.font = { bold: bold, size: size || 11, color: { argb: fontArgb || 'FF000000' } }
+      if (fillArgb) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillArgb } }
+      cell.alignment = { vertical: 'middle', wrapText: true }
+      ws.getRow(rowNum).height = size >= 14 ? 26 : 18
+    }
+
+    mergedRow(1, institucion, COLOR_INSTITUCION, 'FFFFFFFF', 16, true)
+    mergedRow(2, 'LISTA DE COTEJO', COLOR_TITULO, 'FFFFFFFF', 14, true)
+
+    const row3 = ws.getRow(3)
+    ;[`Fecha: ${todayFormatted()}`, `Grado: ${courseGrado}° SECUNDARIA`, `Sección: ${courseGrupo}`].forEach(function (text, i) {
+      const cell = row3.getCell(i + 1)
+      cell.value = text
+      cell.font = { bold: true, size: 11 }
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_METADATA } }
+    })
+
+    mergedRow(4, `Propósito: ${a.proposito || '—'}`, COLOR_METADATA, 'FF000000', 11, false)
+    mergedRow(5, `Competencia: ${a.competencia?.nombre || '—'}`, COLOR_METADATA, 'FF000000', 11, false)
+    mergedRow(6, `Actividad: ${a.nombre}`, COLOR_METADATA, 'FF000000', 11, false)
+
+    let r = 8
     matrix.capacidades.forEach(function (cap) {
-      rows.push([cap.capacidad.nombre])
-      rows.push([`Criterio: ${cap.criterio || '—'}`])
-      rows.push([`Desempeño: ${cap.desempeno || '—'}`])
-      rows.push([])
+      mergedRow(r, cap.capacidad.nombre, COLOR_CAPACIDAD, 'FFFFFFFF', 12, true)
+      r++
+      mergedRow(r, `Criterio: ${cap.criterio || '—'}`, null, 'FF000000', 10, false)
+      r++
+      mergedRow(r, `Desempeño: ${cap.desempeno || '—'}`, null, 'FF000000', 10, false)
+      r++
     })
+    r++
 
-    rows.push(['N°', 'Apellidos y Nombres', ...matrix.capacidades.map(function (cap) { return cap.capacidad.nombre })])
+    const headerRow = ws.getRow(r)
+    ;['N°', 'Apellidos y Nombres', ...matrix.capacidades.map(function (cap) { return cap.capacidad.nombre })].forEach(function (text, i) {
+      const cell = headerRow.getCell(i + 1)
+      cell.value = text
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_TABLA_HEAD } }
+      cell.border = { top: { style: 'medium' }, bottom: { style: 'medium' }, left: { style: 'medium' }, right: { style: 'medium' } }
+      cell.alignment = { horizontal: 'center', vertical: 'middle' }
+    })
+    r++
+
     matrix.students.forEach(function (s, idx) {
-      const row = [idx + 1, s.full_name]
-      matrix.capacidades.forEach(function (cap) {
+      const row = ws.getRow(r)
+      row.getCell(1).value = idx + 1
+      row.getCell(2).value = s.full_name
+      row.getCell(1).border = row.getCell(2).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
+      matrix.capacidades.forEach(function (cap, ci) {
         const score = matrix.cellValues[`${s.id}__${cap.capacidad.id}`]
-        row.push(score != null ? getLetterGrade(score) : '—')
+        const letra = score != null ? getLetterGrade(score) : '—'
+        const cell = row.getCell(3 + ci)
+        cell.value = letra
+        cell.font = { bold: true, color: { argb: NIVEL_COLOR_ARGB[letra] || 'FF000000' } }
+        cell.alignment = { horizontal: 'center' }
+        cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
       })
-      rows.push(row)
+      r++
     })
 
-    const ws = XLSX.utils.aoa_to_sheet(rows)
-    ws['!cols'] = [{ wch: 5 }, { wch: 30 }, ...matrix.capacidades.map(function () { return { wch: 16 } })]
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Lista de Cotejo')
-    XLSX.writeFile(wb, `Lista_Cotejo_${courseNombre}_Actividad${a.numero_actividad}.xlsx`)
+    await descargarWorkbook(workbook, `Lista_Cotejo_${courseNombre}_Actividad${a.numero_actividad}.xlsx`)
   }
 
-  function exportarRubricaExcel() {
+  async function exportarRubricaExcel() {
     if (!institucion.trim()) {
       alert('Completa el nombre de la institución educativa antes de exportar.')
       return
     }
     const a = matrix.actividad
-    const rows = []
-    rows.push([institucion])
-    rows.push(['RÚBRICA DE EVALUACIÓN'])
-    rows.push([`Fecha: ${todayFormatted()}`, `Grado: ${courseGrado}° SECUNDARIA`, `Sección: ${courseGrupo}`])
-    rows.push([`Competencia: ${a.competencia?.nombre || '—'}`])
-    rows.push([`Propósito: ${a.proposito || '—'}`])
-    rows.push([`Actividad: ${a.nombre}`, `Docente: ${profile?.full_name || ''}`])
-    rows.push([])
+    const totalCols = 4
 
+    const workbook = new ExcelJS.Workbook()
+    const ws = workbook.addWorksheet('Rúbrica')
+    for (let i = 1; i <= totalCols; i++) ws.getColumn(i).width = 32
+
+    function mergedRow(rowNum, text, fillArgb, fontArgb, size, bold) {
+      ws.mergeCells(rowNum, 1, rowNum, totalCols)
+      const cell = ws.getCell(rowNum, 1)
+      cell.value = text
+      cell.font = { bold: bold, size: size || 11, color: { argb: fontArgb || 'FF000000' } }
+      if (fillArgb) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillArgb } }
+      cell.alignment = { vertical: 'middle', wrapText: true }
+      ws.getRow(rowNum).height = size >= 14 ? 26 : 18
+    }
+
+    mergedRow(1, institucion, COLOR_INSTITUCION, 'FFFFFFFF', 16, true)
+    mergedRow(2, 'RÚBRICA DE EVALUACIÓN', COLOR_TITULO, 'FFFFFFFF', 14, true)
+
+    const row3 = ws.getRow(3)
+    ;[`Fecha: ${todayFormatted()}`, `Grado: ${courseGrado}° SECUNDARIA`, `Sección: ${courseGrupo}`].forEach(function (text, i) {
+      const cell = row3.getCell(i + 1)
+      cell.value = text
+      cell.font = { bold: true, size: 11 }
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_METADATA } }
+    })
+
+    mergedRow(4, `Competencia: ${a.competencia?.nombre || '—'}`, COLOR_METADATA, 'FF000000', 11, false)
+    mergedRow(5, `Propósito: ${a.proposito || '—'}`, COLOR_METADATA, 'FF000000', 11, false)
+    mergedRow(6, `Actividad: ${a.nombre}   Docente: ${profile?.full_name || ''}`, COLOR_METADATA, 'FF000000', 11, false)
+
+    let r = 8
     matrix.capacidades.forEach(function (cap) {
-      rows.push([cap.capacidad.nombre])
-      if (cap.criterio) rows.push([`Criterio: ${cap.criterio}`])
-      rows.push(['AD', 'A', 'B', 'C'])
-      rows.push([cap.desc_ad || '—', cap.desc_a || '—', cap.desc_b || '—', cap.desc_c || '—'])
-      rows.push([])
-      rows.push(['N°', 'Apellidos y Nombres', 'Calificación'])
+      mergedRow(r, cap.capacidad.nombre, COLOR_CAPACIDAD, 'FFFFFFFF', 12, true)
+      r++
+      if (cap.criterio) {
+        mergedRow(r, `Criterio: ${cap.criterio}`, null, 'FF000000', 10, false)
+        r++
+      }
+
+      const nivelRow = ws.getRow(r)
+      ;['AD', 'A', 'B', 'C'].forEach(function (letra, i) {
+        const cell = nivelRow.getCell(i + 1)
+        cell.value = letra
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NIVEL_COLOR_ARGB[letra] } }
+        cell.alignment = { horizontal: 'center' }
+      })
+      r++
+
+      const descRow = ws.getRow(r)
+      ;[cap.desc_ad, cap.desc_a, cap.desc_b, cap.desc_c].forEach(function (text, i) {
+        const cell = descRow.getCell(i + 1)
+        cell.value = text || '—'
+        cell.alignment = { wrapText: true, vertical: 'top' }
+        cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
+      })
+      r += 2
+
+      const headerRow = ws.getRow(r)
+      ;['N°', 'Apellidos y Nombres', 'Calificación'].forEach(function (text, i) {
+        const cell = headerRow.getCell(i + 1)
+        cell.value = text
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_TABLA_HEAD } }
+        cell.alignment = { horizontal: 'center' }
+      })
+      r++
+
       matrix.students.forEach(function (s, idx) {
         const score = matrix.cellValues[`${s.id}__${cap.capacidad.id}`]
         const letra = score != null ? getLetterGrade(score) : '—'
-        rows.push([idx + 1, s.full_name, letra])
+        const row = ws.getRow(r)
+        row.getCell(1).value = idx + 1
+        row.getCell(2).value = s.full_name
+        row.getCell(3).value = letra
+        row.getCell(3).font = { bold: true, color: { argb: NIVEL_COLOR_ARGB[letra] || 'FF000000' } }
+        for (let c = 1; c <= 3; c++) {
+          row.getCell(c).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
+        }
+        r++
       })
-      rows.push([])
+      r++
     })
 
-    const ws = XLSX.utils.aoa_to_sheet(rows)
-    ws['!cols'] = [{ wch: 30 }, { wch: 30 }, { wch: 30 }, { wch: 30 }]
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Rúbrica')
-    XLSX.writeFile(wb, `Rubrica_${courseNombre}_Actividad${a.numero_actividad}.xlsx`)
+    await descargarWorkbook(workbook, `Rubrica_${courseNombre}_Actividad${a.numero_actividad}.xlsx`)
   }
 
   return (
