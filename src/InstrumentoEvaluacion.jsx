@@ -381,7 +381,7 @@ function ListaCotejoView({ matrix, courseGrado, courseGrupo }) {
         }
       />
 
-      <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+      <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
         <thead>
           <tr>
             <td style={{ ...tableHeadCell, textAlign: 'center' }} colSpan={matrix.capacidades.length}>
@@ -391,7 +391,10 @@ function ListaCotejoView({ matrix, courseGrado, courseGrupo }) {
           <tr>
             {matrix.capacidades.map(function (cap) {
               return (
-                <td key={cap.capacidad.id} style={{ ...tableHeadCell, textAlign: 'center' }}>
+                <td
+                  key={cap.capacidad.id}
+                  style={{ ...tableHeadCell, textAlign: 'center', width: `${100 / matrix.capacidades.length}%` }}
+                >
                   {cap.capacidad.nombre}
                 </td>
               )
@@ -400,7 +403,17 @@ function ListaCotejoView({ matrix, courseGrado, courseGrupo }) {
           <tr>
             {matrix.capacidades.map(function (cap) {
               return (
-                <td key={cap.capacidad.id} style={{ ...tableCell, color: '#1d5c8f', verticalAlign: 'top' }}>
+                <td
+                  key={cap.capacidad.id}
+                  style={{
+                    ...tableCell,
+                    color: '#1d5c8f',
+                    verticalAlign: 'top',
+                    width: `${100 / matrix.capacidades.length}%`,
+                    wordBreak: 'break-word',
+                    whiteSpace: 'normal',
+                  }}
+                >
                   <p style={{ marginBottom: 4 }}><strong>Criterio:</strong> {cap.criterio || '—'}</p>
                   <p style={{ color: NAVY_DARK }}><strong>Desempeño:</strong> {cap.desempeno || '—'}</p>
                 </td>
@@ -410,11 +423,11 @@ function ListaCotejoView({ matrix, courseGrado, courseGrupo }) {
         </thead>
       </table>
 
-      <table style={{ borderCollapse: 'collapse', width: '100%', marginTop: '-1px' }}>
+      <table style={{ borderCollapse: 'collapse', width: '100%', marginTop: '-1px', tableLayout: 'fixed' }}>
         <thead>
           <tr>
             <td style={{ ...tableHeadCell, width: 40 }}>N°</td>
-            <td style={{ ...tableHeadCell, minWidth: 220 }}>APELLIDOS Y NOMBRES</td>
+            <td style={{ ...tableHeadCell, width: 220 }}>APELLIDOS Y NOMBRES</td>
             {matrix.capacidades.map(function (cap) {
               return (
                 <td key={cap.capacidad.id} style={{ ...tableHeadCell, textAlign: 'center' }}>
