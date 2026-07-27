@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from './AuthContext'
 import MyCourses from './MyCourses'
+import StudentGrades from './StudentGrades'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -121,9 +122,7 @@ export default function EstudianteDashboard() {
         {/* Contenido */}
         <main className="flex-1 p-6 md:p-10">
           {activeSection === 'cursos' && <MyCourses />}
-          {activeSection === 'notas' && (
-            <EmptyState title="Notas" subtitle="Aquí verás tus calificaciones próximamente." />
-          )}
+          {activeSection === 'notas' && <StudentGrades />}
           {activeSection === 'zoom' && (
             <EmptyState title="Clases en vivo" subtitle="Aquí aparecerán tus próximas sesiones de Zoom." />
           )}
