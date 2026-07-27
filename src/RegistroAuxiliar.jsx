@@ -180,9 +180,9 @@ export default function RegistroAuxiliar({ courseId, courseNombre, courseGrado, 
     const head = [['Estudiante', ...taskColumns.map(function (t) { return t.titulo }), 'Promedio']]
     const body = reportRows.map(function (r) {
       const notaCells = r.notas.map(function (n) {
-        return n.score != null ? `${n.score} (${getLetterGrade(n.score)})` : '—'
+        return n.score != null ? getLetterGrade(n.score) : '—'
       })
-      const prom = r.promedio != null ? `${r.promedio.toFixed(1)} (${getLetterGrade(r.promedio)})` : '—'
+      const prom = r.promedio != null ? getLetterGrade(r.promedio) : '—'
       return [r.studentName, ...notaCells, prom]
     })
 
@@ -285,12 +285,12 @@ export default function RegistroAuxiliar({ courseId, courseNombre, courseGrado, 
                         {r.notas.map(function (n, i) {
                           return (
                             <td key={i} className="text-center py-2 px-2 text-xs">
-                              {n.score != null ? `${n.score} (${getLetterGrade(n.score)})` : '—'}
+                              {n.score != null ? getLetterGrade(n.score) : '—'}
                             </td>
                           )
                         })}
                         <td className="text-right py-2 pl-3 font-semibold" style={{ color: NAVY }}>
-                          {r.promedio != null ? `${r.promedio.toFixed(1)} (${getLetterGrade(r.promedio)})` : '—'}
+                          {r.promedio != null ? getLetterGrade(r.promedio) : '—'}
                         </td>
                       </tr>
                     )
