@@ -167,19 +167,23 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
       return
     }
     const a = matrix.actividad
-    const doc = new jsPDF({ orientation: 'landscape' })
+    const doc = new jsPDF({ orientation: 'landscape', format: 'a4' })
+    const pageWidth = doc.internal.pageSize.getWidth()
 
-    doc.setFontSize(13)
-    doc.text(institucion, 14, 14)
     doc.setFontSize(10)
-    doc.text(`Fecha: ${todayFormatted()}   Grado: ${courseGrado}° SECUNDARIA   Sección: ${courseGrupo}`, 14, 21)
-    doc.text(`Propósito: ${a.proposito || '—'}`, 14, 27)
-    doc.text(`Competencia: ${a.competencia?.nombre || '—'}`, 14, 33)
-    doc.text(`Actividad: ${a.nombre}`, 14, 39)
+    doc.text(institucion, 14, 12)
+    doc.setFontSize(14)
+    doc.text('LISTA DE COTEJO', pageWidth / 2, 12, { align: 'center' })
+
+    doc.setFontSize(9)
+    doc.text(`Fecha: ${todayFormatted()}   Grado: ${courseGrado}° SECUNDARIA   Sección: ${courseGrupo}`, 14, 20)
+    doc.text(`Propósito: ${a.proposito || '—'}`, 14, 26)
+    doc.text(`Competencia: ${a.competencia?.nombre || '—'}`, 14, 32)
+    doc.text(`Actividad: ${a.nombre}`, 14, 38)
 
     // Bloque de detalle: capacidad, criterio y desempeño (igual que en pantalla)
     autoTable(doc, {
-      startY: 44,
+      startY: 43,
       head: [matrix.capacidades.map(function (cap) { return cap.capacidad.nombre })],
       body: [matrix.capacidades.map(function (cap) {
         return `Criterio: ${cap.criterio || '—'}\n\nDesempeño: ${cap.desempeno || '—'}`
@@ -191,19 +195,13 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
 
     const detailEndY = doc.lastAutoTable.finalY + 4
 
-    const head = [
-      ['N°', 'Apellidos y Nombres', ...matrix.capacidades.flatMap(function (cap) {
-        return NIVELES.map(function (n) { return `${cap.capacidad.nombre.slice(0, 12)}… ${n.letra}` })
-      })]
-    ]
+    // Tabla de calificación: solo la letra lograda por capacidad
+    const head = [['N°', 'Apellidos y Nombres', ...matrix.capacidades.map(function (cap) { return cap.capacidad.nombre })]]
     const body = matrix.students.map(function (s, idx) {
       const row = [idx + 1, s.full_name]
       matrix.capacidades.forEach(function (cap) {
         const score = matrix.cellValues[`${s.id}__${cap.capacidad.id}`]
-        const letra = score != null ? getLetterGrade(score) : null
-        NIVELES.forEach(function (n) {
-          row.push(letra === n.letra ? 'X' : '')
-        })
+        row.push(score != null ? getLetterGrade(score) : '—')
       })
       return row
     })
@@ -212,7 +210,7 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
       startY: detailEndY,
       head: head,
       body: body,
-      styles: { fontSize: 6.5, halign: 'center' },
+      styles: { fontSize: 8, halign: 'center' },
       headStyles: { fillColor: [15, 42, 74] },
       columnStyles: { 1: { halign: 'left' } },
       margin: { left: 14, right: 14 },
@@ -227,17 +225,21 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
       return
     }
     const a = matrix.actividad
-    const doc = new jsPDF({ orientation: 'landscape' })
+    const doc = new jsPDF({ orientation: 'landscape', format: 'a4' })
+    const pageWidth = doc.internal.pageSize.getWidth()
 
-    doc.setFontSize(13)
-    doc.text(institucion, 14, 14)
     doc.setFontSize(10)
-    doc.text(`Fecha: ${todayFormatted()}   Grado: ${courseGrado}° SECUNDARIA   Sección: ${courseGrupo}`, 14, 21)
-    doc.text(`Competencia: ${a.competencia?.nombre || '—'}`, 14, 27)
-    doc.text(`Propósito: ${a.proposito || '—'}`, 14, 33)
-    doc.text(`Actividad: ${a.nombre}   Docente: ${profile?.full_name || ''}`, 14, 39)
+    doc.text(institucion, 14, 12)
+    doc.setFontSize(14)
+    doc.text('RÚBRICA DE EVALUACIÓN', pageWidth / 2, 12, { align: 'center' })
 
-    let startY = 46
+    doc.setFontSize(9)
+    doc.text(`Fecha: ${todayFormatted()}   Grado: ${courseGrado}° SECUNDARIA   Sección: ${courseGrupo}`, 14, 20)
+    doc.text(`Competencia: ${a.competencia?.nombre || '—'}`, 14, 26)
+    doc.text(`Propósito: ${a.proposito || '—'}`, 14, 32)
+    doc.text(`Actividad: ${a.nombre}   Docente: ${profile?.full_name || ''}`, 14, 38)
+
+    let startY = 44
     matrix.capacidades.forEach(function (cap) {
       doc.setFontSize(10)
       doc.text(cap.capacidad.nombre, 14, startY)
@@ -357,6 +359,7 @@ function ListaCotejoView({ matrix, courseGrado, courseGrupo }) {
   const a = matrix.actividad
   return (
     <div className="overflow-x-auto">
+      <h2 className="text-center text-lg font-bold mb-3" style={{ color: NAVY_DARK }}>LISTA DE COTEJO</h2>
       <HeaderBlock
         courseGrado={courseGrado}
         courseGrupo={courseGrupo}
@@ -414,23 +417,10 @@ function ListaCotejoView({ matrix, courseGrado, courseGrupo }) {
             <td style={{ ...tableHeadCell, minWidth: 220 }}>APELLIDOS Y NOMBRES</td>
             {matrix.capacidades.map(function (cap) {
               return (
-                <td key={cap.capacidad.id} style={{ ...tableHeadCell, textAlign: 'center' }} colSpan={4}>
-                  calificación
+                <td key={cap.capacidad.id} style={{ ...tableHeadCell, textAlign: 'center' }}>
+                  {cap.capacidad.nombre}
                 </td>
               )
-            })}
-          </tr>
-          <tr>
-            <td style={tableHeadCell}></td>
-            <td style={tableHeadCell}></td>
-            {matrix.capacidades.map(function (cap) {
-              return NIVELES.map(function (n) {
-                return (
-                  <td key={cap.capacidad.id + n.letra} style={{ ...tableHeadCell, textAlign: 'center', color: n.color }}>
-                    {n.letra}
-                  </td>
-                )
-              })
             })}
           </tr>
         </thead>
@@ -443,13 +433,16 @@ function ListaCotejoView({ matrix, courseGrado, courseGrupo }) {
                 {matrix.capacidades.map(function (cap) {
                   const score = matrix.cellValues[`${s.id}__${cap.capacidad.id}`]
                   const letra = score != null ? getLetterGrade(score) : null
-                  return NIVELES.map(function (n) {
-                    return (
-                      <td key={cap.capacidad.id + n.letra} style={{ ...tableCell, textAlign: 'center' }}>
-                        {letra === n.letra ? <span style={{ fontWeight: 700, color: n.color }}>X</span> : ''}
-                      </td>
-                    )
-                  })
+                  const nivel = letra ? NIVELES.find(function (n) { return n.letra === letra }) : null
+                  return (
+                    <td key={cap.capacidad.id} style={{ ...tableCell, textAlign: 'center' }}>
+                      {letra ? (
+                        <span style={{ fontWeight: 700, color: nivel?.color }}>{letra}</span>
+                      ) : (
+                        <span style={{ color: '#94A3B8' }}>—</span>
+                      )}
+                    </td>
+                  )
                 })}
               </tr>
             )
@@ -464,6 +457,7 @@ function RubricaView({ matrix, courseGrado, courseGrupo, docente }) {
   const a = matrix.actividad
   return (
     <div className="overflow-x-auto space-y-8">
+      <h2 className="text-center text-lg font-bold" style={{ color: NAVY_DARK }}>RÚBRICA DE EVALUACIÓN</h2>
       <HeaderBlock
         courseGrado={courseGrado}
         courseGrupo={courseGrupo}
