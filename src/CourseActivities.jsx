@@ -288,8 +288,14 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
 
   async function init() {
     setLoading(true)
-    const area = getArea(courseNombre)
-    const compResult = await supabase.from('competencias').select('*').eq('area', area).order('codigo')
+    const courseResult = await supabase
+      .from('courses')
+      .select('asignaturas(area_id, areas_curriculares(nombre))')
+      .eq('id', courseId)
+      .single()
+
+    const areaNombre = courseResult.data?.asignaturas?.areas_curriculares?.nombre || getArea(courseNombre)
+    const compResult = await supabase.from('competencias').select('*').eq('area', areaNombre).order('codigo')
     setCompetencias(compResult.data || [])
     await loadActivities()
     setLoading(false)

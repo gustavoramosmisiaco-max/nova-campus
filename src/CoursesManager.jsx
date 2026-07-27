@@ -5,7 +5,6 @@ const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
 const GREEN = '#5DAA47'
 
-const ASIGNATURAS = ['Biologia', 'Quimica', 'Fisica', 'Matematica']
 const DIAS = [
   { value: 1, label: 'Lunes' },
   { value: 2, label: 'Martes' },
@@ -43,13 +42,14 @@ const emptyBlock = { dia_semana: 1, hora_inicio: '', hora_fin: '' }
 export default function CoursesManager() {
   const [courses, setCourses] = useState([])
   const [docentes, setDocentes] = useState([])
+  const [areas, setAreas] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [error, setError] = useState('')
 
   const [form, setForm] = useState({
-    nombre: 'Biologia',
+    asignatura_id: '',
     grupo: 'A',
     grado: 1,
     docente_id: '',
@@ -60,6 +60,7 @@ export default function CoursesManager() {
   useEffect(function () {
     loadCourses()
     loadDocentes()
+    loadAreas()
   }, [])
 
   async function loadCourses() {
@@ -89,10 +90,33 @@ export default function CoursesManager() {
     if (!result.error) setDocentes(result.data)
   }
 
+  async function loadAreas() {
+    const result = await supabase
+      .from('areas_curriculares')
+      .select('*, asignaturas(id, nombre, activo)')
+      .order('orden', { ascending: true })
+
+    if (!result.error) {
+      const sorted = result.data.map(function (area) {
+        return {
+          ...area,
+          asignaturas: area.asignaturas
+            .filter(function (a) { return a.activo })
+            .sort(function (a, b) { return a.nombre.localeCompare(b.nombre) }),
+        }
+      }).filter(function (area) { return area.asignaturas.length > 0 })
+      setAreas(sorted)
+    }
+  }
+
+  function firstAsignaturaId() {
+    return areas[0]?.asignaturas[0]?.id || ''
+  }
+
   function openNewForm() {
     setEditingId(null)
     setForm({
-      nombre: 'Biologia',
+      asignatura_id: firstAsignaturaId(),
       grupo: 'A',
       grado: 1,
       docente_id: '',
@@ -105,7 +129,7 @@ export default function CoursesManager() {
   function openEditForm(course) {
     setEditingId(course.id)
     setForm({
-      nombre: course.nombre,
+      asignatura_id: course.asignatura_id || '',
       grupo: SECCIONES.includes(course.grupo) ? course.grupo : 'A',
       grado: course.grado || 1,
       docente_id: course.docente_id || '',
@@ -138,14 +162,24 @@ export default function CoursesManager() {
     e.preventDefault()
     setError('')
 
+    if (!form.asignatura_id) {
+      setError('Selecciona una asignatura.')
+      return
+    }
+
     const validSchedules = schedules.filter(function (s) { return s.hora_inicio && s.hora_fin })
     if (validSchedules.length === 0) {
       setError('Agrega al menos un bloque de horario válido.')
       return
     }
 
+    const asignaturaSeleccionada = areas
+      .flatMap(function (a) { return a.asignaturas })
+      .find(function (a) { return a.id === form.asignatura_id })
+
     const payload = {
-      nombre: form.nombre,
+      nombre: asignaturaSeleccionada?.nombre || '',
+      asignatura_id: form.asignatura_id,
       grupo: form.grupo,
       grado: form.grado,
       docente_id: form.docente_id || null,
@@ -336,15 +370,28 @@ export default function CoursesManager() {
             <div>
               <label className="block text-sm font-medium mb-1" style={{ color: NAVY_DARK }}>Asignatura</label>
               <select
-                value={form.nombre}
-                onChange={function (e) { setForm({ ...form, nombre: e.target.value }) }}
+                value={form.asignatura_id}
+                onChange={function (e) { setForm({ ...form, asignatura_id: e.target.value }) }}
+                required
                 className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                 style={inputStyle}
               >
-                {ASIGNATURAS.map(function (a) {
-                  return <option key={a} value={a}>{a}</option>
+                <option value="">-- Selecciona una asignatura --</option>
+                {areas.map(function (area) {
+                  return (
+                    <optgroup key={area.id} label={area.nombre}>
+                      {area.asignaturas.map(function (a) {
+                        return <option key={a.id} value={a.id}>{a.nombre}</option>
+                      })}
+                    </optgroup>
+                  )
                 })}
               </select>
+              {areas.length === 0 && (
+                <p className="text-xs mt-1" style={{ color: '#B91C1C' }}>
+                  No hay asignaturas activas. Actívalas primero en la pestaña "Asignaturas".
+                </p>
+              )}
             </div>
 
             <div>
