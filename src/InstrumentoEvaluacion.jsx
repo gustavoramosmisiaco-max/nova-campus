@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext'
 import { getLetterGrade } from './gradeUtils'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import * as XLSX from 'xlsx'
 
 const NAVY_DARK = '#0F2A4A'
 
@@ -274,6 +275,82 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
     doc.save(`Rubrica_${courseNombre}_Actividad${a.numero_actividad}.pdf`)
   }
 
+  function exportarListaCotejoExcel() {
+    if (!institucion.trim()) {
+      alert('Completa el nombre de la institución educativa antes de exportar.')
+      return
+    }
+    const a = matrix.actividad
+    const rows = []
+    rows.push([institucion])
+    rows.push(['LISTA DE COTEJO'])
+    rows.push([`Fecha: ${todayFormatted()}`, `Grado: ${courseGrado}° SECUNDARIA`, `Sección: ${courseGrupo}`])
+    rows.push([`Propósito: ${a.proposito || '—'}`])
+    rows.push([`Competencia: ${a.competencia?.nombre || '—'}`])
+    rows.push([`Actividad: ${a.nombre}`])
+    rows.push([])
+
+    matrix.capacidades.forEach(function (cap) {
+      rows.push([cap.capacidad.nombre])
+      rows.push([`Criterio: ${cap.criterio || '—'}`])
+      rows.push([`Desempeño: ${cap.desempeno || '—'}`])
+      rows.push([])
+    })
+
+    rows.push(['N°', 'Apellidos y Nombres', ...matrix.capacidades.map(function (cap) { return cap.capacidad.nombre })])
+    matrix.students.forEach(function (s, idx) {
+      const row = [idx + 1, s.full_name]
+      matrix.capacidades.forEach(function (cap) {
+        const score = matrix.cellValues[`${s.id}__${cap.capacidad.id}`]
+        row.push(score != null ? getLetterGrade(score) : '—')
+      })
+      rows.push(row)
+    })
+
+    const ws = XLSX.utils.aoa_to_sheet(rows)
+    ws['!cols'] = [{ wch: 5 }, { wch: 30 }, ...matrix.capacidades.map(function () { return { wch: 16 } })]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Lista de Cotejo')
+    XLSX.writeFile(wb, `Lista_Cotejo_${courseNombre}_Actividad${a.numero_actividad}.xlsx`)
+  }
+
+  function exportarRubricaExcel() {
+    if (!institucion.trim()) {
+      alert('Completa el nombre de la institución educativa antes de exportar.')
+      return
+    }
+    const a = matrix.actividad
+    const rows = []
+    rows.push([institucion])
+    rows.push(['RÚBRICA DE EVALUACIÓN'])
+    rows.push([`Fecha: ${todayFormatted()}`, `Grado: ${courseGrado}° SECUNDARIA`, `Sección: ${courseGrupo}`])
+    rows.push([`Competencia: ${a.competencia?.nombre || '—'}`])
+    rows.push([`Propósito: ${a.proposito || '—'}`])
+    rows.push([`Actividad: ${a.nombre}`, `Docente: ${profile?.full_name || ''}`])
+    rows.push([])
+
+    matrix.capacidades.forEach(function (cap) {
+      rows.push([cap.capacidad.nombre])
+      if (cap.criterio) rows.push([`Criterio: ${cap.criterio}`])
+      rows.push(['AD', 'A', 'B', 'C'])
+      rows.push([cap.desc_ad || '—', cap.desc_a || '—', cap.desc_b || '—', cap.desc_c || '—'])
+      rows.push([])
+      rows.push(['N°', 'Apellidos y Nombres', 'Calificación'])
+      matrix.students.forEach(function (s, idx) {
+        const score = matrix.cellValues[`${s.id}__${cap.capacidad.id}`]
+        const letra = score != null ? getLetterGrade(score) : '—'
+        rows.push([idx + 1, s.full_name, letra])
+      })
+      rows.push([])
+    })
+
+    const ws = XLSX.utils.aoa_to_sheet(rows)
+    ws['!cols'] = [{ wch: 30 }, { wch: 30 }, { wch: 30 }, { wch: 30 }]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Rúbrica')
+    XLSX.writeFile(wb, `Rubrica_${courseNombre}_Actividad${a.numero_actividad}.xlsx`)
+  }
+
   return (
     <div>
       <h3 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>Instrumento de Evaluación</h3>
@@ -309,7 +386,14 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
       </div>
 
       {matrix && matrix.capacidades.length > 0 && (
-        <div className="flex justify-end mb-3">
+        <div className="flex justify-end gap-2 mb-3">
+          <button
+            onClick={matrix.tipoInstrumento === 'Rúbrica' ? exportarRubricaExcel : exportarListaCotejoExcel}
+            className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+            style={{ backgroundColor: '#1d5c8f' }}
+          >
+            Exportar Excel
+          </button>
           <button
             onClick={matrix.tipoInstrumento === 'Rúbrica' ? exportarRubricaPDF : exportarListaCotejoPDF}
             className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
