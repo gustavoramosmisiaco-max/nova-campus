@@ -4,6 +4,7 @@ import { supabase } from './supabaseClient'
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
 const GREEN = '#5DAA47'
+const GREEN_DARK = '#2f7a1f'
 
 const DIAS = [
   { value: 1, label: 'Lunes' },
@@ -16,10 +17,6 @@ const DIAS = [
 ]
 const GRADOS = [1, 2, 3, 4, 5]
 const SECCIONES = ['A', 'B', 'C', 'D', 'E']
-
-function gradoLabel(g) {
-  return g ? `${g}° de Secundaria` : 'Sin grado'
-}
 
 function diaLabel(v) {
   return DIAS.find(function (d) { return d.value === v })?.label || '—'
@@ -49,6 +46,7 @@ export default function CoursesManager() {
   const [error, setError] = useState('')
 
   const [form, setForm] = useState({
+    areaId: '',
     asignatura_id: '',
     grupo: 'A',
     grado: 1,
@@ -67,7 +65,7 @@ export default function CoursesManager() {
     setLoading(true)
     const result = await supabase
       .from('courses')
-      .select('*, docente:profiles(full_name), course_schedules(*)')
+      .select('*, docente:profiles(full_name), course_schedules(*), asignaturas(nombre, areas_curriculares(id, nombre))')
       .order('grado', { ascending: true })
       .order('grupo', { ascending: true })
       .order('nombre', { ascending: true })
@@ -109,14 +107,16 @@ export default function CoursesManager() {
     }
   }
 
-  function firstAsignaturaId() {
-    return areas[0]?.asignaturas[0]?.id || ''
+  function asignaturasDelArea(areaId) {
+    return areas.find(function (a) { return a.id === areaId })?.asignaturas || []
   }
 
   function openNewForm() {
     setEditingId(null)
+    const primerArea = areas[0]
     setForm({
-      asignatura_id: firstAsignaturaId(),
+      areaId: primerArea?.id || '',
+      asignatura_id: primerArea?.asignaturas[0]?.id || '',
       grupo: 'A',
       grado: 1,
       docente_id: '',
@@ -129,6 +129,7 @@ export default function CoursesManager() {
   function openEditForm(course) {
     setEditingId(course.id)
     setForm({
+      areaId: course.asignaturas?.areas_curriculares?.id || '',
       asignatura_id: course.asignatura_id || '',
       grupo: SECCIONES.includes(course.grupo) ? course.grupo : 'A',
       grado: course.grado || 1,
@@ -223,7 +224,7 @@ export default function CoursesManager() {
   }
 
   async function handleDelete(id) {
-    if (!confirm('¿Seguro que quieres eliminar este curso? Esto también borrará matrículas, materiales, tareas y horarios asociados.')) return
+    if (!confirm('¿Quitar esta asignación? Esto también borrará matrículas, materiales, tareas y horarios asociados a ella.')) return
     const result = await supabase.from('courses').delete().eq('id', id)
     if (result.error) {
       alert('Error al eliminar: ' + result.error.message)
@@ -232,43 +233,49 @@ export default function CoursesManager() {
     }
   }
 
-  const coursesByGrado = GRADOS.map(function (g) {
-    return { grado: g, items: courses.filter(function (c) { return c.grado === g }) }
-  })
-  const sinGrado = courses.filter(function (c) { return !c.grado })
+  // Agrupar: Área > Asignatura > lista de asignaciones (grado/sección/docente)
+  const arbol = areas.map(function (area) {
+    const asignaturasConCursos = area.asignaturas.map(function (asig) {
+      const items = courses.filter(function (c) { return c.asignatura_id === asig.id })
+      return { asignatura: asig, items: items }
+    }).filter(function (a) { return a.items.length > 0 })
+    return { area: area, asignaturas: asignaturasConCursos }
+  }).filter(function (a) { return a.asignaturas.length > 0 })
 
-  function renderCourseCard(c) {
+  const sinAsignatura = courses.filter(function (c) { return !c.asignatura_id })
+
+  function renderAsignacionCard(c) {
     return (
       <div
         key={c.id}
-        className="bg-white rounded-2xl p-5 space-y-1"
-        style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
+        className="bg-white rounded-xl p-4 space-y-1"
+        style={{ border: '1px solid #E5E9F0' }}
       >
         <div className="flex justify-between items-start">
-          <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>
-            {c.nombre} <span className="text-slate-400 text-sm font-medium">(Sección {c.grupo})</span>
-          </h3>
+          <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>
+            {c.grado}° Secundaria — Sección {c.grupo}
+          </p>
           <div className="flex gap-2">
             <button
               onClick={function () { openEditForm(c) }}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+              className="text-xs font-semibold px-3 py-1 rounded-lg transition"
               style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
             >
               Editar
             </button>
             <button
               onClick={function () { handleDelete(c.id) }}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90"
+              className="text-xs font-semibold px-3 py-1 rounded-lg text-white transition hover:opacity-90"
               style={{ backgroundColor: '#B91C1C' }}
             >
-              Eliminar
+              Quitar
             </button>
           </div>
         </div>
         <p className="text-sm text-slate-500">
-          Docente: {c.docente?.full_name || 'Sin asignar'}
+          Docente: <span className="font-medium" style={{ color: c.docente ? NAVY_DARK : '#B91C1C' }}>{c.docente?.full_name || 'Sin asignar'}</span>
         </p>
-        <p className="text-sm font-medium" style={{ color: '#2f7a1f' }}>
+        <p className="text-sm font-medium" style={{ color: GREEN_DARK }}>
           {scheduleText(c.course_schedules)}
         </p>
       </div>
@@ -277,50 +284,61 @@ export default function CoursesManager() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold" style={{ color: NAVY_DARK }}>Gestión de Cursos</h2>
+      <div className="flex justify-between items-center mb-1">
+        <h2 className="text-2xl font-bold" style={{ color: NAVY_DARK }}>Áreas y Asignaturas</h2>
         <button
           onClick={openNewForm}
           className="font-semibold px-4 py-2 rounded-lg transition text-white hover:opacity-90"
           style={{ backgroundColor: GREEN }}
         >
-          + Nuevo curso
+          + Nueva asignación
         </button>
       </div>
+      <p className="text-sm text-slate-400 mb-6">
+        Asigna un docente a una Asignatura de un Área, para un Grado y Sección específicos.
+      </p>
 
       {loading ? (
-        <p className="text-slate-400">Cargando cursos...</p>
+        <p className="text-slate-400">Cargando...</p>
       ) : courses.length === 0 ? (
-        <p className="text-slate-400">Aún no hay cursos creados.</p>
+        <p className="text-slate-400">Aún no hay ninguna asignación creada.</p>
       ) : (
         <div className="space-y-8">
-          {coursesByGrado.map(function (group) {
-            if (group.items.length === 0) return null
+          {arbol.map(function (grupoArea) {
             return (
-              <div key={group.grado}>
-                <h3
-                  className="text-sm font-bold uppercase tracking-wide mb-3 px-3 py-1.5 rounded-lg inline-block"
-                  style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}
-                >
-                  {gradoLabel(group.grado)}
-                </h3>
-                <div className="grid gap-4 md:grid-cols-2">
-                  {group.items.map(renderCourseCard)}
+              <div key={grupoArea.area.id}>
+                <h3 className="text-base font-bold mb-3" style={{ color: NAVY_DARK }}>{grupoArea.area.nombre}</h3>
+                <div className="space-y-4">
+                  {grupoArea.asignaturas.map(function (grupoAsig) {
+                    return (
+                      <div key={grupoAsig.asignatura.id} className="pl-4" style={{ borderLeft: '3px solid #E7F3E4' }}>
+                        <p
+                          className="text-xs font-bold uppercase tracking-wide mb-2 px-3 py-1 rounded-lg inline-block"
+                          style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}
+                        >
+                          {grupoAsig.asignatura.nombre} ({grupoAsig.items.length})
+                        </p>
+                        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                          {grupoAsig.items.map(renderAsignacionCard)}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )
           })}
 
-          {sinGrado.length > 0 && (
+          {sinAsignatura.length > 0 && (
             <div>
               <h3
-                className="text-sm font-bold uppercase tracking-wide mb-3 px-3 py-1.5 rounded-lg inline-block"
+                className="text-xs font-bold uppercase tracking-wide mb-3 px-3 py-1.5 rounded-lg inline-block"
                 style={{ backgroundColor: '#FDECEC', color: '#B91C1C' }}
               >
-                Sin grado asignado
+                Sin asignatura vinculada
               </h3>
-              <div className="grid gap-4 md:grid-cols-2">
-                {sinGrado.map(renderCourseCard)}
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                {sinAsignatura.map(renderAsignacionCard)}
               </div>
             </div>
           )}
@@ -335,8 +353,49 @@ export default function CoursesManager() {
             style={{ border: '1px solid #E5E9F0' }}
           >
             <h3 className="text-xl font-bold" style={{ color: NAVY_DARK }}>
-              {editingId ? 'Editar curso' : 'Nuevo curso'}
+              {editingId ? 'Editar asignación' : 'Nueva asignación'}
             </h3>
+
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: NAVY_DARK }}>Área</label>
+              <select
+                value={form.areaId}
+                onChange={function (e) {
+                  const nuevaArea = e.target.value
+                  const primeraAsig = asignaturasDelArea(nuevaArea)[0]
+                  setForm({ ...form, areaId: nuevaArea, asignatura_id: primeraAsig?.id || '' })
+                }}
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={inputStyle}
+              >
+                <option value="">-- Selecciona un área --</option>
+                {areas.map(function (a) {
+                  return <option key={a.id} value={a.id}>{a.nombre}</option>
+                })}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: NAVY_DARK }}>Asignatura</label>
+              <select
+                value={form.asignatura_id}
+                onChange={function (e) { setForm({ ...form, asignatura_id: e.target.value }) }}
+                required
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={inputStyle}
+                disabled={!form.areaId}
+              >
+                <option value="">-- Selecciona una asignatura --</option>
+                {asignaturasDelArea(form.areaId).map(function (a) {
+                  return <option key={a.id} value={a.id}>{a.nombre}</option>
+                })}
+              </select>
+              {areas.length === 0 && (
+                <p className="text-xs mt-1" style={{ color: '#B91C1C' }}>
+                  No hay asignaturas activas. Actívalas primero en la pestaña "Asignaturas".
+                </p>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -365,33 +424,6 @@ export default function CoursesManager() {
                   })}
                 </select>
               </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: NAVY_DARK }}>Asignatura</label>
-              <select
-                value={form.asignatura_id}
-                onChange={function (e) { setForm({ ...form, asignatura_id: e.target.value }) }}
-                required
-                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-                style={inputStyle}
-              >
-                <option value="">-- Selecciona una asignatura --</option>
-                {areas.map(function (area) {
-                  return (
-                    <optgroup key={area.id} label={area.nombre}>
-                      {area.asignaturas.map(function (a) {
-                        return <option key={a.id} value={a.id}>{a.nombre}</option>
-                      })}
-                    </optgroup>
-                  )
-                })}
-              </select>
-              {areas.length === 0 && (
-                <p className="text-xs mt-1" style={{ color: '#B91C1C' }}>
-                  No hay asignaturas activas. Actívalas primero en la pestaña "Asignaturas".
-                </p>
-              )}
             </div>
 
             <div>
