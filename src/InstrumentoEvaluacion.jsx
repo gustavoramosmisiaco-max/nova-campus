@@ -65,7 +65,10 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
       .slice()
       .sort(function (x, y) { return (x.capacidad.orden || 0) - (y.capacidad.orden || 0) })
 
-    const assignResult = await supabase.from('assignments').select('id').eq('actividad_id', actividadId)
+    const assignResult = await supabase
+      .from('assignments')
+      .select('id, fecha_entrega, assignment_capacidades(capacidad_id)')
+      .eq('actividad_id', actividadId)
     if (assignResult.error) {
       setError(assignResult.error.message)
       setLoading(false)
@@ -89,31 +92,53 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
 
     let cellValues = {}
     if (assignmentIds.length > 0) {
-      const subsResult = await supabase.from('submissions').select('id, student_id').in('assignment_id', assignmentIds)
-      if (!subsResult.error) {
-        const submissionIds = subsResult.data.map(function (s) { return s.id })
-        const subMap = {}
-        subsResult.data.forEach(function (s) { subMap[s.id] = s.student_id })
+      const subsResult = await supabase.from('submissions').select('id, student_id, assignment_id').in('assignment_id', assignmentIds)
+      const submissionsData = subsResult.error ? [] : subsResult.data
+      const submissionIds = submissionsData.map(function (s) { return s.id })
+      const subMap = {}
+      submissionsData.forEach(function (s) { subMap[s.id] = s.student_id })
 
-        if (submissionIds.length > 0) {
-          const scoresResult = await supabase
-            .from('submission_scores')
-            .select('submission_id, capacidad_id, score')
-            .in('submission_id', submissionIds)
-          if (!scoresResult.error) {
-            const grouped = {}
-            scoresResult.data.forEach(function (row) {
-              const studentId = subMap[row.submission_id]
-              const key = `${studentId}__${row.capacidad_id}`
-              if (!grouped[key]) grouped[key] = []
-              if (row.score != null) grouped[key].push(row.score)
-            })
-            Object.keys(grouped).forEach(function (key) {
-              cellValues[key] = average(grouped[key])
-            })
-          }
-        }
+      let scoresData = []
+      if (submissionIds.length > 0) {
+        const scoresResult = await supabase
+          .from('submission_scores')
+          .select('submission_id, capacidad_id, score')
+          .in('submission_id', submissionIds)
+        if (!scoresResult.error) scoresData = scoresResult.data
       }
+
+      const now = new Date()
+      const grouped = {}
+
+      // Notas ya registradas por el docente
+      scoresData.forEach(function (row) {
+        const studentId = subMap[row.submission_id]
+        const key = `${studentId}__${row.capacidad_id}`
+        if (!grouped[key]) grouped[key] = []
+        if (row.score != null) grouped[key].push(row.score)
+      })
+
+      // Para cada tarea de esta actividad, revisar quién no entregó y ya venció -> C (0)
+      assignResult.data.forEach(function (assignment) {
+        const isPastDue = new Date(assignment.fecha_entrega) < now
+        if (!isPastDue) return
+        const capacidadIds = (assignment.assignment_capacidades || []).map(function (ac) { return ac.capacidad_id })
+        students.forEach(function (student) {
+          const hasSubmission = submissionsData.some(function (s) {
+            return s.student_id === student.id && s.assignment_id === assignment.id
+          })
+          if (hasSubmission) return
+          capacidadIds.forEach(function (capId) {
+            const key = `${student.id}__${capId}`
+            if (!grouped[key]) grouped[key] = []
+            grouped[key].push(0)
+          })
+        })
+      })
+
+      Object.keys(grouped).forEach(function (key) {
+        cellValues[key] = average(grouped[key])
+      })
     }
 
     setMatrix({
@@ -360,7 +385,7 @@ function RubricaView({ matrix, courseGrado, courseGrupo, docente }) {
                       <td style={tableCell}>{s.full_name}</td>
                       <td style={{ ...tableCell, textAlign: 'center' }}>
                         {nivel ? (
-                          <span style={{ fontWeight: 700, color: nivel.color }}>{nivel.letra} ({score.toFixed(1)})</span>
+                          <span style={{ fontWeight: 700, color: nivel.color }}>{nivel.letra}</span>
                         ) : (
                           <span style={{ color: '#94A3B8' }}>—</span>
                         )}
