@@ -110,16 +110,18 @@ export default function EnrollmentsManager() {
     if (isEnrolled) {
       const result = await supabase.from('enrollments').delete().eq('id', enrollmentId)
       if (result.error) {
-        alert('Error: ' + result.error.message)
+        alert('Error al quitar: ' + result.error.message)
       } else {
-        loadAula()
+        await loadAula()
       }
     } else {
       const result = await supabase.from('enrollments').insert({ course_id: courseId, student_id: studentId, status: 'activo' })
       if (result.error) {
         setError('Error al matricular: ' + result.error.message)
+        alert('No se pudo matricular: ' + result.error.message)
       } else {
-        loadAula()
+        await loadAula()
+        alert('Matriculado correctamente.')
       }
     }
   }
