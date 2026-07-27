@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuth } from './AuthContext'
 import CoursesManager from './CoursesManager'
 import EnrollmentsManager from './EnrollmentsManager'
+import AsignaturasManager from './AsignaturasManager'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -15,6 +16,7 @@ export default function AdminDashboard() {
   const menuItems = [
     { id: 'cursos', label: 'Cursos', icon: BookIcon },
     { id: 'matriculas', label: 'Matrículas', icon: UsersIcon },
+    { id: 'asignaturas', label: 'Asignaturas', icon: BookIcon },
   ]
 
   const initials = (profile?.full_name || 'AD')
@@ -122,6 +124,7 @@ export default function AdminDashboard() {
         <main className="flex-1 p-6 md:p-10">
           {tab === 'cursos' && <CoursesManager />}
           {tab === 'matriculas' && <EnrollmentsManager />}
+          {tab === 'asignaturas' && <AsignaturasManager />}
         </main>
       </div>
     </div>

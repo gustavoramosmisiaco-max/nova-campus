@@ -1,0 +1,116 @@
+import { useEffect, useState } from 'react'
+import { supabase } from './supabaseClient'
+
+const NAVY_DARK = '#0F2A4A'
+const GREEN = '#5DAA47'
+const GREEN_DARK = '#2f7a1f'
+
+export default function AsignaturasManager() {
+  const [areas, setAreas] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(null)
+
+  useEffect(function () {
+    loadData()
+  }, [])
+
+  async function loadData() {
+    setLoading(true)
+    const areasResult = await supabase
+      .from('areas_curriculares')
+      .select('*, asignaturas(id, nombre, activo)')
+      .order('orden', { ascending: true })
+
+    if (areasResult.error) {
+      setError(areasResult.error.message)
+    } else {
+      const sorted = areasResult.data.map(function (area) {
+        return {
+          ...area,
+          asignaturas: [...area.asignaturas].sort(function (a, b) { return a.nombre.localeCompare(b.nombre) }),
+        }
+      })
+      setAreas(sorted)
+    }
+    setLoading(false)
+  }
+
+  async function toggleAsignatura(asignaturaId, currentValue) {
+    setSaving(asignaturaId)
+    const result = await supabase
+      .from('asignaturas')
+      .update({ activo: !currentValue })
+      .eq('id', asignaturaId)
+
+    if (result.error) {
+      alert('Error al actualizar: ' + result.error.message)
+    } else {
+      setAreas(function (prev) {
+        return prev.map(function (area) {
+          return {
+            ...area,
+            asignaturas: area.asignaturas.map(function (a) {
+              return a.id === asignaturaId ? { ...a, activo: !currentValue } : a
+            }),
+          }
+        })
+      })
+    }
+    setSaving(null)
+  }
+
+  if (loading) return <p className="text-slate-400 text-sm">Cargando asignaturas...</p>
+  if (error) return <p className="text-red-500 text-sm">Error: {error}</p>
+
+  return (
+    <div>
+      <h2 className="text-2xl font-bold mb-2" style={{ color: NAVY_DARK }}>Asignaturas</h2>
+      <p className="text-sm text-slate-400 mb-6">
+        Activa o desactiva qué asignaturas están disponibles en la plataforma. Las desactivadas dejan de mostrarse
+        a docentes y estudiantes, sin borrar nada.
+      </p>
+
+      <div className="space-y-5">
+        {areas.map(function (area) {
+          return (
+            <div key={area.id} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
+              <h3 className="text-sm font-bold mb-3" style={{ color: GREEN_DARK }}>{area.nombre}</h3>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {area.asignaturas.map(function (a) {
+                  const isSaving = saving === a.id
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={function () { toggleAsignatura(a.id, a.activo) }}
+                      disabled={isSaving}
+                      className="flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left transition disabled:opacity-60"
+                      style={{
+                        backgroundColor: a.activo ? '#F4F6F9' : '#FDECEC',
+                        border: `1px solid ${a.activo ? '#E5E9F0' : '#F5C6C6'}`,
+                      }}
+                    >
+                      <span className="text-sm font-medium" style={{ color: NAVY_DARK }}>{a.nombre}</span>
+                      <span
+                        className="relative inline-flex items-center rounded-full transition-colors flex-shrink-0"
+                        style={{ width: 38, height: 21, backgroundColor: a.activo ? GREEN : '#CBD5E1' }}
+                      >
+                        <span
+                          className="absolute rounded-full bg-white transition-transform"
+                          style={{
+                            width: 16, height: 16, top: 2.5,
+                            transform: a.activo ? 'translateX(19px)' : 'translateX(3px)',
+                          }}
+                        />
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
