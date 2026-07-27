@@ -2,6 +2,13 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 import { getLetterGrade, getLetterColor } from './gradeUtils'
+
+const DESCRIPCION_NIVEL = {
+  AD: 'Logro destacado',
+  A: 'Logro esperado',
+  B: 'En proceso',
+  C: 'En inicio',
+}
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
@@ -138,7 +145,7 @@ export default function StudentGrades() {
     doc.setFontSize(10)
     doc.text(`Alumno: ${profile?.full_name || ''}`, 14, 22)
     doc.text(
-      `Promedio general: ${promedioGeneral != null ? getLetterGrade(promedioGeneral) : '—'}`,
+      `Promedio general: ${promedioGeneral != null ? promedioGeneral.toFixed(1) + ' — Nivel de logro: ' + getLetterGrade(promedioGeneral) : '—'}`,
       14, 28
     )
 
@@ -228,8 +235,13 @@ export default function StudentGrades() {
         <div>
           <p className="text-white/80 text-sm font-medium">Promedio general</p>
           <p className="text-white text-3xl font-bold">
-            {promedioGeneral != null ? getLetterGrade(promedioGeneral) : '—'}
+            {promedioGeneral != null ? promedioGeneral.toFixed(1) : '—'}
           </p>
+          {promedioGeneral != null && (
+            <p className="text-white/90 text-sm mt-1">
+              Nivel de logro: <strong>{getLetterGrade(promedioGeneral)}</strong> — {DESCRIPCION_NIVEL[getLetterGrade(promedioGeneral)]}
+            </p>
+          )}
         </div>
         <p className="text-white/80 text-sm">
           {allGradedScores.length} tarea{allGradedScores.length !== 1 ? 's' : ''} registrada{allGradedScores.length !== 1 ? 's' : ''}
@@ -252,8 +264,13 @@ export default function StudentGrades() {
                   <div className="text-right">
                     <p className="text-xs text-slate-500">Promedio del curso</p>
                     <p className={'text-lg font-bold ' + getLetterColor(c.promedio)}>
-                      {c.promedio != null ? getLetterGrade(c.promedio) : '—'}
+                      {c.promedio != null ? c.promedio.toFixed(1) : '—'}
                     </p>
+                    {c.promedio != null && (
+                      <p className="text-xs text-slate-400">
+                        Nivel de logro: {getLetterGrade(c.promedio)} ({DESCRIPCION_NIVEL[getLetterGrade(c.promedio)]})
+                      </p>
+                    )}
                   </div>
                 </div>
 
