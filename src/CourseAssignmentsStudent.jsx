@@ -155,7 +155,7 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
     let filePath = null
     if (justFile) {
       const safeName = justFile.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')
-      filePath = `${assignment.course_id}/${assignment.id}/justificacion_${session.user.id}_${Date.now()}_${safeName}`
+      filePath = `${assignment.course_id}/${assignment.id}/${session.user.id}_justificacion_${Date.now()}_${safeName}`
       const uploadResult = await supabase.storage.from('entregas').upload(filePath, justFile, { upsert: true })
       if (uploadResult.error) {
         alert('Error al subir la evidencia: ' + uploadResult.error.message)
