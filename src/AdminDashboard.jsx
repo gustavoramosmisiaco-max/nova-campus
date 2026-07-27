@@ -3,6 +3,7 @@ import { useAuth } from './AuthContext'
 import CoursesManager from './CoursesManager'
 import EnrollmentsManager from './EnrollmentsManager'
 import AsignaturasManager from './AsignaturasManager'
+import CierrePeriodo from './CierrePeriodo'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -17,6 +18,7 @@ export default function AdminDashboard() {
     { id: 'cursos', label: 'Cursos', icon: BookIcon },
     { id: 'matriculas', label: 'Matrículas', icon: UsersIcon },
     { id: 'asignaturas', label: 'Asignaturas', icon: BookIcon },
+    { id: 'periodo', label: 'Cierre de Periodo', icon: BookIcon },
   ]
 
   const initials = (profile?.full_name || 'AD')
@@ -125,6 +127,7 @@ export default function AdminDashboard() {
           {tab === 'cursos' && <CoursesManager />}
           {tab === 'matriculas' && <EnrollmentsManager />}
           {tab === 'asignaturas' && <AsignaturasManager />}
+          {tab === 'periodo' && <CierrePeriodo />}
         </main>
       </div>
     </div>
