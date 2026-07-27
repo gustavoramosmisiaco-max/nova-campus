@@ -269,9 +269,10 @@ export default function MyCourses() {
     setLoading(true)
     const result = await supabase
       .from('enrollments')
-      .select('id, status, course:courses(id, nombre, grupo, grado, course_schedules(*), docente:profiles(full_name))')
+      .select('id, status, course:courses!inner(id, nombre, grupo, grado, course_schedules(*), docente:profiles(full_name), asignaturas!inner(activo))')
       .eq('student_id', session.user.id)
       .eq('status', 'activo')
+      .eq('course.asignaturas.activo', true)
 
     if (result.error) {
       setError(result.error.message)

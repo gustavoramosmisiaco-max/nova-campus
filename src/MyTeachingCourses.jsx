@@ -121,8 +121,9 @@ export default function MyTeachingCourses() {
     setLoading(true)
     const result = await supabase
       .from('courses')
-      .select('id, nombre, grupo, grado, course_schedules(*), enrollments(count)')
+      .select('id, nombre, grupo, grado, course_schedules(*), enrollments(count), asignaturas!inner(activo)')
       .eq('docente_id', session.user.id)
+      .eq('asignaturas.activo', true)
       .order('grado', { ascending: true })
       .order('grupo', { ascending: true })
       .order('nombre', { ascending: true })
