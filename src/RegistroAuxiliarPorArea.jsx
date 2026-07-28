@@ -1,9 +1,30 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { getLetterGrade, getLetterColor } from './gradeUtils'
+import ExcelJS from 'exceljs'
 
 const NAVY_DARK = '#0F2A4A'
 const GREEN = '#5DAA47'
+
+const COLOR_INSTITUCION = 'FF1F4E79'
+const COLOR_TITULO = 'FF2E75B6'
+const COLOR_METADATA = 'FFDEEBF7'
+const COLOR_COMPETENCIA = 'FF548235'
+const COLOR_CAPACIDAD = 'FFE2EFDA'
+const COLOR_TABLA_HEAD = 'FF1F4E79'
+const COLOR_CIERRE = 'FFFFF2CC'
+const NIVEL_COLOR_ARGB = { AD: 'FF2F7A1F', A: 'FF1D5C8F', B: 'FFB45309', C: 'FFB91C1C' }
+
+async function descargarWorkbook(workbook, filename) {
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 const BIMESTRES = [1, 2, 3, 4]
 const NOMBRE_BIMESTRE = { 1: 'I Bimestre', 2: 'II Bimestre', 3: 'III Bimestre', 4: 'IV Bimestre' }
@@ -260,12 +281,205 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
     setAbierto(function (prev) { return prev === key ? null : key })
   }
 
+  const [exportando, setExportando] = useState(false)
+
+  async function exportExcel() {
+    setExportando(true)
+    const workbook = new ExcelJS.Workbook()
+    const ws = workbook.addWorksheet('Registro Auxiliar')
+
+    // Total de columnas de datos (sin contar Nombre y Promedio Área)
+    const totalColsDatos = competenciasData.reduce(function (acc, comp) {
+      const colsCap = comp.capacidades.reduce(function (a, cap) { return a + Math.max(cap.instancias.length, 1) }, 0)
+      return acc + colsCap + 2 // +cierre +promedio competencia
+    }, 0)
+    const totalCols = 2 + totalColsDatos
+
+    ws.getColumn(1).width = 30
+    ws.getColumn(2).width = 12
+    for (let i = 3; i <= totalCols; i++) ws.getColumn(i).width = 12
+
+    function mergedRow(rowNum, text, fillArgb, fontArgb, size, bold, colStart, colEnd) {
+      ws.mergeCells(rowNum, colStart || 1, rowNum, colEnd || totalCols)
+      const cell = ws.getCell(rowNum, colStart || 1)
+      cell.value = text
+      cell.font = { bold: bold, size: size || 11, color: { argb: fontArgb || 'FF000000' } }
+      if (fillArgb) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillArgb } }
+      cell.alignment = { vertical: 'middle', wrapText: true, horizontal: 'center' }
+      ws.getRow(rowNum).height = size >= 14 ? 24 : 16
+    }
+
+    mergedRow(1, ficha.institucion || 'Institución educativa', COLOR_INSTITUCION, 'FFFFFFFF', 14, true)
+    mergedRow(2, 'REGISTRO AUXILIAR DE EVALUACIÓN', COLOR_TITULO, 'FFFFFFFF', 12, true)
+    mergedRow(
+      3,
+      `UGEL: ${ficha.ugel || '—'}   DRE: ${ficha.dre || '—'}   Director(a): ${ficha.director || '—'}`,
+      COLOR_METADATA, 'FF000000', 9, false
+    )
+    mergedRow(
+      4,
+      `Docente(s): ${ficha.docentes}   Área: ${ficha.area}   Nivel: Secundaria   Ciclo: ${ficha.ciclo}`,
+      COLOR_METADATA, 'FF000000', 9, false
+    )
+    mergedRow(
+      5,
+      `Grado y Sección: ${ficha.grado}° "${ficha.grupo}"   Año lectivo: ${ficha.anio}   Periodo: ${NOMBRE_BIMESTRE[bimestre]}   N° de estudiantes: ${ficha.totalEstudiantes}`,
+      COLOR_METADATA, 'FF000000', 9, false
+    )
+
+    let r = 7
+    const rowComp = r
+    const rowCap = r + 1
+    const rowAct = r + 2
+
+    // Nombre y Promedio Área (ocupan las 3 filas de encabezado)
+    ws.mergeCells(rowComp, 1, rowAct, 1)
+    const cellNombre = ws.getCell(rowComp, 1)
+    cellNombre.value = 'Apellidos y Nombres'
+    cellNombre.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    cellNombre.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_TABLA_HEAD } }
+    cellNombre.alignment = { vertical: 'middle' }
+
+    ws.mergeCells(rowComp, 2, rowAct, 2)
+    const cellPromArea = ws.getCell(rowComp, 2)
+    cellPromArea.value = 'Promedio del Área'
+    cellPromArea.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    cellPromArea.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_TABLA_HEAD } }
+    cellPromArea.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+
+    let colCursor = 3
+    competenciasData.forEach(function (comp) {
+      const colsComp = comp.capacidades.reduce(function (a, cap) { return a + Math.max(cap.instancias.length, 1) }, 0) + 2
+      ws.mergeCells(rowComp, colCursor, rowComp, colCursor + colsComp - 1)
+      const cellComp = ws.getCell(rowComp, colCursor)
+      cellComp.value = comp.nombre
+      cellComp.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+      cellComp.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_COMPETENCIA } }
+      cellComp.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+
+      let colCapCursor = colCursor
+      comp.capacidades.forEach(function (cap) {
+        const span = Math.max(cap.instancias.length, 1)
+        ws.mergeCells(rowCap, colCapCursor, rowCap, colCapCursor + span - 1)
+        const cellCap = ws.getCell(rowCap, colCapCursor)
+        cellCap.value = cap.nombre
+        cellCap.font = { bold: true, size: 9 }
+        cellCap.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_CAPACIDAD } }
+        cellCap.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+
+        if (cap.instancias.length === 0) {
+          const cellAct = ws.getCell(rowAct, colCapCursor)
+          cellAct.value = '—'
+          cellAct.alignment = { horizontal: 'center' }
+        } else {
+          cap.instancias.forEach(function (inst, i) {
+            const cellAct = ws.getCell(rowAct, colCapCursor + i)
+            cellAct.value = `Act.${inst.actividadNumero}`
+            cellAct.font = { size: 8 }
+            cellAct.alignment = { horizontal: 'center' }
+            cellAct.note = `Tarea: ${inst.tituloTarea}\n\nCriterio: ${inst.criterio || '—'}\n\nDesempeño: ${inst.desempeno || '—'}`
+          })
+        }
+        colCapCursor += span
+      })
+
+      // Columna Cierre
+      ws.mergeCells(rowCap, colCapCursor, rowAct, colCapCursor)
+      const cellCierre = ws.getCell(rowCap, colCapCursor)
+      cellCierre.value = 'Eval. de Unidad'
+      cellCierre.font = { bold: true, size: 9 }
+      cellCierre.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_CIERRE } }
+      cellCierre.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+      colCapCursor++
+
+      // Columna Promedio Competencia
+      ws.mergeCells(rowCap, colCapCursor, rowAct, colCapCursor)
+      const cellPC = ws.getCell(rowCap, colCapCursor)
+      cellPC.value = 'Promedio Competencia'
+      cellPC.font = { bold: true, size: 9 }
+      cellPC.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDEEBF7' } }
+      cellPC.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+
+      colCursor += colsComp
+    })
+
+    r = rowAct + 1
+
+    students.forEach(function (s) {
+      const row = ws.getRow(r)
+      row.getCell(1).value = s.full_name
+      const provArea = promedioArea(s.id)
+      row.getCell(2).value = provArea != null ? getLetterGrade(provArea) : '—'
+      row.getCell(2).font = { bold: true, color: { argb: provArea != null ? NIVEL_COLOR_ARGB[getLetterGrade(provArea)] : 'FF94A3B8' } }
+      row.getCell(2).alignment = { horizontal: 'center' }
+
+      let c = 3
+      competenciasData.forEach(function (comp) {
+        comp.capacidades.forEach(function (cap) {
+          if (cap.instancias.length === 0) { c++; return }
+          cap.instancias.forEach(function (inst) {
+            const nota = notaTarea(s.id, inst.assignmentId, cap.id)
+            const letra = nota != null ? getLetterGrade(nota) : '—'
+            const cell = row.getCell(c)
+            cell.value = letra
+            cell.font = { bold: true, color: { argb: nota != null ? NIVEL_COLOR_ARGB[letra] : 'FF94A3B8' } }
+            cell.alignment = { horizontal: 'center' }
+            c++
+          })
+        })
+        const cierre = notaCierre(s.id, comp.id)
+        const letraCierre = cierre != null ? getLetterGrade(cierre) : '—'
+        const cellCierre = row.getCell(c)
+        cellCierre.value = letraCierre
+        cellCierre.font = { bold: true, color: { argb: cierre != null ? NIVEL_COLOR_ARGB[letraCierre] : 'FF94A3B8' } }
+        cellCierre.alignment = { horizontal: 'center' }
+        c++
+
+        const provComp = promedioCompetencia(s.id, comp)
+        const letraComp = provComp != null ? getLetterGrade(provComp) : '—'
+        const cellComp = row.getCell(c)
+        cellComp.value = letraComp
+        cellComp.font = { bold: true, color: { argb: provComp != null ? NIVEL_COLOR_ARGB[letraComp] : 'FF94A3B8' } }
+        cellComp.alignment = { horizontal: 'center' }
+        c++
+      })
+
+      for (let cc = 1; cc <= totalCols; cc++) {
+        row.getCell(cc).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
+      }
+      r++
+    })
+
+    // Ajustar para imprimir: todo el ancho en una sola página
+    ws.pageSetup = {
+      orientation: 'landscape',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0, footer: 0 },
+    }
+    ws.views = [{ state: 'frozen', xSplit: 2, ySplit: rowAct }]
+
+    await descargarWorkbook(workbook, `Registro_Auxiliar_${ficha.area}_${ficha.grado}${ficha.grupo}_Bim${bimestre}.xlsx`)
+    setExportando(false)
+  }
+
   if (loading) return <p className="text-slate-400 text-sm">Cargando registro...</p>
   if (error) return <p className="text-red-500 text-sm">{error}</p>
 
   return (
     <div>
-      <h3 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>Registro Auxiliar</h3>
+      <div className="flex justify-between items-center flex-wrap gap-3 mb-4">
+        <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>Registro Auxiliar</h3>
+        <button
+          onClick={exportExcel}
+          disabled={exportando}
+          className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+          style={{ backgroundColor: '#1d5c8f' }}
+        >
+          {exportando ? 'Generando...' : 'Exportar Excel'}
+        </button>
+      </div>
 
       <div className="mb-5 max-w-md">
         <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Periodo</label>
