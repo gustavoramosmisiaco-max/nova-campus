@@ -40,6 +40,7 @@ export default function CoursesManager() {
   const [courses, setCourses] = useState([])
   const [docentes, setDocentes] = useState([])
   const [areas, setAreas] = useState([])
+  const [instituciones, setInstituciones] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -51,6 +52,7 @@ export default function CoursesManager() {
     grupo: 'A',
     grado: 1,
     docente_id: '',
+    institucion_id: '',
     descripcion: '',
   })
   const [schedules, setSchedules] = useState([{ ...emptyBlock }])
@@ -59,13 +61,14 @@ export default function CoursesManager() {
     loadCourses()
     loadDocentes()
     loadAreas()
+    loadInstituciones()
   }, [])
 
   async function loadCourses() {
     setLoading(true)
     const result = await supabase
       .from('courses')
-      .select('*, docente:profiles(full_name), course_schedules(*), asignaturas(nombre, areas_curriculares(id, nombre))')
+      .select('*, docente:profiles(full_name), course_schedules(*), asignaturas(nombre, areas_curriculares(id, nombre)), institucion:instituciones_educativas(nombre)')
       .order('grado', { ascending: true })
       .order('grupo', { ascending: true })
       .order('nombre', { ascending: true })
@@ -86,6 +89,14 @@ export default function CoursesManager() {
       .order('full_name')
 
     if (!result.error) setDocentes(result.data)
+  }
+
+  async function loadInstituciones() {
+    const result = await supabase
+      .from('instituciones_educativas')
+      .select('id, nombre')
+      .order('nombre')
+    if (!result.error) setInstituciones(result.data)
   }
 
   async function loadAreas() {
@@ -120,6 +131,7 @@ export default function CoursesManager() {
       grupo: 'A',
       grado: 1,
       docente_id: '',
+      institucion_id: instituciones[0]?.id || '',
       descripcion: '',
     })
     setSchedules([{ ...emptyBlock }])
@@ -134,6 +146,7 @@ export default function CoursesManager() {
       grupo: SECCIONES.includes(course.grupo) ? course.grupo : 'A',
       grado: course.grado || 1,
       docente_id: course.docente_id || '',
+      institucion_id: course.institucion_id || '',
       descripcion: course.descripcion || '',
     })
     const existing = (course.course_schedules || []).map(function (s) {
@@ -184,6 +197,7 @@ export default function CoursesManager() {
       grupo: form.grupo,
       grado: form.grado,
       docente_id: form.docente_id || null,
+      institucion_id: form.institucion_id || null,
       descripcion: form.descripcion,
     }
 
@@ -424,6 +438,26 @@ export default function CoursesManager() {
                   })}
                 </select>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: NAVY_DARK }}>Institución educativa</label>
+              <select
+                value={form.institucion_id}
+                onChange={function (e) { setForm({ ...form, institucion_id: e.target.value }) }}
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={inputStyle}
+              >
+                <option value="">-- Selecciona --</option>
+                {instituciones.map(function (i) {
+                  return <option key={i.id} value={i.id}>{i.nombre}</option>
+                })}
+              </select>
+              {instituciones.length === 0 && (
+                <p className="text-xs mt-1" style={{ color: '#B91C1C' }}>
+                  No hay instituciones creadas. Créalas primero en la pestaña "Instituciones".
+                </p>
+              )}
             </div>
 
             <div>
