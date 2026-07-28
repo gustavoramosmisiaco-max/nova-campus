@@ -28,7 +28,14 @@ function tiempoRelativo(fecha) {
   return `hace ${dias} días`
 }
 
-export default function NotificationBell() {
+const TIPO_A_PESTANA = {
+  tarea_nueva: 'pendientes',
+  nota_publicada: 'notas',
+  justificacion: 'pendientes',
+  mensaje: 'mensajes',
+}
+
+export default function NotificationBell({ onNavigate }) {
   const { session } = useAuth()
   const [open, setOpen] = useState(false)
   const [notificaciones, setNotificaciones] = useState([])
@@ -119,7 +126,12 @@ export default function NotificationBell() {
                 return (
                   <button
                     key={n.id}
-                    onClick={function () { if (!n.leido) marcarLeida(n.id) }}
+                    onClick={function () {
+                      if (!n.leido) marcarLeida(n.id)
+                      const destino = TIPO_A_PESTANA[n.tipo]
+                      if (destino && onNavigate) onNavigate(destino)
+                      setOpen(false)
+                    }}
                     className="w-full text-left px-4 py-3 transition"
                     style={{ borderBottom: '1px solid #F4F6F9', backgroundColor: n.leido ? 'white' : '#F4F6F9' }}
                   >

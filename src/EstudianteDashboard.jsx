@@ -102,7 +102,7 @@ export default function EstudianteDashboard() {
           </div>
 
           <div className="flex items-center gap-3">
-            <NotificationBell />
+            <NotificationBell onNavigate={setActiveSection} />
             <div className="text-right hidden sm:block">
               <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{profile?.full_name}</p>
               <p className="text-xs" style={{ color: GREEN_DARK }}>Estudiante</p>
