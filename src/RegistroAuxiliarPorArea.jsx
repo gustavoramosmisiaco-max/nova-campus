@@ -344,7 +344,10 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
     const cellPromArea = ws.getCell(rowComp, 2)
     cellPromArea.value = 'Promedio del Área'
     cellPromArea.font = { bold: true, color: { argb: 'FFFFFFFF' } }
-    cellPromArea.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_TABLA_HEAD } }
+    cellPromArea.fill = {
+      type: 'gradient', gradient: 'angle', degree: 135,
+      stops: [{ position: 0, color: { argb: 'FF0F2A4A' } }, { position: 1, color: { argb: 'FF5DAA47' } }],
+    }
     cellPromArea.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
 
     let colCursor = 3
@@ -410,7 +413,11 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
       row.getCell(1).value = s.full_name
       const provArea = promedioArea(s.id)
       row.getCell(2).value = provArea != null ? getLetterGrade(provArea) : '—'
-      row.getCell(2).font = { bold: true, color: { argb: provArea != null ? NIVEL_COLOR_ARGB[getLetterGrade(provArea)] : 'FF94A3B8' } }
+      row.getCell(2).font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } }
+      row.getCell(2).fill = {
+        type: 'gradient', gradient: 'angle', degree: 135,
+        stops: [{ position: 0, color: { argb: 'FF0F2A4A' } }, { position: 1, color: { argb: 'FF5DAA47' } }],
+      }
       row.getCell(2).alignment = { horizontal: 'center' }
 
       let c = 3
@@ -531,7 +538,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
                 <td rowSpan={5} className="p-2 font-semibold sticky left-0" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #E5E9F0', minWidth: 170, verticalAlign: 'bottom' }}>
                   Apellidos y Nombres
                 </td>
-                <td rowSpan={5} className="p-2 text-center font-semibold" style={{ backgroundColor: NAVY_DARK, color: 'white', border: '1px solid #0a1f38', minWidth: 60, verticalAlign: 'middle' }}>
+                <td rowSpan={5} className="p-2 text-center font-semibold" style={{ background: `linear-gradient(135deg, ${NAVY_DARK}, ${GREEN})`, color: 'white', border: '1px solid #0a1f38', minWidth: 60, verticalAlign: 'middle' }}>
                   Promedio<br />del Área
                 </td>
                 {competenciasData.map(function (comp) {
@@ -627,7 +634,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
                     {(function () {
                       const provArea = promedioArea(s.id)
                       return (
-                        <td className="p-2 text-center font-bold" style={{ backgroundColor: NAVY_DARK, color: 'white', border: '1px solid #0a1f38' }}>
+                        <td className="p-2 text-center font-bold" style={{ background: `linear-gradient(135deg, ${NAVY_DARK}, ${GREEN})`, color: 'white', border: '1px solid #0a1f38', fontSize: 15 }}>
                           {provArea != null ? getLetterGrade(provArea) : '—'}
                         </td>
                       )
