@@ -466,6 +466,22 @@ export default function CoursesManager() {
     loadCourses()
   }
 
+  async function handleQuitarArea(areaId, areaNombre) {
+    const totalCursos = courses.filter(function (c) { return c.asignaturas?.areas_curriculares?.id === areaId }).length
+    if (!confirm(`¿Quitar TODA el Área "${areaNombre}"? Esto elimina las ${totalCursos} asignación(es) de esa área (todas sus asignaturas, en todos los grados y secciones) — junto con sus matrículas, materiales y tareas. No se puede deshacer.`)) return
+
+    const idsAQuitar = courses
+      .filter(function (c) { return c.asignaturas?.areas_curriculares?.id === areaId })
+      .map(function (c) { return c.id })
+
+    const result = await supabase.from('courses').delete().in('id', idsAQuitar)
+    if (result.error) {
+      alert('Error: ' + result.error.message)
+    } else {
+      loadCourses()
+    }
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-1">
@@ -617,7 +633,16 @@ export default function CoursesManager() {
           {arbol.map(function (grupoArea) {
             return (
               <div key={grupoArea.area.id}>
-                <h3 className="text-base font-bold mb-3" style={{ color: NAVY_DARK }}>{grupoArea.area.nombre}</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-base font-bold" style={{ color: NAVY_DARK }}>{grupoArea.area.nombre}</h3>
+                  <button
+                    onClick={function () { handleQuitarArea(grupoArea.area.id, grupoArea.area.nombre) }}
+                    className="text-xs font-semibold px-3 py-1 rounded-lg text-white transition hover:opacity-90"
+                    style={{ backgroundColor: '#B91C1C' }}
+                  >
+                    Quitar toda el Área
+                  </button>
+                </div>
                 <div className="space-y-4">
                   {grupoArea.asignaturas.map(function (grupoAsig) {
                     return (
