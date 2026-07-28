@@ -830,6 +830,25 @@ function ActividadTareas({ actividad }) {
     resetForm()
     setShowForm(false)
     loadAssignments()
+
+    if (!editingId) {
+      const enrollResult = await supabase
+        .from('enrollments')
+        .select('student_id')
+        .eq('course_id', actividad.course_id)
+        .eq('status', 'activo')
+      if (!enrollResult.error && enrollResult.data.length > 0) {
+        const notifs = enrollResult.data.map(function (e) {
+          return {
+            user_id: e.student_id,
+            tipo: 'tarea_nueva',
+            titulo: 'Nueva tarea: ' + titulo,
+            mensaje: actividad.nombre,
+          }
+        })
+        await supabase.from('notificaciones').insert(notifs)
+      }
+    }
   }
 
   async function handleDeleteAssignment(id) {
@@ -889,10 +908,20 @@ function ActividadTareas({ actividad }) {
   }
 
   async function handleRevisarJustificacion(justId, nuevoEstado) {
+    const justificacionActual = justificaciones.find(function (j) { return j.id === justId })
     await supabase
       .from('justificaciones')
       .update({ estado: nuevoEstado, reviewed_by: session.user.id, reviewed_at: new Date().toISOString() })
       .eq('id', justId)
+
+    if (justificacionActual) {
+      await supabase.from('notificaciones').insert({
+        user_id: justificacionActual.student_id,
+        tipo: 'justificacion',
+        titulo: nuevoEstado === 'aprobada' ? 'Tu justificación fue aprobada' : 'Tu justificación fue rechazada',
+        mensaje: selectedAssignment?.titulo || '',
+      })
+    }
     openSubmissions(selectedAssignment)
   }
 
@@ -976,6 +1005,17 @@ function ActividadTareas({ actividad }) {
     if (!confirm('¿Publicar las notas de esta tarea? Se harán visibles en Instrumento de Evaluación, Registro Auxiliar y para los estudiantes.')) return
     setPublicandoNotas(true)
     await supabase.from('submissions').update({ publicado: true }).eq('assignment_id', selectedAssignment.id)
+
+    const notifs = submissions.map(function (s) {
+      return {
+        user_id: s.student_id,
+        tipo: 'nota_publicada',
+        titulo: 'Se publicó tu nota',
+        mensaje: selectedAssignment.titulo,
+      }
+    })
+    if (notifs.length > 0) await supabase.from('notificaciones').insert(notifs)
+
     setPublicandoNotas(false)
     openSubmissions(selectedAssignment)
     alert('Notas publicadas correctamente.')

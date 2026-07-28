@@ -3,6 +3,7 @@ import { useAuth } from './AuthContext'
 import MyCourses from './MyCourses'
 import StudentGrades from './StudentGrades'
 import TareasPendientes from './TareasPendientes'
+import NotificationBell from './NotificationBell'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -101,6 +102,7 @@ export default function EstudianteDashboard() {
           </div>
 
           <div className="flex items-center gap-3">
+            <NotificationBell />
             <div className="text-right hidden sm:block">
               <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{profile?.full_name}</p>
               <p className="text-xs" style={{ color: GREEN_DARK }}>Estudiante</p>
