@@ -122,6 +122,20 @@ export default function CoursesManager() {
     return areas.find(function (a) { return a.id === areaId })?.asignaturas || []
   }
 
+  async function heredarInstitucionDelAula(grado, grupo) {
+    const result = await supabase
+      .from('courses')
+      .select('institucion_id')
+      .eq('grado', grado)
+      .eq('grupo', grupo)
+      .not('institucion_id', 'is', null)
+      .limit(1)
+      .maybeSingle()
+    if (!result.error && result.data?.institucion_id) {
+      setForm(function (prev) { return { ...prev, institucion_id: result.data.institucion_id } })
+    }
+  }
+
   function openNewForm() {
     setEditingId(null)
     const primerArea = areas[0]
@@ -136,6 +150,7 @@ export default function CoursesManager() {
     })
     setSchedules([{ ...emptyBlock }])
     setShowForm(true)
+    heredarInstitucionDelAula(1, 'A')
   }
 
   function openEditForm(course) {
@@ -296,6 +311,35 @@ export default function CoursesManager() {
     )
   }
 
+  const [bulkGrado, setBulkGrado] = useState(1)
+  const [bulkGrupo, setBulkGrupo] = useState('A')
+  const [bulkInstitucion, setBulkInstitucion] = useState('')
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const [bulkMsg, setBulkMsg] = useState('')
+
+  async function handleBulkAsignarInstitucion() {
+    if (!bulkInstitucion) {
+      setBulkMsg('Selecciona una institución.')
+      return
+    }
+    setBulkSaving(true)
+    setBulkMsg('')
+    const result = await supabase
+      .from('courses')
+      .update({ institucion_id: bulkInstitucion })
+      .eq('grado', bulkGrado)
+      .eq('grupo', bulkGrupo)
+      .select('id')
+
+    if (result.error) {
+      setBulkMsg('Error: ' + result.error.message)
+    } else {
+      setBulkMsg(`Institución asignada a ${result.data.length} curso(s) de ${bulkGrado}° "${bulkGrupo}".`)
+      loadCourses()
+    }
+    setBulkSaving(false)
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-1">
@@ -308,9 +352,43 @@ export default function CoursesManager() {
           + Nueva asignación
         </button>
       </div>
-      <p className="text-sm text-slate-400 mb-6">
+      <p className="text-sm text-slate-400 mb-4">
         Asigna un docente a una Asignatura de un Área, para un Grado y Sección específicos.
       </p>
+
+      <div className="bg-white rounded-2xl p-4 mb-6" style={{ border: '1px solid #E5E9F0' }}>
+        <p className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>Asignar Institución a toda un aula</p>
+        <div className="flex items-end gap-3 flex-wrap">
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Grado</label>
+            <select value={bulkGrado} onChange={function (e) { setBulkGrado(Number(e.target.value)) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+              {GRADOS.map(function (g) { return <option key={g} value={g}>{g}°</option> })}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Sección</label>
+            <select value={bulkGrupo} onChange={function (e) { setBulkGrupo(e.target.value) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+              {SECCIONES.map(function (s) { return <option key={s} value={s}>{s}</option> })}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Institución</label>
+            <select value={bulkInstitucion} onChange={function (e) { setBulkInstitucion(e.target.value) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ ...inputStyle, minWidth: 220 }}>
+              <option value="">-- Selecciona --</option>
+              {instituciones.map(function (i) { return <option key={i.id} value={i.id}>{i.nombre}</option> })}
+            </select>
+          </div>
+          <button
+            onClick={handleBulkAsignarInstitucion}
+            disabled={bulkSaving}
+            className="text-sm font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+            style={{ backgroundColor: GREEN }}
+          >
+            {bulkSaving ? 'Aplicando...' : 'Aplicar a toda el aula'}
+          </button>
+        </div>
+        {bulkMsg && <p className="text-xs mt-2" style={{ color: bulkMsg.startsWith('Error') ? '#B91C1C' : '#2f7a1f' }}>{bulkMsg}</p>}
+      </div>
 
       {loading ? (
         <p className="text-slate-400">Cargando...</p>
@@ -416,7 +494,11 @@ export default function CoursesManager() {
                 <label className="block text-sm font-medium mb-1" style={{ color: NAVY_DARK }}>Grado</label>
                 <select
                   value={form.grado}
-                  onChange={function (e) { setForm({ ...form, grado: Number(e.target.value) }) }}
+                  onChange={function (e) {
+                    const nuevoGrado = Number(e.target.value)
+                    setForm({ ...form, grado: nuevoGrado })
+                    if (!editingId) heredarInstitucionDelAula(nuevoGrado, form.grupo)
+                  }}
                   className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                   style={inputStyle}
                 >
@@ -429,7 +511,11 @@ export default function CoursesManager() {
                 <label className="block text-sm font-medium mb-1" style={{ color: NAVY_DARK }}>Sección</label>
                 <select
                   value={form.grupo}
-                  onChange={function (e) { setForm({ ...form, grupo: e.target.value }) }}
+                  onChange={function (e) {
+                    const nuevoGrupo = e.target.value
+                    setForm({ ...form, grupo: nuevoGrupo })
+                    if (!editingId) heredarInstitucionDelAula(form.grado, nuevoGrupo)
+                  }}
                   className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                   style={inputStyle}
                 >
