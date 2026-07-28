@@ -695,6 +695,7 @@ function ActividadTareas({ actividad }) {
   const [submissionScoresMap, setSubmissionScoresMap] = useState({})
   const [justificaciones, setJustificaciones] = useState([])
   const [enrolledStudents, setEnrolledStudents] = useState([])
+  const [gruposCurso, setGruposCurso] = useState([])
   const [loadingSubs, setLoadingSubs] = useState(false)
   const [aplicandoCeros, setAplicandoCeros] = useState(false)
   const [publicandoNotas, setPublicandoNotas] = useState(false)
@@ -898,6 +899,16 @@ function ActividadTareas({ actividad }) {
       .eq('course_id', actividad.course_id)
       .eq('status', 'activo')
     setEnrolledStudents(!enrollResult.error ? enrollResult.data.map(function (e) { return e.student }) : [])
+
+    if (a.tipo_entrega === 'grupal') {
+      const gruposResult = await supabase
+        .from('grupos_trabajo')
+        .select('id, nombre, grupos_trabajo_miembros(student_id)')
+        .eq('course_id', actividad.course_id)
+      setGruposCurso(!gruposResult.error ? gruposResult.data : [])
+    } else {
+      setGruposCurso([])
+    }
 
     setLoadingSubs(false)
   }
@@ -1148,6 +1159,92 @@ function ActividadTareas({ actividad }) {
 
         {loadingSubs ? <p className="text-slate-400 text-sm">Cargando...</p> : submissions.length === 0 ? (
           <p className="text-slate-400 text-sm">Ningún alumno ha entregado aún.</p>
+        ) : selectedAssignment?.tipo_entrega === 'grupal' && gruposCurso.length > 0 ? (
+          (function () {
+            const idsEnAlgunGrupo = new Set()
+            gruposCurso.forEach(function (g) { g.grupos_trabajo_miembros.forEach(function (m) { idsEnAlgunGrupo.add(m.student_id) }) })
+            const sueltos = submissions.filter(function (s) { return !idsEnAlgunGrupo.has(s.student_id) })
+
+            return (
+              <ul className="space-y-3">
+                {gruposCurso.map(function (g) {
+                  const miembroIds = g.grupos_trabajo_miembros.map(function (m) { return m.student_id })
+                  const submissionsDelGrupo = submissions.filter(function (s) { return miembroIds.includes(s.student_id) })
+                  if (submissionsDelGrupo.length === 0) return null
+                  const representante = submissionsDelGrupo[0]
+                  const nombresMiembros = submissionsDelGrupo.map(function (s) { return s.student?.full_name }).filter(Boolean).join(', ')
+
+                  return (
+                    <li key={g.id} className="rounded-xl p-4" style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}>
+                      <div className="flex justify-between items-start flex-wrap gap-3 mb-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>{g.nombre}</p>
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#f0e7f7', color: '#8a5cb0' }}>Grupal</span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-0.5">{nombresMiembros}</p>
+                          {representante.score != null ? (
+                            <p className={'text-xs font-semibold mt-1 ' + getLetterColor(representante.score)}>
+                              Promedio: {getLetterGrade(representante.score)}
+                            </p>
+                          ) : (
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full inline-block mt-1" style={{ backgroundColor: '#FFF7E6', color: '#B45309' }}>
+                              Sin calificar
+                            </span>
+                          )}
+                          {!representante.publicado && (
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full inline-block mt-1 ml-1" style={{ backgroundColor: '#FDECEC', color: '#B91C1C' }}>
+                              Sin publicar
+                            </span>
+                          )}
+                        </div>
+                        {representante.file_url && (
+                          <button onClick={function () { handlePreview(representante.file_url) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>Ver archivo</button>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        {assignmentCapacidades.map(function (cap) {
+                          const key = `${representante.id}__${cap.id}`
+                          const currentScore = submissionScoresMap[key]
+                          return (
+                            <div key={cap.id} className="flex justify-between items-center rounded-lg px-3 py-2" style={{ backgroundColor: 'white', border: '1px solid #E5E9F0' }}>
+                              <span className="text-xs" style={{ color: NAVY_DARK }}>{cap.nombre}</span>
+                              <input type="number" min="0" max="20" step="0.5" defaultValue={currentScore != null ? currentScore : ''} placeholder="Nota"
+                                className="w-16 rounded-lg text-sm px-2 py-1 outline-none" style={inputStyle}
+                                onBlur={function (e) { if (e.target.value) handleGradeCapacidad(representante.id, cap.id, e.target.value) }} />
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </li>
+                  )
+                })}
+
+                {sueltos.length > 0 && sueltos.map(function (s) {
+                  return (
+                    <li key={s.id} className="rounded-xl p-4" style={{ backgroundColor: '#FDECEC', border: '1px solid #F5C6C6' }}>
+                      <p className="text-xs font-semibold mb-2" style={{ color: '#B91C1C' }}>Sin grupo asignado</p>
+                      <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{s.student?.full_name}</p>
+                      <div className="space-y-2 mt-2">
+                        {assignmentCapacidades.map(function (cap) {
+                          const key = `${s.id}__${cap.id}`
+                          const currentScore = submissionScoresMap[key]
+                          return (
+                            <div key={cap.id} className="flex justify-between items-center rounded-lg px-3 py-2" style={{ backgroundColor: 'white', border: '1px solid #E5E9F0' }}>
+                              <span className="text-xs" style={{ color: NAVY_DARK }}>{cap.nombre}</span>
+                              <input type="number" min="0" max="20" step="0.5" defaultValue={currentScore != null ? currentScore : ''} placeholder="Nota"
+                                className="w-16 rounded-lg text-sm px-2 py-1 outline-none" style={inputStyle}
+                                onBlur={function (e) { if (e.target.value) handleGradeCapacidad(s.id, cap.id, e.target.value) }} />
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )
+          })()
         ) : (
           <ul className="space-y-3">
             {submissions.map(function (s) {
