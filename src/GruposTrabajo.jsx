@@ -66,6 +66,14 @@ export default function GruposTrabajo({ courseId }) {
     setShowForm(true)
   }
 
+  // Estudiantes que ya pertenecen a OTRO grupo (no al que se está creando/editando)
+  const estudiantesEnOtroGrupo = new Set()
+  grupos.forEach(function (g) {
+    if (g.id === editingId) return
+    g.grupos_trabajo_miembros.forEach(function (m) { estudiantesEnOtroGrupo.add(m.student_id) })
+  })
+  const estudiantesDisponibles = estudiantes.filter(function (s) { return !estudiantesEnOtroGrupo.has(s.id) })
+
   function toggleMiembro(studentId) {
     setMiembrosSeleccionados(function (prev) {
       const next = new Set(prev)
@@ -139,7 +147,7 @@ export default function GruposTrabajo({ courseId }) {
           <div className="mb-3">
             <label className="block text-xs font-medium mb-2" style={{ color: NAVY_DARK }}>Miembros ({miembrosSeleccionados.size})</label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-56 overflow-y-auto p-1">
-              {estudiantes.map(function (s) {
+              {estudiantesDisponibles.map(function (s) {
                 const checked = miembrosSeleccionados.has(s.id)
                 return (
                   <button
@@ -154,6 +162,11 @@ export default function GruposTrabajo({ courseId }) {
                 )
               })}
             </div>
+            {estudiantesEnOtroGrupo.size > 0 && (
+              <p className="text-xs text-slate-400 mt-2">
+                {estudiantesEnOtroGrupo.size} estudiante(s) no aparecen aquí porque ya están en otro grupo de este curso.
+              </p>
+            )}
           </div>
           <button type="submit" className="text-sm font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: GREEN }}>
             {editingId ? 'Guardar cambios' : 'Crear grupo'}
