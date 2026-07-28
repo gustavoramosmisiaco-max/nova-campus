@@ -31,6 +31,7 @@ export default function StudentGrades() {
   const [error, setError] = useState('')
   const [areasData, setAreasData] = useState([])
   const [abierto, setAbierto] = useState(null)
+  const [selectedAreaId, setSelectedAreaId] = useState(null)
 
   useEffect(function () {
     cargarTodo()
@@ -253,105 +254,130 @@ export default function StudentGrades() {
 
       {areasData.length === 0 ? (
         <p className="text-slate-400 text-sm">Aún no estás matriculado en ningún curso.</p>
-      ) : (
-        <div className="space-y-8">
+      ) : selectedAreaId == null ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {areasData.map(function (area) {
             const letraArea = area.promedioArea != null ? getLetterGrade(area.promedioArea) : null
-            const unidadesTexto = area.unidades.map(function (u) { return `${u.tipo} ${u.numero}` }).join(' y ')
             return (
-              <div key={area.areaId} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
-                <div className="flex justify-between items-start flex-wrap gap-3 mb-1">
-                  <div>
-                    <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>{area.areaNombre}</h3>
-                    <p className="text-xs text-slate-400">{unidadesTexto ? `Trabajado en: ${unidadesTexto}` : 'Sin unidades registradas para este bimestre'}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-slate-500">Promedio de Área</p>
-                    <p className={'text-xl font-bold ' + getLetterColor(area.promedioArea)}>
-                      {area.promedioArea != null ? area.promedioArea.toFixed(1) : '—'}
-                    </p>
-                    {letraArea && <p className="text-xs" style={{ color: NAVY_DARK }}>{letraArea}</p>}
-                  </div>
-                </div>
-
-                <div className="space-y-4 mt-4">
-                  {area.competenciasData.map(function (comp) {
-                    const letraComp = comp.promedioCompetencia != null ? getLetterGrade(comp.promedioCompetencia) : null
-                    return (
-                      <div key={comp.id} className="rounded-xl p-4" style={{ backgroundColor: '#F4F6F9' }}>
-                        <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
-                          <p className="text-sm font-semibold" style={{ color: GREEN_DARK }}>{comp.nombre}</p>
-                          <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>
-                            Promedio: {comp.promedioCompetencia != null ? comp.promedioCompetencia.toFixed(1) : '—'}
-                            {letraComp && <span className="ml-1 text-xs font-normal text-slate-500">({letraComp})</span>}
-                          </p>
-                        </div>
-
-                        <div className="space-y-3">
-                          {comp.capacidades.map(function (cap) {
-                            return (
-                              <div key={cap.id} className="bg-white rounded-lg p-3" style={{ border: '1px solid #E5E9F0' }}>
-                                <div className="flex justify-between items-center mb-2">
-                                  <p className="text-xs font-semibold" style={{ color: NAVY_DARK }}>{cap.nombre}</p>
-                                  <p className={'text-xs font-bold ' + getLetterColor(cap.promedioCapacidad)}>
-                                    {cap.promedioCapacidad != null ? getLetterGrade(cap.promedioCapacidad) : '—'}
-                                  </p>
-                                </div>
-                                {cap.instancias.length === 0 ? (
-                                  <p className="text-xs text-slate-400">Sin tareas registradas.</p>
-                                ) : (
-                                  <ul className="space-y-1.5">
-                                    {cap.instancias.map(function (inst) {
-                                      const keyC = 'c_' + inst.assignmentId + '_' + cap.id
-                                      const keyD = 'd_' + inst.assignmentId + '_' + cap.id
-                                      return (
-                                        <li key={inst.assignmentId + '_' + cap.id} className="text-xs">
-                                          <div className="flex justify-between items-center gap-2">
-                                            <span style={{ color: '#5F5E5A' }}>
-                                              {inst.unidadTexto} · Act.{inst.actividadNumero} · {inst.tituloTarea}{' '}
-                                              <button className="underline decoration-dotted" style={{ color: NAVY }} onClick={function () { toggle(keyC) }}>Criterio</button>
-                                              {' · '}
-                                              <button className="underline decoration-dotted" style={{ color: '#8a5cb0' }} onClick={function () { toggle(keyD) }}>Desempeño</button>
-                                            </span>
-                                            <span className={'font-bold ' + getLetterColor(inst.nota)}>
-                                              {inst.nota != null ? getLetterGrade(inst.nota) : '—'}
-                                            </span>
-                                          </div>
-                                          {abierto === keyC && (
-                                            <div className="mt-1 p-2 rounded" style={{ backgroundColor: '#DEEBF7', color: NAVY_DARK }}>{inst.criterio || 'Sin criterio registrado.'}</div>
-                                          )}
-                                          {abierto === keyD && (
-                                            <div className="mt-1 p-2 rounded" style={{ backgroundColor: '#f0e7f7', color: '#4a2e63' }}>{inst.desempeno || 'Sin desempeño registrado.'}</div>
-                                          )}
-                                        </li>
-                                      )
-                                    })}
-                                  </ul>
-                                )}
-                                {cap.instancias.length > 0 && (
-                                  <p className="text-xs mt-2 pt-2" style={{ borderTop: '1px solid #F4F6F9', color: '#94A3B8' }}>
-                                    Promedio de esta capacidad: {cap.promedioCapacidad != null ? cap.promedioCapacidad.toFixed(1) : '—'}
-                                  </p>
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
-
-                        {comp.cierreNota != null && (
-                          <p className="text-xs mt-3" style={{ color: '#B45309' }}>
-                            Evaluación de Unidad (cierre): {comp.cierreNota.toFixed(1)} ({getLetterGrade(comp.cierreNota)})
-                          </p>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
+              <button
+                key={area.areaId}
+                onClick={function () { setSelectedAreaId(area.areaId) }}
+                className="text-left bg-white rounded-2xl p-5 transition hover:-translate-y-0.5"
+                style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
+              >
+                <h3 className="text-base font-bold" style={{ color: NAVY_DARK }}>{area.areaNombre}</h3>
+                <p className="text-xs text-slate-400 mt-1 mb-3">Ver mi calificación de esta área →</p>
+                <p className="text-xs text-slate-500">Promedio de Área</p>
+                <p className={'text-2xl font-bold ' + getLetterColor(area.promedioArea)}>
+                  {area.promedioArea != null ? area.promedioArea.toFixed(1) : '—'}
+                </p>
+                {letraArea && <p className="text-xs" style={{ color: NAVY_DARK }}>{letraArea}</p>}
+              </button>
             )
           })}
         </div>
-      )}
+      ) : (function () {
+        const area = areasData.find(function (a) { return a.areaId === selectedAreaId })
+        if (!area) return null
+        const letraArea = area.promedioArea != null ? getLetterGrade(area.promedioArea) : null
+        const unidadesTexto = area.unidades.map(function (u) { return `${u.tipo} ${u.numero}` }).join(' y ')
+        return (
+          <div>
+            <button onClick={function () { setSelectedAreaId(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>
+              ← Volver a mis áreas
+            </button>
+            <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
+              <div className="flex justify-between items-start flex-wrap gap-3 mb-1">
+                <div>
+                  <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>{area.areaNombre}</h3>
+                  <p className="text-xs text-slate-400">{unidadesTexto ? `Trabajado en: ${unidadesTexto}` : 'Sin unidades registradas para este bimestre'}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-slate-500">Promedio de Área</p>
+                  <p className={'text-xl font-bold ' + getLetterColor(area.promedioArea)}>
+                    {area.promedioArea != null ? area.promedioArea.toFixed(1) : '—'}
+                  </p>
+                  {letraArea && <p className="text-xs" style={{ color: NAVY_DARK }}>{letraArea}</p>}
+                </div>
+              </div>
+
+              <div className="space-y-4 mt-4">
+                {area.competenciasData.map(function (comp) {
+                  const letraComp = comp.promedioCompetencia != null ? getLetterGrade(comp.promedioCompetencia) : null
+                  return (
+                    <div key={comp.id} className="rounded-xl p-4" style={{ backgroundColor: '#F4F6F9' }}>
+                      <div className="flex justify-between items-center flex-wrap gap-2 mb-3">
+                        <p className="text-sm font-semibold" style={{ color: GREEN_DARK }}>{comp.nombre}</p>
+                        <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>
+                          Promedio: {comp.promedioCompetencia != null ? comp.promedioCompetencia.toFixed(1) : '—'}
+                          {letraComp && <span className="ml-1 text-xs font-normal text-slate-500">({letraComp})</span>}
+                        </p>
+                      </div>
+
+                      <div className="space-y-3">
+                        {comp.capacidades.map(function (cap) {
+                          return (
+                            <div key={cap.id} className="bg-white rounded-lg p-3" style={{ border: '1px solid #E5E9F0' }}>
+                              <div className="flex justify-between items-center mb-2">
+                                <p className="text-xs font-semibold" style={{ color: NAVY_DARK }}>{cap.nombre}</p>
+                                <p className={'text-xs font-bold ' + getLetterColor(cap.promedioCapacidad)}>
+                                  {cap.promedioCapacidad != null ? getLetterGrade(cap.promedioCapacidad) : '—'}
+                                </p>
+                              </div>
+                              {cap.instancias.length === 0 ? (
+                                <p className="text-xs text-slate-400">Sin tareas registradas.</p>
+                              ) : (
+                                <ul className="space-y-1.5">
+                                  {cap.instancias.map(function (inst) {
+                                    const keyC = 'c_' + inst.assignmentId + '_' + cap.id
+                                    const keyD = 'd_' + inst.assignmentId + '_' + cap.id
+                                    return (
+                                      <li key={inst.assignmentId + '_' + cap.id} className="text-xs">
+                                        <div className="flex justify-between items-center gap-2">
+                                          <span style={{ color: '#5F5E5A' }}>
+                                            {inst.unidadTexto} · Act.{inst.actividadNumero} · {inst.tituloTarea}{' '}
+                                            <button className="underline decoration-dotted" style={{ color: NAVY }} onClick={function () { toggle(keyC) }}>Criterio</button>
+                                            {' · '}
+                                            <button className="underline decoration-dotted" style={{ color: '#8a5cb0' }} onClick={function () { toggle(keyD) }}>Desempeño</button>
+                                          </span>
+                                          <span className={'font-bold ' + getLetterColor(inst.nota)}>
+                                            {inst.nota != null ? getLetterGrade(inst.nota) : '—'}
+                                          </span>
+                                        </div>
+                                        {abierto === keyC && (
+                                          <div className="mt-1 p-2 rounded" style={{ backgroundColor: '#DEEBF7', color: NAVY_DARK }}>{inst.criterio || 'Sin criterio registrado.'}</div>
+                                        )}
+                                        {abierto === keyD && (
+                                          <div className="mt-1 p-2 rounded" style={{ backgroundColor: '#f0e7f7', color: '#4a2e63' }}>{inst.desempeno || 'Sin desempeño registrado.'}</div>
+                                        )}
+                                      </li>
+                                    )
+                                  })}
+                                </ul>
+                              )}
+                              {cap.instancias.length > 0 && (
+                                <p className="text-xs mt-2 pt-2" style={{ borderTop: '1px solid #F4F6F9', color: '#94A3B8' }}>
+                                  Promedio de esta capacidad: {cap.promedioCapacidad != null ? cap.promedioCapacidad.toFixed(1) : '—'}
+                                </p>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      {comp.cierreNota != null && (
+                        <p className="text-xs mt-3" style={{ color: '#B45309' }}>
+                          Evaluación de Unidad (cierre): {comp.cierreNota.toFixed(1)} ({getLetterGrade(comp.cierreNota)})
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
