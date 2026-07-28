@@ -3,7 +3,7 @@ import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 import CourseActivities from './CourseActivities'
 import CourseZoomTeacher from './CourseZoomTeacher'
-import RegistroAuxiliar from './RegistroAuxiliar'
+import RegistroAuxiliarPorArea from './RegistroAuxiliarPorArea'
 import InstrumentoEvaluacion from './InstrumentoEvaluacion'
 import EvaluacionCierre from './EvaluacionCierre'
 
@@ -94,14 +94,7 @@ function CourseDetailTeacher({ course, onBack }) {
           />
         )}
         {tab === 'cierre' && <EvaluacionCierre courseId={course.id} />}
-        {tab === 'registro' && (
-          <RegistroAuxiliar
-            courseId={course.id}
-            courseNombre={course.nombre}
-            courseGrado={course.grado}
-            courseGrupo={course.grupo}
-          />
-        )}
+        {tab === 'registro' && <RegistroAuxiliarPorArea courseId={course.id} />}
         {tab === 'zoom' && <CourseZoomTeacher courseId={course.id} />}
       </div>
     </div>
