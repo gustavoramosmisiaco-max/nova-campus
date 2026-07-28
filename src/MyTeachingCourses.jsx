@@ -5,6 +5,7 @@ import CourseActivities from './CourseActivities'
 import CourseZoomTeacher from './CourseZoomTeacher'
 import RegistroAuxiliar from './RegistroAuxiliar'
 import InstrumentoEvaluacion from './InstrumentoEvaluacion'
+import EvaluacionCierre from './EvaluacionCierre'
 
 const DIAS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 const GRADOS = [1, 2, 3, 4, 5]
@@ -32,6 +33,7 @@ function CourseDetailTeacher({ course, onBack }) {
   const tabs = [
     { id: 'actividades', label: 'Actividades' },
     { id: 'instrumento', label: 'Instrumento de Evaluación' },
+    { id: 'cierre', label: 'Evaluación de Cierre' },
     { id: 'registro', label: 'Registro Auxiliar' },
     { id: 'zoom', label: 'Videoclases' },
   ]
@@ -91,6 +93,7 @@ function CourseDetailTeacher({ course, onBack }) {
             courseGrupo={course.grupo}
           />
         )}
+        {tab === 'cierre' && <EvaluacionCierre courseId={course.id} />}
         {tab === 'registro' && (
           <RegistroAuxiliar
             courseId={course.id}
