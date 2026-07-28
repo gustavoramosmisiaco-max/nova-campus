@@ -92,12 +92,13 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
     // Unidades de este bimestre, en cualquiera de las asignaturas del área
     const unidResult = await supabase
       .from('unidades')
-      .select('id, numero, course_id')
+      .select('id, numero, course_id, finalizada')
       .in('course_id', courseIds)
     const unidadesBimestre = (unidResult.error ? [] : unidResult.data).filter(function (u) {
       return Math.ceil(u.numero / 2) === bimestre
     })
     const unidadIds = unidadesBimestre.map(function (u) { return u.id })
+    const unidadIdsFinalizadas = unidadesBimestre.filter(function (u) { return u.finalizada }).map(function (u) { return u.id })
 
     let actividades = []
     let assignments = []
@@ -168,14 +169,13 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
       }
     }
 
-    // Notas de cierre de unidad (por competencia)
+    // Notas de cierre de unidad (por competencia) — solo de Unidades ya finalizadas
     let cierreMap = {} // studentId__competenciaId -> [notas]
-    if (courseIds.length > 0) {
+    if (unidadIdsFinalizadas.length > 0) {
       const cierreResult = await supabase
         .from('evaluacion_cierre')
         .select('student_id, competencia_id, nota_numerica')
-        .in('course_id', courseIds)
-        .eq('bimestre', bimestre)
+        .in('unidad_id', unidadIdsFinalizadas)
       if (!cierreResult.error) {
         cierreResult.data.forEach(function (row) {
           const key = `${row.student_id}__${row.competencia_id}`

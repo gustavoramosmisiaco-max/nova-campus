@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext'
 import { getLetterGrade, getLetterColor } from './gradeUtils'
 import PreviewModal from './PreviewModal'
 import CourseMaterials from './CourseMaterials'
+import EvaluacionCierre from './EvaluacionCierre'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -268,6 +269,7 @@ function UnidadesList({ courseId, onSelectUnidad }) {
 // ============================================================
 function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectActividad }) {
   const { session } = useAuth()
+  const [subTab, setSubTab] = useState('actividades')
   const [activities, setActivities] = useState([])
   const [competencias, setCompetencias] = useState([])
   const [capacidadesDisponibles, setCapacidadesDisponibles] = useState([])
@@ -438,6 +440,25 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
         </div>
       </div>
 
+      <div className="flex gap-2 mb-5 border-b" style={{ borderColor: '#E5E9F0' }}>
+        {[{ id: 'actividades', label: 'Actividades' }, { id: 'cierre', label: 'Evaluación de Cierre' }].map(function (t) {
+          const active = subTab === t.id
+          return (
+            <button key={t.id} onClick={function () { setSubTab(t.id) }}
+              className="px-4 py-2.5 text-sm font-semibold border-b-2 transition"
+              style={active ? { borderColor: GREEN, color: NAVY_DARK } : { borderColor: 'transparent', color: '#94A3B8' }}>
+              {t.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {subTab === 'cierre' && (
+        <EvaluacionCierre unidad={{ ...unidad, course_id: courseId }} />
+      )}
+
+      {subTab === 'actividades' && (
+        <>
       <div className="flex justify-end mb-3">
         <button
           onClick={function () { if (showForm) setShowForm(false); else openNew() }}
@@ -552,6 +573,8 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
             )
           })}
         </ul>
+      )}
+        </>
       )}
     </div>
   )
