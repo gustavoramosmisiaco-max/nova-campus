@@ -60,7 +60,7 @@ export default function TareasPendientes() {
 
     const assignResult = await supabase
       .from('assignments')
-      .select('id, titulo, tema, fecha_entrega, course_id, actividad_id, actividad:actividades(nombre, numero_actividad, unidad:unidades(tipo, numero))')
+      .select('id, titulo, tema, fecha_entrega, course_id, actividad_id, tipo_entrega, actividad:actividades(nombre, numero_actividad, unidad:unidades(tipo, numero))')
       .in('course_id', courseIds)
       .order('fecha_entrega', { ascending: true })
 
@@ -155,9 +155,45 @@ export default function TareasPendientes() {
     if (dbResult.error) {
       setError('Error al registrar la entrega: ' + dbResult.error.message)
     } else {
+      if (assignment.tipo_entrega === 'grupal') {
+        await cascadearEntregaAGrupo(assignment, path)
+      }
       cargarTodo()
     }
     setUploadingId(null)
+  }
+
+  async function cascadearEntregaAGrupo(assignment, path) {
+    const miembroResult = await supabase
+      .from('grupos_trabajo_miembros')
+      .select('grupo_id, grupo:grupos_trabajo!inner(course_id)')
+      .eq('student_id', session.user.id)
+      .eq('grupo.course_id', assignment.course_id)
+    const grupoIds = (miembroResult.data || []).map(function (m) { return m.grupo_id })
+    if (grupoIds.length === 0) return
+
+    const otrosMiembrosResult = await supabase
+      .from('grupos_trabajo_miembros')
+      .select('student_id')
+      .in('grupo_id', grupoIds)
+      .neq('student_id', session.user.id)
+    const idsCompaneros = [...new Set((otrosMiembrosResult.data || []).map(function (m) { return m.student_id }))]
+    if (idsCompaneros.length === 0) return
+
+    const existentesResult = await supabase
+      .from('submissions')
+      .select('student_id')
+      .eq('assignment_id', assignment.id)
+      .in('student_id', idsCompaneros)
+    const yaTienen = new Set((existentesResult.data || []).map(function (s) { return s.student_id }))
+    const faltantes = idsCompaneros.filter(function (id) { return !yaTienen.has(id) })
+
+    if (faltantes.length > 0) {
+      const nuevas = faltantes.map(function (studentId) {
+        return { assignment_id: assignment.id, student_id: studentId, file_url: path, submitted_at: new Date().toISOString() }
+      })
+      await supabase.from('submissions').insert(nuevas)
+    }
   }
 
   async function handlePreview(path) {

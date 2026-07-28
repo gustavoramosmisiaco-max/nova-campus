@@ -687,6 +687,7 @@ function ActividadTareas({ actividad }) {
   const [fechaEntrega, setFechaEntrega] = useState('')
   const [puntajeMax, setPuntajeMax] = useState(20)
   const [instrumento, setInstrumento] = useState('')
+  const [tipoEntrega, setTipoEntrega] = useState('individual')
 
   const [selectedAssignment, setSelectedAssignment] = useState(null)
   const [assignmentCapacidades, setAssignmentCapacidades] = useState([])
@@ -754,6 +755,7 @@ function ActividadTareas({ actividad }) {
     setFechaEntrega('')
     setPuntajeMax(20)
     setInstrumento('')
+    setTipoEntrega('individual')
   }
 
   function openNew() {
@@ -770,6 +772,7 @@ function ActividadTareas({ actividad }) {
     setFechaEntrega(d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()))
     setPuntajeMax(a.puntaje_maximo)
     setInstrumento(a.instrumento_evaluacion || '')
+    setTipoEntrega(a.tipo_entrega || 'individual')
     const acResult = await supabase.from('assignment_capacidades').select('capacidad_id').eq('assignment_id', a.id)
     setSelectedCapacidades(!acResult.error ? acResult.data.map(function (x) { return x.capacidad_id }) : [])
     setShowForm(true)
@@ -802,6 +805,7 @@ function ActividadTareas({ actividad }) {
       fecha_entrega: fechaEntrega ? `${fechaEntrega}:00-05:00` : fechaEntrega,
       puntaje_maximo: puntajeMax,
       instrumento_evaluacion: instrumento,
+      tipo_entrega: tipoEntrega,
       competencia: actividad.competencia?.nombre || '',
       capacidad: capacidadTexto,
       criterio: criterioTexto,
@@ -929,16 +933,40 @@ function ActividadTareas({ actividad }) {
     const numScore = Number(scoreStr)
     if (isNaN(numScore) || numScore < 0 || numScore > 20) { alert('La nota debe ser un número entre 0 y 20.'); return }
 
-    await supabase.from('submission_scores').upsert(
-      { submission_id: submissionId, capacidad_id: capacidadId, score: numScore, graded_by: session.user.id, graded_at: new Date().toISOString() },
-      { onConflict: 'submission_id,capacidad_id' }
-    )
+    let idsAActualizar = [submissionId]
 
-    const allScoresResult = await supabase.from('submission_scores').select('score').eq('submission_id', submissionId)
-    const values = (allScoresResult.data || []).map(function (s) { return s.score }).filter(function (s) { return s != null })
-    const avg = values.length > 0 ? values.reduce(function (a, b) { return a + b }, 0) / values.length : null
+    if (selectedAssignment?.tipo_entrega === 'grupal') {
+      const submissionActual = submissions.find(function (s) { return s.id === submissionId })
+      if (submissionActual) {
+        const miembroResult = await supabase
+          .from('grupos_trabajo_miembros')
+          .select('grupo_id, grupo:grupos_trabajo!inner(course_id)')
+          .eq('student_id', submissionActual.student_id)
+          .eq('grupo.course_id', actividad.course_id)
+        const grupoIds = (miembroResult.data || []).map(function (m) { return m.grupo_id })
+        if (grupoIds.length > 0) {
+          const otrosMiembrosResult = await supabase
+            .from('grupos_trabajo_miembros')
+            .select('student_id')
+            .in('grupo_id', grupoIds)
+          const idsCompaneros = new Set((otrosMiembrosResult.data || []).map(function (m) { return m.student_id }))
+          const otrasSubmissions = submissions.filter(function (s) { return idsCompaneros.has(s.student_id) && s.id !== submissionId })
+          idsAActualizar = idsAActualizar.concat(otrasSubmissions.map(function (s) { return s.id }))
+        }
+      }
+    }
 
-    await supabase.from('submissions').update({ score: avg, graded_by: session.user.id, graded_at: new Date().toISOString() }).eq('id', submissionId)
+    for (const subId of idsAActualizar) {
+      await supabase.from('submission_scores').upsert(
+        { submission_id: subId, capacidad_id: capacidadId, score: numScore, graded_by: session.user.id, graded_at: new Date().toISOString() },
+        { onConflict: 'submission_id,capacidad_id' }
+      )
+      const allScoresResult = await supabase.from('submission_scores').select('score').eq('submission_id', subId)
+      const values = (allScoresResult.data || []).map(function (s) { return s.score }).filter(function (s) { return s != null })
+      const avg = values.length > 0 ? values.reduce(function (a, b) { return a + b }, 0) / values.length : null
+      await supabase.from('submissions').update({ score: avg, graded_by: session.user.id, graded_at: new Date().toISOString() }).eq('id', subId)
+    }
+
     openSubmissions(selectedAssignment)
   }
 
@@ -1208,6 +1236,30 @@ function ActividadTareas({ actividad }) {
           <input type="text" value={titulo} onChange={function (e) { setTitulo(e.target.value) }} required placeholder="Título de la tarea" className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
           <textarea value={descripcion} onChange={function (e) { setDescripcion(e.target.value) }} placeholder="Descripción (opcional)" rows={2} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
           <input type="text" value={instrumento} onChange={function (e) { setInstrumento(e.target.value) }} placeholder="Instrumento de evaluación" className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Tipo de entrega</label>
+            <div className="flex gap-2">
+              {[{ id: 'individual', label: 'Individual' }, { id: 'grupal', label: 'Grupal' }].map(function (op) {
+                const active = tipoEntrega === op.id
+                return (
+                  <button
+                    key={op.id}
+                    type="button"
+                    onClick={function () { setTipoEntrega(op.id) }}
+                    className="flex-1 text-sm font-semibold py-2 rounded-lg transition"
+                    style={active ? { backgroundColor: GREEN, color: 'white' } : { backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }}
+                  >
+                    {op.label}
+                  </button>
+                )
+              })}
+            </div>
+            {tipoEntrega === 'grupal' && (
+              <p className="text-xs mt-1" style={{ color: '#B45309' }}>
+                Un integrante del grupo sube la tarea y cuenta como entregada para todo el grupo; al calificar a uno, se califica a todos.
+              </p>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <input type="datetime-local" value={fechaEntrega} onChange={function (e) { setFechaEntrega(e.target.value) }} required className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
             <input type="number" value={puntajeMax} onChange={function (e) { setPuntajeMax(e.target.value) }} max={20} min={0} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
@@ -1229,7 +1281,12 @@ function ActividadTareas({ actividad }) {
               <li key={a.id} className="rounded-xl p-4" style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}>
                 <div className="flex justify-between items-start flex-wrap gap-3">
                   <div>
-                    <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{a.titulo}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{a.titulo}</p>
+                      {a.tipo_entrega === 'grupal' && (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#f0e7f7', color: '#8a5cb0' }}>Grupal</span>
+                      )}
+                    </div>
                     <p className="text-xs text-slate-500">Entrega: {new Date(a.fecha_entrega).toLocaleString('es-PE')}</p>
                   </div>
                   <div className="flex gap-2">

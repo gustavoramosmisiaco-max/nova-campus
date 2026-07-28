@@ -79,7 +79,7 @@ export default function MisTareas() {
 
     const assignResult = await supabase
       .from('assignments')
-      .select('id, titulo, fecha_entrega, actividad_id, course_id')
+      .select('id, titulo, fecha_entrega, actividad_id, course_id, tipo_entrega')
       .in('actividad_id', actIds)
       .order('fecha_entrega', { ascending: false })
     if (assignResult.error) {
@@ -157,7 +157,12 @@ export default function MisTareas() {
                         <div className="flex justify-between items-start flex-wrap gap-3">
                           <div>
                             <p className="text-xs text-slate-400">Actividad {t.actividad?.numero_actividad} · {t.actividad?.nombre}</p>
-                            <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{t.titulo}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{t.titulo}</p>
+                              {t.tipo_entrega === 'grupal' && (
+                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#f0e7f7', color: '#8a5cb0' }}>Grupal</span>
+                              )}
+                            </div>
                             <p className="text-xs text-slate-500">
                               Entrega: {new Date(t.fecha_entrega).toLocaleString('es-PE')}
                               {yaVencio && <span className="ml-2 font-semibold text-red-500">Vencida</span>}
@@ -272,16 +277,40 @@ function CalificarTarea({ tarea, onBack }) {
     const numScore = Number(scoreStr)
     if (isNaN(numScore) || numScore < 0 || numScore > 20) { alert('La nota debe ser un número entre 0 y 20.'); return }
 
-    await supabase.from('submission_scores').upsert(
-      { submission_id: submissionId, capacidad_id: capacidadId, score: numScore, graded_by: session.user.id, graded_at: new Date().toISOString() },
-      { onConflict: 'submission_id,capacidad_id' }
-    )
+    let idsAActualizar = [submissionId]
 
-    const allScoresResult = await supabase.from('submission_scores').select('score').eq('submission_id', submissionId)
-    const values = (allScoresResult.data || []).map(function (s) { return s.score }).filter(function (s) { return s != null })
-    const avg = values.length > 0 ? values.reduce(function (a, b) { return a + b }, 0) / values.length : null
+    if (tarea.tipo_entrega === 'grupal') {
+      const submissionActual = submissions.find(function (s) { return s.id === submissionId })
+      if (submissionActual) {
+        const miembroResult = await supabase
+          .from('grupos_trabajo_miembros')
+          .select('grupo_id, grupo:grupos_trabajo!inner(course_id)')
+          .eq('student_id', submissionActual.student_id)
+          .eq('grupo.course_id', tarea.course_id)
+        const grupoIds = (miembroResult.data || []).map(function (m) { return m.grupo_id })
+        if (grupoIds.length > 0) {
+          const otrosMiembrosResult = await supabase
+            .from('grupos_trabajo_miembros')
+            .select('student_id')
+            .in('grupo_id', grupoIds)
+          const idsCompaneros = new Set((otrosMiembrosResult.data || []).map(function (m) { return m.student_id }))
+          const otrasSubmissions = submissions.filter(function (s) { return idsCompaneros.has(s.student_id) && s.id !== submissionId })
+          idsAActualizar = idsAActualizar.concat(otrasSubmissions.map(function (s) { return s.id }))
+        }
+      }
+    }
 
-    await supabase.from('submissions').update({ score: avg, graded_by: session.user.id, graded_at: new Date().toISOString() }).eq('id', submissionId)
+    for (const subId of idsAActualizar) {
+      await supabase.from('submission_scores').upsert(
+        { submission_id: subId, capacidad_id: capacidadId, score: numScore, graded_by: session.user.id, graded_at: new Date().toISOString() },
+        { onConflict: 'submission_id,capacidad_id' }
+      )
+      const allScoresResult = await supabase.from('submission_scores').select('score').eq('submission_id', subId)
+      const values = (allScoresResult.data || []).map(function (s) { return s.score }).filter(function (s) { return s != null })
+      const avg = values.length > 0 ? values.reduce(function (a, b) { return a + b }, 0) / values.length : null
+      await supabase.from('submissions').update({ score: avg, graded_by: session.user.id, graded_at: new Date().toISOString() }).eq('id', subId)
+    }
+
     cargarDetalle()
   }
 
