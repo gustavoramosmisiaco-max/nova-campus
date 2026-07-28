@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext'
 import CourseMaterials from './CourseMaterials'
 import CourseAssignmentsStudent from './CourseAssignmentsStudent'
 import CourseZoomStudent from './CourseZoomStudent'
+import { getLetterGrade, getLetterColor } from './gradeUtils'
 
 const DIAS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
@@ -56,7 +57,7 @@ function CourseDetailStudent({ course, onBack }) {
 
       {!selectedUnidad && !selectedActividad && (
         <div className="flex gap-2 mb-6 border-b" style={{ borderColor: '#E5E9F0' }}>
-          {[{ id: 'actividades', label: 'Actividades' }, { id: 'zoom', label: 'Videoclases' }].map(function (t) {
+          {[{ id: 'actividades', label: 'Actividades' }, { id: 'notas', label: 'Mis Notas' }, { id: 'zoom', label: 'Videoclases' }].map(function (t) {
             const active = tab === t.id
             return (
               <button
@@ -75,6 +76,10 @@ function CourseDetailStudent({ course, onBack }) {
       <div className="bg-white rounded-2xl p-6" style={{ border: '1px solid #E5E9F0' }}>
         {tab === 'zoom' && !selectedUnidad && !selectedActividad && (
           <CourseZoomStudent courseId={course.id} />
+        )}
+
+        {tab === 'notas' && !selectedUnidad && !selectedActividad && (
+          <NotasDeAsignatura courseId={course.id} />
         )}
 
         {tab === 'actividades' && (
@@ -189,6 +194,7 @@ function UnidadesListStudent({ courseId, onSelectUnidad }) {
 }
 
 function UnidadActividadesStudent({ unidad, courseId, onBack, onSelectActividad }) {
+  const [subTab, setSubTab] = useState('actividades')
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -227,7 +233,28 @@ function UnidadActividadesStudent({ unidad, courseId, onBack, onSelectActividad 
         </div>
       </div>
 
-      {activities.length === 0 ? (
+      <div className="flex gap-2 mb-5 border-b" style={{ borderColor: '#E5E9F0' }}>
+        {[
+          { id: 'actividades', label: 'Actividades' },
+          { id: 'notas-tareas', label: 'Notas de Tareas' },
+          { id: 'notas-cierre', label: 'Evaluación Final de Unidad' },
+        ].map(function (t) {
+          const active = subTab === t.id
+          return (
+            <button key={t.id} onClick={function () { setSubTab(t.id) }}
+              className="px-3 py-2.5 text-sm font-semibold border-b-2 transition"
+              style={active ? { borderColor: GREEN, color: NAVY_DARK } : { borderColor: 'transparent', color: '#94A3B8' }}>
+              {t.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {subTab === 'notas-tareas' && <NotasDeTareasUnidad unidad={unidad} courseId={courseId} />}
+      {subTab === 'notas-cierre' && <NotasCierreUnidad unidad={unidad} />}
+
+      {subTab === 'actividades' && (
+      activities.length === 0 ? (
         <p className="text-slate-400 text-sm">Aún no hay actividades en esta carpeta.</p>
       ) : (
         <ul className="space-y-3">
@@ -243,6 +270,7 @@ function UnidadActividadesStudent({ unidad, courseId, onBack, onSelectActividad 
             )
           })}
         </ul>
+      )
       )}
     </div>
   )
@@ -420,5 +448,430 @@ function BookIcon() {
       <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
       <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
     </svg>
+  )
+}
+
+// ============================================================
+// Notas de Tareas de una Unidad específica (estudiante, solo lectura)
+// ============================================================
+function NotasDeTareasUnidad({ unidad, courseId }) {
+  const { session } = useAuth()
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [competenciasData, setCompetenciasData] = useState([])
+  const [abierto, setAbierto] = useState(null)
+
+  useEffect(function () {
+    cargar()
+  }, [unidad.id, courseId])
+
+  function average(numbers) {
+    const validos = numbers.filter(function (n) { return n != null })
+    if (validos.length === 0) return null
+    return validos.reduce(function (a, b) { return a + b }, 0) / validos.length
+  }
+
+  async function cargar() {
+    setLoading(true)
+    setError('')
+
+    const courseResult = await supabase
+      .from('courses')
+      .select('asignaturas(areas_curriculares(nombre))')
+      .eq('id', courseId)
+      .single()
+    const areaNombre = courseResult.data?.asignaturas?.areas_curriculares?.nombre
+    if (!areaNombre) {
+      setError('No se pudo determinar el Área de este curso.')
+      setLoading(false)
+      return
+    }
+
+    const compResult = await supabase.from('competencias').select('*').eq('area', areaNombre).order('codigo')
+    const competencias = compResult.error ? [] : compResult.data
+    const competenciaIds = competencias.map(function (c) { return c.id })
+
+    const capResult = await supabase.from('capacidades').select('*').in('competencia_id', competenciaIds).order('orden')
+    const capacidades = capResult.error ? [] : capResult.data
+
+    const actResult = await supabase
+      .from('actividades')
+      .select('id, nombre, numero_actividad, actividad_capacidades(capacidad_id, criterio, desempeno)')
+      .eq('unidad_id', unidad.id)
+      .eq('course_id', courseId)
+    const actividades = actResult.error ? [] : actResult.data
+    const actIds = actividades.map(function (a) { return a.id })
+
+    let assignments = []
+    if (actIds.length > 0) {
+      const assignResult = await supabase
+        .from('assignments')
+        .select('id, titulo, actividad_id, assignment_capacidades(capacidad_id)')
+        .in('actividad_id', actIds)
+      assignments = assignResult.error ? [] : assignResult.data
+    }
+
+    const assignmentIds = assignments.map(function (a) { return a.id })
+    let notaMap = {}
+    if (assignmentIds.length > 0) {
+      const subsResult = await supabase
+        .from('submissions')
+        .select('id, assignment_id, publicado')
+        .eq('student_id', session.user.id)
+        .in('assignment_id', assignmentIds)
+      const submissionsData = subsResult.error ? [] : subsResult.data
+      const submissionIds = submissionsData.map(function (s) { return s.id })
+      const subMap = {}
+      submissionsData.forEach(function (s) { subMap[s.id] = s })
+
+      if (submissionIds.length > 0) {
+        const scoresResult = await supabase
+          .from('submission_scores')
+          .select('submission_id, capacidad_id, score')
+          .in('submission_id', submissionIds)
+        if (!scoresResult.error) {
+          scoresResult.data.forEach(function (row) {
+            const sub = subMap[row.submission_id]
+            if (!sub || !sub.publicado) return
+            notaMap[`${row.capacidad_id}__${sub.assignment_id}`] = row.score
+          })
+        }
+      }
+    }
+
+    const estructura = competencias.map(function (comp) {
+      const caps = capacidades.filter(function (c) { return c.competencia_id === comp.id }).map(function (cap) {
+        const instancias = []
+        assignments.forEach(function (a) {
+          const tiene = (a.assignment_capacidades || []).some(function (ac) { return ac.capacidad_id === cap.id })
+          if (!tiene) return
+          const actividad = actividades.find(function (act) { return act.id === a.actividad_id })
+          const detalle = (actividad?.actividad_capacidades || []).find(function (ac) { return ac.capacidad_id === cap.id })
+          instancias.push({
+            assignmentId: a.id,
+            tituloTarea: a.titulo,
+            actividadNumero: actividad?.numero_actividad,
+            criterio: detalle?.criterio || '',
+            desempeno: detalle?.desempeno || '',
+            nota: notaMap[`${cap.id}__${a.id}`] != null ? notaMap[`${cap.id}__${a.id}`] : null,
+          })
+        })
+        return { ...cap, instancias: instancias, promedioCapacidad: average(instancias.map(function (i) { return i.nota })) }
+      }).filter(function (c) { return c.instancias.length > 0 })
+      return { ...comp, capacidades: caps }
+    }).filter(function (c) { return c.capacidades.length > 0 })
+
+    setCompetenciasData(estructura)
+    setLoading(false)
+  }
+
+  function toggle(key) {
+    setAbierto(function (prev) { return prev === key ? null : key })
+  }
+
+  if (loading) return <p className="text-slate-400 text-sm">Cargando...</p>
+  if (error) return <p className="text-red-500 text-sm">{error}</p>
+  if (competenciasData.length === 0) return <p className="text-slate-400 text-sm">Aún no hay tareas calificadas en esta unidad.</p>
+
+  return (
+    <div className="space-y-4">
+      {competenciasData.map(function (comp) {
+        return (
+          <div key={comp.id} className="rounded-xl p-4" style={{ backgroundColor: '#F4F6F9' }}>
+            <p className="text-sm font-semibold mb-3" style={{ color: GREEN_DARK }}>{comp.nombre}</p>
+            <div className="space-y-3">
+              {comp.capacidades.map(function (cap) {
+                return (
+                  <div key={cap.id} className="bg-white rounded-lg p-3" style={{ border: '1px solid #E5E9F0' }}>
+                    <div className="flex justify-between items-center mb-2">
+                      <p className="text-xs font-semibold" style={{ color: NAVY_DARK }}>{cap.nombre}</p>
+                      <p className={'text-xs font-bold ' + getLetterColor(cap.promedioCapacidad)}>
+                        {cap.promedioCapacidad != null ? getLetterGrade(cap.promedioCapacidad) : '—'}
+                      </p>
+                    </div>
+                    <ul className="space-y-1.5">
+                      {cap.instancias.map(function (inst) {
+                        const keyC = 'c_' + inst.assignmentId + '_' + cap.id
+                        const keyD = 'd_' + inst.assignmentId + '_' + cap.id
+                        return (
+                          <li key={inst.assignmentId + '_' + cap.id} className="text-xs">
+                            <div className="flex justify-between items-center gap-2">
+                              <span style={{ color: '#5F5E5A' }}>
+                                Act.{inst.actividadNumero} · {inst.tituloTarea}{' '}
+                                <button className="underline decoration-dotted" style={{ color: NAVY }} onClick={function () { toggle(keyC) }}>Criterio</button>
+                                {' · '}
+                                <button className="underline decoration-dotted" style={{ color: '#8a5cb0' }} onClick={function () { toggle(keyD) }}>Desempeño</button>
+                              </span>
+                              <span className={'font-bold ' + getLetterColor(inst.nota)}>
+                                {inst.nota != null ? getLetterGrade(inst.nota) : '—'}
+                              </span>
+                            </div>
+                            {abierto === keyC && (
+                              <div className="mt-1 p-2 rounded" style={{ backgroundColor: '#DEEBF7', color: NAVY_DARK }}>{inst.criterio || 'Sin criterio registrado.'}</div>
+                            )}
+                            {abierto === keyD && (
+                              <div className="mt-1 p-2 rounded" style={{ backgroundColor: '#f0e7f7', color: '#4a2e63' }}>{inst.desempeno || 'Sin desempeño registrado.'}</div>
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ============================================================
+// Evaluación Final (Cierre) de una Unidad específica (estudiante, solo lectura)
+// ============================================================
+function NotasCierreUnidad({ unidad }) {
+  const { session } = useAuth()
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [notas, setNotas] = useState([])
+
+  useEffect(function () {
+    cargar()
+  }, [unidad.id])
+
+  async function cargar() {
+    setLoading(true)
+    const result = await supabase
+      .from('evaluacion_cierre')
+      .select('nota_numerica, competencia:competencias(nombre)')
+      .eq('unidad_id', unidad.id)
+      .eq('student_id', session.user.id)
+    if (result.error) setError(result.error.message)
+    else setNotas(result.data)
+    setLoading(false)
+  }
+
+  if (loading) return <p className="text-slate-400 text-sm">Cargando...</p>
+  if (error) return <p className="text-red-500 text-sm">{error}</p>
+  if (notas.length === 0) return <p className="text-slate-400 text-sm">Tu docente aún no ha registrado la evaluación final de esta unidad.</p>
+
+  return (
+    <ul className="space-y-3">
+      {notas.map(function (n, i) {
+        const letra = getLetterGrade(n.nota_numerica)
+        return (
+          <li key={i} className="flex justify-between items-center rounded-xl p-4" style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}>
+            <span className="text-sm" style={{ color: NAVY_DARK }}>{n.competencia?.nombre}</span>
+            <div className="text-right">
+              <p className={'text-lg font-bold ' + getLetterColor(n.nota_numerica)}>{n.nota_numerica.toFixed(1)}</p>
+              <p className="text-xs text-slate-500">{letra}</p>
+            </div>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+// ============================================================
+// Mis Notas de una Asignatura completa (todas sus Unidades), estudiante
+// ============================================================
+function NotasDeAsignatura({ courseId }) {
+  const { session } = useAuth()
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [gruposUnidad, setGruposUnidad] = useState([])
+  const [abierto, setAbierto] = useState(null)
+
+  useEffect(function () {
+    cargar()
+  }, [courseId])
+
+  function average(numbers) {
+    const validos = numbers.filter(function (n) { return n != null })
+    if (validos.length === 0) return null
+    return validos.reduce(function (a, b) { return a + b }, 0) / validos.length
+  }
+
+  async function cargar() {
+    setLoading(true)
+    setError('')
+
+    const courseResult = await supabase
+      .from('courses')
+      .select('asignaturas(areas_curriculares(nombre))')
+      .eq('id', courseId)
+      .single()
+    const areaNombre = courseResult.data?.asignaturas?.areas_curriculares?.nombre
+    if (!areaNombre) {
+      setError('No se pudo determinar el Área de este curso.')
+      setLoading(false)
+      return
+    }
+
+    const compResult = await supabase.from('competencias').select('*').eq('area', areaNombre).order('codigo')
+    const competencias = compResult.error ? [] : compResult.data
+    const competenciaIds = competencias.map(function (c) { return c.id })
+
+    const capResult = await supabase.from('capacidades').select('*').in('competencia_id', competenciaIds).order('orden')
+    const capacidades = capResult.error ? [] : capResult.data
+
+    const actResult = await supabase
+      .from('actividades')
+      .select('id, nombre, numero_actividad, unidad_id, actividad_capacidades(capacidad_id, criterio, desempeno)')
+      .eq('course_id', courseId)
+    const actividades = actResult.error ? [] : actResult.data
+    const actIds = actividades.map(function (a) { return a.id })
+
+    const unidadIdsUnicos = [...new Set(actividades.map(function (a) { return a.unidad_id }).filter(Boolean))]
+    let unidadesInfo = []
+    if (unidadIdsUnicos.length > 0) {
+      const unidResult = await supabase.from('unidades').select('id, tipo, numero, nombre').in('id', unidadIdsUnicos)
+      unidadesInfo = unidResult.error ? [] : unidResult.data
+    }
+    unidadesInfo.sort(function (a, b) { return a.numero - b.numero })
+
+    let assignments = []
+    if (actIds.length > 0) {
+      const assignResult = await supabase
+        .from('assignments')
+        .select('id, titulo, actividad_id, assignment_capacidades(capacidad_id)')
+        .in('actividad_id', actIds)
+      assignments = assignResult.error ? [] : assignResult.data
+    }
+
+    const assignmentIds = assignments.map(function (a) { return a.id })
+    let notaMap = {}
+    if (assignmentIds.length > 0) {
+      const subsResult = await supabase
+        .from('submissions')
+        .select('id, assignment_id, publicado')
+        .eq('student_id', session.user.id)
+        .in('assignment_id', assignmentIds)
+      const submissionsData = subsResult.error ? [] : subsResult.data
+      const submissionIds = submissionsData.map(function (s) { return s.id })
+      const subMap = {}
+      submissionsData.forEach(function (s) { subMap[s.id] = s })
+
+      if (submissionIds.length > 0) {
+        const scoresResult = await supabase
+          .from('submission_scores')
+          .select('submission_id, capacidad_id, score')
+          .in('submission_id', submissionIds)
+        if (!scoresResult.error) {
+          scoresResult.data.forEach(function (row) {
+            const sub = subMap[row.submission_id]
+            if (!sub || !sub.publicado) return
+            notaMap[`${row.capacidad_id}__${sub.assignment_id}`] = row.score
+          })
+        }
+      }
+    }
+
+    function estructuraParaActividades(actividadesDeUnidad) {
+      return competencias.map(function (comp) {
+        const caps = capacidades.filter(function (c) { return c.competencia_id === comp.id }).map(function (cap) {
+          const instancias = []
+          assignments.forEach(function (a) {
+            const actividad = actividadesDeUnidad.find(function (act) { return act.id === a.actividad_id })
+            if (!actividad) return
+            const tiene = (a.assignment_capacidades || []).some(function (ac) { return ac.capacidad_id === cap.id })
+            if (!tiene) return
+            const detalle = (actividad.actividad_capacidades || []).find(function (ac) { return ac.capacidad_id === cap.id })
+            instancias.push({
+              assignmentId: a.id,
+              tituloTarea: a.titulo,
+              actividadNumero: actividad.numero_actividad,
+              criterio: detalle?.criterio || '',
+              desempeno: detalle?.desempeno || '',
+              nota: notaMap[`${cap.id}__${a.id}`] != null ? notaMap[`${cap.id}__${a.id}`] : null,
+            })
+          })
+          return { ...cap, instancias: instancias, promedioCapacidad: average(instancias.map(function (i) { return i.nota })) }
+        }).filter(function (c) { return c.instancias.length > 0 })
+        return { ...comp, capacidades: caps }
+      }).filter(function (c) { return c.capacidades.length > 0 })
+    }
+
+    const grupos = unidadesInfo.map(function (u) {
+      const actividadesDeUnidad = actividades.filter(function (a) { return a.unidad_id === u.id })
+      return { unidad: u, competenciasData: estructuraParaActividades(actividadesDeUnidad) }
+    }).filter(function (g) { return g.competenciasData.length > 0 })
+
+    setGruposUnidad(grupos)
+    setLoading(false)
+  }
+
+  function toggle(key) {
+    setAbierto(function (prev) { return prev === key ? null : key })
+  }
+
+  if (loading) return <p className="text-slate-400 text-sm">Cargando...</p>
+  if (error) return <p className="text-red-500 text-sm">{error}</p>
+  if (gruposUnidad.length === 0) return <p className="text-slate-400 text-sm">Aún no hay tareas calificadas en esta asignatura.</p>
+
+  return (
+    <div className="space-y-6">
+      {gruposUnidad.map(function (grupo) {
+        return (
+          <div key={grupo.unidad.id}>
+            <p className="text-xs font-bold uppercase tracking-wide mb-2 px-3 py-1 rounded-lg inline-block" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
+              {grupo.unidad.tipo} {grupo.unidad.numero}{grupo.unidad.nombre ? ' · ' + grupo.unidad.nombre : ''}
+            </p>
+            <div className="space-y-3">
+              {grupo.competenciasData.map(function (comp) {
+                return (
+                  <div key={comp.id} className="rounded-xl p-4" style={{ backgroundColor: '#F4F6F9' }}>
+                    <p className="text-sm font-semibold mb-3" style={{ color: GREEN_DARK }}>{comp.nombre}</p>
+                    <div className="space-y-3">
+                      {comp.capacidades.map(function (cap) {
+                        return (
+                          <div key={cap.id} className="bg-white rounded-lg p-3" style={{ border: '1px solid #E5E9F0' }}>
+                            <div className="flex justify-between items-center mb-2">
+                              <p className="text-xs font-semibold" style={{ color: NAVY_DARK }}>{cap.nombre}</p>
+                              <p className={'text-xs font-bold ' + getLetterColor(cap.promedioCapacidad)}>
+                                {cap.promedioCapacidad != null ? getLetterGrade(cap.promedioCapacidad) : '—'}
+                              </p>
+                            </div>
+                            <ul className="space-y-1.5">
+                              {cap.instancias.map(function (inst) {
+                                const keyC = 'c_' + inst.assignmentId + '_' + cap.id
+                                const keyD = 'd_' + inst.assignmentId + '_' + cap.id
+                                return (
+                                  <li key={inst.assignmentId + '_' + cap.id} className="text-xs">
+                                    <div className="flex justify-between items-center gap-2">
+                                      <span style={{ color: '#5F5E5A' }}>
+                                        Act.{inst.actividadNumero} · {inst.tituloTarea}{' '}
+                                        <button className="underline decoration-dotted" style={{ color: NAVY }} onClick={function () { toggle(keyC) }}>Criterio</button>
+                                        {' · '}
+                                        <button className="underline decoration-dotted" style={{ color: '#8a5cb0' }} onClick={function () { toggle(keyD) }}>Desempeño</button>
+                                      </span>
+                                      <span className={'font-bold ' + getLetterColor(inst.nota)}>
+                                        {inst.nota != null ? getLetterGrade(inst.nota) : '—'}
+                                      </span>
+                                    </div>
+                                    {abierto === keyC && (
+                                      <div className="mt-1 p-2 rounded" style={{ backgroundColor: '#DEEBF7', color: NAVY_DARK }}>{inst.criterio || 'Sin criterio registrado.'}</div>
+                                    )}
+                                    {abierto === keyD && (
+                                      <div className="mt-1 p-2 rounded" style={{ backgroundColor: '#f0e7f7', color: '#4a2e63' }}>{inst.desempeno || 'Sin desempeño registrado.'}</div>
+                                    )}
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }
