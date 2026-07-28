@@ -294,7 +294,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
   async function exportExcel() {
     setExportando(true)
     const workbook = new ExcelJS.Workbook()
-    const ws = workbook.addWorksheet('Registro Auxiliar')
+    const ws = workbook.addWorksheet('Registro')
 
     // Total de columnas de datos (sin contar Nombre y Promedio Área)
     const totalColsDatos = competenciasData.reduce(function (acc, comp) {
@@ -491,6 +491,149 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
       margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0, footer: 0 },
     }
     ws.views = [{ state: 'frozen', xSplit: 2, ySplit: rowAct }]
+
+    // -------- Hoja 2: Reporte Estadístico --------
+    const wsStats = workbook.addWorksheet('Reporte Estadistico')
+    wsStats.getColumn(1).width = 30
+    wsStats.getColumn(2).width = 16
+    wsStats.getColumn(3).width = 14
+    wsStats.getColumn(4).width = 16
+    wsStats.getColumn(5).width = 18
+
+    function contarNivelesExcel(getNota) {
+      const conteo = { AD: 0, A: 0, B: 0, C: 0 }
+      let conNota = 0
+      students.forEach(function (s) {
+        const valor = getNota(s.id)
+        if (valor == null) return
+        conteo[getLetterGrade(valor)]++
+        conNota++
+      })
+      return { conteo: conteo, conNota: conNota }
+    }
+
+    wsStats.mergeCells(1, 1, 1, 5)
+    const statsTitle = wsStats.getCell(1, 1)
+    statsTitle.value = `REPORTE ESTADÍSTICO — ${ficha.area} — ${ficha.grado}° "${ficha.grupo}" — ${NOMBRE_BIMESTRE[bimestre]}`
+    statsTitle.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } }
+    statsTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_TITULO } }
+    statsTitle.alignment = { horizontal: 'center', vertical: 'middle' }
+    wsStats.getRow(1).height = 22
+
+    wsStats.getCell(3, 1).value = 'Cantidad de estudiantes por nivel — Promedio del Área'
+    wsStats.getCell(3, 1).font = { bold: true }
+    const headerFrec = wsStats.getRow(4)
+    ;['Nivel', 'Descripción', 'Cantidad', '% del aula'].forEach(function (t, i) {
+      const cell = headerFrec.getCell(i + 1)
+      cell.value = t
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_TABLA_HEAD } }
+    })
+    const generalStats = contarNivelesExcel(promedioArea)
+    let rr = 5
+    NIVELES_INFO.forEach(function (n) {
+      const cantidad = generalStats.conteo[n.letra]
+      const pct = generalStats.conNota > 0 ? Math.round((cantidad / generalStats.conNota) * 100) : 0
+      const row = wsStats.getRow(rr)
+      row.getCell(1).value = n.letra
+      row.getCell(2).value = n.nombre
+      row.getCell(3).value = cantidad
+      row.getCell(4).value = `${pct}%`
+      row.getCell(1).font = { bold: true, color: { argb: NIVEL_COLOR_ARGB[n.letra] } }
+      for (let cc = 1; cc <= 4; cc++) {
+        row.getCell(cc).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
+      }
+      rr++
+    })
+
+    rr += 2
+    wsStats.getCell(rr, 1).value = 'Aprobados vs Desaprobados por Competencia'
+    wsStats.getCell(rr, 1).font = { bold: true }
+    rr++
+    const headerComp = wsStats.getRow(rr)
+    ;['Competencia', 'Aprobados (AD+A+B)', '% Aprob.', 'Desaprobados (C)', '% Desaprob.'].forEach(function (t, i) {
+      const cell = headerComp.getCell(i + 1)
+      cell.value = t
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_TABLA_HEAD } }
+    })
+    rr++
+    competenciasData.forEach(function (comp) {
+      const stats = contarNivelesExcel(function (studentId) { return promedioCompetencia(studentId, comp) })
+      const aprobados = stats.conteo.AD + stats.conteo.A + stats.conteo.B
+      const desaprobados = stats.conteo.C
+      const total = stats.conNota
+      const pctAprob = total > 0 ? Math.round((aprobados / total) * 100) : 0
+      const pctDesaprob = total > 0 ? Math.round((desaprobados / total) * 100) : 0
+      const row = wsStats.getRow(rr)
+      row.getCell(1).value = comp.nombre
+      row.getCell(2).value = aprobados
+      row.getCell(3).value = `${pctAprob}%`
+      row.getCell(3).font = { color: { argb: 'FF2F7A1F' }, bold: true }
+      row.getCell(4).value = desaprobados
+      row.getCell(5).value = `${pctDesaprob}%`
+      row.getCell(5).font = { color: { argb: 'FFB91C1C' }, bold: true }
+      for (let cc = 1; cc <= 5; cc++) {
+        row.getCell(cc).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
+      }
+      rr++
+    })
+
+    wsStats.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
+
+    // -------- Hoja 3: Mapa de Calor --------
+    const wsMapa = workbook.addWorksheet('Mapa de Calor')
+    wsMapa.getColumn(1).width = 30
+    wsMapa.getColumn(2).width = 14
+    for (let i = 3; i <= 2 + competenciasData.length; i++) wsMapa.getColumn(i).width = 22
+
+    const headerMapa = wsMapa.getRow(1)
+    headerMapa.getCell(1).value = 'Apellidos y Nombres'
+    headerMapa.getCell(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    headerMapa.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_TABLA_HEAD } }
+    headerMapa.getCell(2).value = 'Promedio Área'
+    headerMapa.getCell(2).font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    headerMapa.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_TABLA_HEAD } }
+    competenciasData.forEach(function (comp, i) {
+      const cell = headerMapa.getCell(3 + i)
+      cell.value = comp.nombre
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_COMPETENCIA } }
+      cell.alignment = { wrapText: true, vertical: 'middle' }
+    })
+    headerMapa.height = 30
+
+    function fillDeNivelExcel(valor) {
+      if (valor == null) return 'FFF4F6F9'
+      const letra = getLetterGrade(valor)
+      const info = NIVELES_INFO.find(function (n) { return n.letra === letra })
+      return info.bg.replace('#', 'FF')
+    }
+
+    students.forEach(function (s, idx) {
+      const row = wsMapa.getRow(idx + 2)
+      row.getCell(1).value = s.full_name
+      const provArea = promedioArea(s.id)
+      row.getCell(2).value = provArea != null ? getLetterGrade(provArea) : '—'
+      row.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillDeNivelExcel(provArea) } }
+      row.getCell(2).font = { bold: true, color: { argb: provArea != null ? NIVEL_COLOR_ARGB[getLetterGrade(provArea)] : 'FF94A3B8' } }
+      row.getCell(2).alignment = { horizontal: 'center' }
+
+      competenciasData.forEach(function (comp, i) {
+        const prov = promedioCompetencia(s.id, comp)
+        const cell = row.getCell(3 + i)
+        cell.value = prov != null ? getLetterGrade(prov) : '—'
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillDeNivelExcel(prov) } }
+        cell.font = { bold: true, color: { argb: prov != null ? NIVEL_COLOR_ARGB[getLetterGrade(prov)] : 'FF94A3B8' } }
+        cell.alignment = { horizontal: 'center' }
+      })
+
+      for (let cc = 1; cc <= 2 + competenciasData.length; cc++) {
+        row.getCell(cc).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
+      }
+    })
+
+    wsMapa.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
 
     await descargarWorkbook(workbook, `Registro_Auxiliar_${ficha.area}_${ficha.grado}${ficha.grupo}_Bim${bimestre}.xlsx`)
     setExportando(false)
@@ -820,6 +963,8 @@ function ReporteEstadistico({ competenciasData, students, promedioArea, promedio
         })}
       </div>
 
+      <GraficoCircular conteo={generalStats.conteo} conNota={generalStats.conNota} />
+
       <h4 className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>Aprobados vs Desaprobados por Competencia</h4>
       <div className="space-y-3 mb-4">
         {competenciasData.map(function (comp) {
@@ -923,6 +1068,98 @@ function MapaCalor({ competenciasData, students, promedioArea, promedioCompetenc
             })}
           </tbody>
         </table>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// Gráfico circular interactivo (clic en cada porción)
+// ============================================================
+function GraficoCircular({ conteo, conNota }) {
+  const [seleccionado, setSeleccionado] = useState(null)
+  const radio = 80
+  const centro = 100
+
+  if (conNota === 0) {
+    return (
+      <div className="bg-white rounded-2xl p-6 mb-8 text-center" style={{ border: '1px solid #E5E9F0' }}>
+        <p className="text-slate-400 text-sm">Aún no hay notas suficientes para graficar.</p>
+      </div>
+    )
+  }
+
+  let anguloAcumulado = -90
+  const porciones = NIVELES_INFO.map(function (n) {
+    const cantidad = conteo[n.letra]
+    const proporcion = cantidad / conNota
+    const anguloInicio = anguloAcumulado
+    const anguloFin = anguloAcumulado + proporcion * 360
+    anguloAcumulado = anguloFin
+
+    const rad1 = (anguloInicio * Math.PI) / 180
+    const rad2 = (anguloFin * Math.PI) / 180
+    const x1 = centro + radio * Math.cos(rad1)
+    const y1 = centro + radio * Math.sin(rad1)
+    const x2 = centro + radio * Math.cos(rad2)
+    const y2 = centro + radio * Math.sin(rad2)
+    const largeArc = anguloFin - anguloInicio > 180 ? 1 : 0
+
+    const path = cantidad === 0
+      ? null
+      : `M ${centro} ${centro} L ${x1} ${y1} A ${radio} ${radio} 0 ${largeArc} 1 ${x2} ${y2} Z`
+
+    return { ...n, cantidad: cantidad, pct: Math.round(proporcion * 100), path: path }
+  })
+
+  return (
+    <div className="bg-white rounded-2xl p-6 mb-8" style={{ border: '1px solid #E5E9F0' }}>
+      <p className="text-sm font-bold mb-4" style={{ color: NAVY_DARK }}>Distribución por Nivel (haz clic en una porción)</p>
+      <div className="flex flex-wrap items-center gap-8">
+        <svg width={200} height={200} viewBox="0 0 200 200">
+          {porciones.map(function (p) {
+            if (!p.path) return null
+            const activo = seleccionado === p.letra
+            return (
+              <path
+                key={p.letra}
+                d={p.path}
+                fill={p.color}
+                opacity={seleccionado && !activo ? 0.35 : 1}
+                stroke="white"
+                strokeWidth={2}
+                style={{ cursor: 'pointer', transition: 'opacity 0.15s' }}
+                onClick={function () { setSeleccionado(activo ? null : p.letra) }}
+              />
+            )
+          })}
+        </svg>
+
+        <div className="flex-1 min-w-[200px]">
+          {seleccionado ? (
+            (function () {
+              const p = porciones.find(function (x) { return x.letra === seleccionado })
+              return (
+                <div>
+                  <p className="text-xs font-semibold" style={{ color: p.color }}>{p.letra} — {p.nombre}</p>
+                  <p className="text-2xl font-bold mt-1" style={{ color: p.color }}>{p.cantidad} estudiante(s)</p>
+                  <p className="text-sm text-slate-500">{p.pct}% del total</p>
+                </div>
+              )
+            })()
+          ) : (
+            <ul className="space-y-1.5">
+              {porciones.map(function (p) {
+                return (
+                  <li key={p.letra} className="flex items-center gap-2 text-sm cursor-pointer" onClick={function () { setSeleccionado(p.letra) }}>
+                    <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: p.color }} />
+                    <span style={{ color: NAVY_DARK }}>{p.letra} — {p.nombre}: <strong>{p.cantidad}</strong> ({p.pct}%)</span>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   )
