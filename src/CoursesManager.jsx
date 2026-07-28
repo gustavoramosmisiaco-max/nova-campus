@@ -248,6 +248,33 @@ export default function CoursesManager() {
       return
     }
 
+    // Si es una asignatura NUEVA, matricular automáticamente a quienes ya estén en esta aula (grado+sección)
+    if (!editingId) {
+      const otrosCursosResult = await supabase
+        .from('courses')
+        .select('id')
+        .eq('grado', form.grado)
+        .eq('grupo', form.grupo)
+        .neq('id', courseId)
+
+      const otrosCursoIds = (otrosCursosResult.data || []).map(function (c) { return c.id })
+      if (otrosCursoIds.length > 0) {
+        const enrolResult = await supabase
+          .from('enrollments')
+          .select('student_id')
+          .in('course_id', otrosCursoIds)
+          .eq('status', 'activo')
+
+        const estudiantesUnicos = [...new Set((enrolResult.data || []).map(function (e) { return e.student_id }))]
+        if (estudiantesUnicos.length > 0) {
+          const nuevasMatriculas = estudiantesUnicos.map(function (studentId) {
+            return { course_id: courseId, student_id: studentId, status: 'activo' }
+          })
+          await supabase.from('enrollments').insert(nuevasMatriculas)
+        }
+      }
+    }
+
     setShowForm(false)
     loadCourses()
   }

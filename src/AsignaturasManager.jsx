@@ -60,6 +60,38 @@ export default function AsignaturasManager() {
     setSaving(null)
   }
 
+  async function toggleArea(areaId, currentValue) {
+    setSaving('area_' + areaId)
+    const nuevoValor = !currentValue
+
+    const areaResult = await supabase.from('areas_curriculares').update({ activo: nuevoValor }).eq('id', areaId)
+    if (areaResult.error) {
+      alert('Error al actualizar el área: ' + areaResult.error.message)
+      setSaving(null)
+      return
+    }
+
+    // Se apagan/prenden todas las asignaturas de esta área en cascada
+    const asigResult = await supabase.from('asignaturas').update({ activo: nuevoValor }).eq('area_id', areaId)
+    if (asigResult.error) {
+      alert('Error al actualizar las asignaturas: ' + asigResult.error.message)
+      setSaving(null)
+      return
+    }
+
+    setAreas(function (prev) {
+      return prev.map(function (area) {
+        if (area.id !== areaId) return area
+        return {
+          ...area,
+          activo: nuevoValor,
+          asignaturas: area.asignaturas.map(function (a) { return { ...a, activo: nuevoValor } }),
+        }
+      })
+    })
+    setSaving(null)
+  }
+
   if (loading) return <p className="text-slate-400 text-sm">Cargando asignaturas...</p>
   if (error) return <p className="text-red-500 text-sm">Error: {error}</p>
 
@@ -73,9 +105,29 @@ export default function AsignaturasManager() {
 
       <div className="space-y-5">
         {areas.map(function (area) {
+          const areaSaving = saving === 'area_' + area.id
           return (
-            <div key={area.id} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
-              <h3 className="text-sm font-bold mb-3" style={{ color: GREEN_DARK }}>{area.nombre}</h3>
+            <div key={area.id} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0', opacity: area.activo ? 1 : 0.6 }}>
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-sm font-bold" style={{ color: GREEN_DARK }}>{area.nombre}</h3>
+                <button
+                  onClick={function () { toggleArea(area.id, area.activo) }}
+                  disabled={areaSaving}
+                  className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg transition disabled:opacity-60"
+                  style={{ backgroundColor: area.activo ? '#E7F3E4' : '#FDECEC', color: area.activo ? GREEN_DARK : '#B91C1C' }}
+                >
+                  {area.activo ? 'Área activa' : 'Área desactivada'}
+                  <span
+                    className="relative inline-flex items-center rounded-full transition-colors flex-shrink-0"
+                    style={{ width: 34, height: 19, backgroundColor: area.activo ? GREEN : '#CBD5E1' }}
+                  >
+                    <span
+                      className="absolute rounded-full bg-white transition-transform"
+                      style={{ width: 14, height: 14, top: 2.5, transform: area.activo ? 'translateX(17px)' : 'translateX(3px)' }}
+                    />
+                  </span>
+                </button>
+              </div>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {area.asignaturas.map(function (a) {
                   const isSaving = saving === a.id
