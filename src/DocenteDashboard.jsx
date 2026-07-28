@@ -1,162 +1,172 @@
-import { useEffect, useState } from 'react'
-import { supabase } from './supabaseClient'
+import { useState, useEffect } from 'react'
+import { useAuth } from './AuthContext'
+import MyTeachingCourses from './MyTeachingCourses'
+import MisTareas from './MisTareas'
 
 const NAVY_DARK = '#0F2A4A'
+const NAVY = '#1d5c8f'
+const GREEN = '#5DAA47'
 const GREEN_DARK = '#2f7a1f'
 
-export default function DocentesList() {
-  const [docentes, setDocentes] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [deletingId, setDeletingId] = useState(null)
+export default function DocenteDashboard() {
+  const { profile, logout } = useAuth()
+  const [activeSection, setActiveSection] = useState('cursos')
+  const [errorVisible, setErrorVisible] = useState('')
 
   useEffect(function () {
-    loadDocentes()
+    function handleError(event) {
+      setErrorVisible(String(event.error?.stack || event.message || event))
+    }
+    function handleRejection(event) {
+      setErrorVisible(String(event.reason?.stack || event.reason || event))
+    }
+    window.addEventListener('error', handleError)
+    window.addEventListener('unhandledrejection', handleRejection)
+    return function () {
+      window.removeEventListener('error', handleError)
+      window.removeEventListener('unhandledrejection', handleRejection)
+    }
   }, [])
 
-  async function loadDocentes() {
-    setLoading(true)
-    setError('')
-
-    const profilesResult = await supabase
-      .from('profiles')
-      .select('id, full_name')
-      .eq('role', 'docente')
-      .order('full_name', { ascending: true })
-
-    if (profilesResult.error) {
-      setError(profilesResult.error.message)
-      setLoading(false)
-      return
-    }
-
-    const coursesResult = await supabase
-      .from('courses')
-      .select('docente_id, nombre, grado, grupo, asignaturas(areas_curriculares(nombre))')
-      .not('docente_id', 'is', null)
-
-    const areaMap = {}
-    const cursosMap = {}
-    if (!coursesResult.error) {
-      coursesResult.data.forEach(function (c) {
-        if (!areaMap[c.docente_id]) {
-          areaMap[c.docente_id] = c.asignaturas?.areas_curriculares?.nombre || null
-        }
-        if (!cursosMap[c.docente_id]) cursosMap[c.docente_id] = []
-        cursosMap[c.docente_id].push(`${c.nombre} ${c.grado}°${c.grupo}`)
-      })
-    }
-
-    const enriched = profilesResult.data.map(function (d) {
-      return {
-        ...d,
-        area: areaMap[d.id] || null,
-        cursos: cursosMap[d.id] || [],
-      }
-    })
-
-    setDocentes(enriched)
-    setLoading(false)
-  }
-
-  async function handleDelete(id, nombre) {
-    if (!confirm(`¿Eliminar la cuenta de "${nombre}"? Esta acción no se puede deshacer.`)) return
-    setDeletingId(id)
-    const { data, error: fnError } = await supabase.functions.invoke('delete-user', {
-      body: { userId: id },
-    })
-
-    if (fnError) {
-      alert('Error al eliminar: ' + fnError.message)
-    } else if (data.error) {
-      alert('Error al eliminar: ' + data.error)
-    } else {
-      setDocentes(function (prev) { return prev.filter(function (d) { return d.id !== id }) })
-    }
-    setDeletingId(null)
-  }
-
-  if (loading) return <p className="text-slate-400 text-sm">Cargando docentes...</p>
-  if (error) return <p className="text-red-500 text-sm">Error: {error}</p>
-
-  const areasUnicas = [...new Set(docentes.map(function (d) { return d.area }).filter(Boolean))].sort()
-  const grupos = areasUnicas.map(function (area) {
-    return { area: area, items: docentes.filter(function (d) { return d.area === area }) }
-  })
-  const sinArea = docentes.filter(function (d) { return !d.area })
-
-  function renderTable(items) {
+  if (errorVisible) {
     return (
-      <table className="w-full text-sm">
-        <thead>
-          <tr style={{ borderBottom: '1px solid #E5E9F0' }}>
-            <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Nombre</th>
-            <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Cursos a cargo</th>
-            <th className="text-right py-2 font-semibold" style={{ color: NAVY_DARK }}></th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map(function (d) {
-            return (
-              <tr key={d.id} style={{ borderBottom: '1px solid #F4F6F9' }}>
-                <td className="py-2 pr-3" style={{ color: NAVY_DARK }}>{d.full_name}</td>
-                <td className="py-2 pr-3 text-slate-500 text-xs">
-                  {d.cursos.length > 0 ? d.cursos.join(' · ') : '—'}
-                </td>
-                <td className="py-2 text-right">
-                  <button
-                    onClick={function () { handleDelete(d.id, d.full_name) }}
-                    disabled={deletingId === d.id}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
-                    style={{ backgroundColor: '#B91C1C' }}
-                  >
-                    {deletingId === d.id ? 'Eliminando...' : 'Eliminar'}
-                  </button>
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+      <div style={{ padding: 24, fontFamily: 'monospace', backgroundColor: '#FDECEC', color: '#B91C1C', minHeight: '100vh', whiteSpace: 'pre-wrap' }}>
+        <h2 style={{ marginBottom: 12 }}>Se encontró un error (copia todo este texto):</h2>
+        {errorVisible}
+      </div>
     )
   }
 
-  return (
-    <div>
-      <h2 className="text-2xl font-bold mb-2" style={{ color: NAVY_DARK }}>Docentes</h2>
-      <p className="text-sm text-slate-400 mb-6">{docentes.length} docente(s) registrado(s) en total.</p>
+  const menuItems = [
+    { id: 'cursos', label: 'Mis Asignaturas', icon: BookIcon },
+    { id: 'tareas', label: 'Mis Tareas', icon: TaskIcon },
+  ]
 
-      {docentes.length === 0 ? (
-        <p className="text-slate-400 text-sm">Aún no hay docentes registrados.</p>
-      ) : (
-        <div className="space-y-6">
-          {grupos.map(function (grupo) {
+  const initials = (profile?.full_name || 'DO')
+    .split(' ')
+    .map(function (w) { return w[0] })
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+
+  return (
+    <div className="min-h-screen flex" style={{ backgroundColor: '#F4F6F9' }}>
+
+      {/* Sidebar */}
+      <aside
+        className="w-64 flex-shrink-0 flex-col hidden md:flex"
+        style={{ background: `linear-gradient(180deg, ${NAVY_DARK}, #08182c)` }}
+      >
+        <div className="flex items-center gap-3 px-6 py-6 border-b border-white/10">
+          <img
+            src="/logo.png"
+            alt="Nova Campus"
+            className="w-10 h-10 object-contain rounded-full bg-white p-1"
+          />
+          <div>
+            <p className="text-white font-bold leading-tight">Nova Campus</p>
+            <p className="text-xs" style={{ color: GREEN }}>Panel Docente</p>
+          </div>
+        </div>
+
+        <nav className="flex-1 px-3 py-6 space-y-1">
+          {menuItems.map(function (item) {
+            const Icon = item.icon
+            const active = activeSection === item.id
             return (
-              <div key={grupo.area} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
-                <h3
-                  className="text-xs font-bold uppercase tracking-wide mb-3 px-3 py-1.5 rounded-lg inline-block"
-                  style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}
-                >
-                  {grupo.area} ({grupo.items.length})
-                </h3>
-                {renderTable(grupo.items)}
-              </div>
+              <button
+                key={item.id}
+                onClick={function () { setActiveSection(item.id) }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition"
+                style={
+                  active
+                    ? { background: `linear-gradient(90deg, ${NAVY}, ${GREEN})`, color: 'white' }
+                    : { color: '#B9C4D3' }
+                }
+              >
+                <Icon />
+                {item.label}
+              </button>
             )
           })}
+        </nav>
 
-          {sinArea.length > 0 && (
-            <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
-              <h3
-                className="text-xs font-bold uppercase tracking-wide mb-3 px-3 py-1.5 rounded-lg inline-block"
-                style={{ backgroundColor: '#FDECEC', color: '#B91C1C' }}
-              >
-                Sin curso asignado ({sinArea.length})
-              </h3>
-              {renderTable(sinArea)}
-            </div>
-          )}
+        <div className="px-4 py-5 border-t border-white/10">
+          <button
+            onClick={logout}
+            className="w-full flex items-center justify-center gap-2 text-sm font-semibold rounded-xl py-2.5 transition hover:opacity-90"
+            style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: 'white' }}
+          >
+            Cerrar sesión
+          </button>
         </div>
-      )}
+      </aside>
+
+      {/* Contenido principal */}
+      <div className="flex-1 flex flex-col min-w-0">
+
+        {/* Header */}
+        <header
+          className="flex items-center justify-between px-6 md:px-10 py-5 bg-white"
+          style={{ borderBottom: '1px solid #E5E9F0' }}
+        >
+          <div className="flex items-center gap-3 md:hidden">
+            <img src="/logo.png" alt="Nova Campus" className="w-8 h-8 object-contain rounded-full" />
+            <span className="font-bold" style={{ color: NAVY_DARK }}>Nova Campus</span>
+          </div>
+
+          <div className="hidden md:block">
+            <h2 className="text-lg font-bold" style={{ color: NAVY_DARK }}>
+              Hola, {profile?.full_name?.split(' ')[0] || 'Docente'} 👋
+            </h2>
+            <p className="text-sm text-slate-400">Bienvenido de vuelta a tu panel de docente</p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="text-right hidden sm:block">
+              <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{profile?.full_name}</p>
+              <p className="text-xs" style={{ color: GREEN_DARK }}>Docente</p>
+            </div>
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
+              style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}
+            >
+              {initials}
+            </div>
+            <button
+              onClick={logout}
+              className="md:hidden text-xs font-semibold px-3 py-2 rounded-lg"
+              style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK }}
+            >
+              Salir
+            </button>
+          </div>
+        </header>
+
+        {/* Contenido */}
+        <main className="flex-1 p-6 md:p-10">
+          {activeSection === 'cursos' && <MyTeachingCourses />}
+          {activeSection === 'tareas' && <MisTareas />}
+        </main>
+      </div>
     </div>
+  )
+}
+
+function BookIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </svg>
+  )
+}
+
+function TaskIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 11l3 3L22 4" />
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+    </svg>
   )
 }
