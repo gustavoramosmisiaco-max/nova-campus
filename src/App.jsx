@@ -3,6 +3,7 @@ import Login from './Login'
 import AdminDashboard from './AdminDashboard'
 import DocenteDashboard from './DocenteDashboard'
 import EstudianteDashboard from './EstudianteDashboard'
+import LoadingBar from './LoadingBar'
 
 function App() {
   const { session, role, loading } = useAuth()
@@ -16,17 +17,26 @@ function App() {
   }
 
   if (!session) {
-    return <Login />
+    return (
+      <>
+        <LoadingBar />
+        <Login />
+      </>
+    )
   }
 
-  if (role === 'admin') return <AdminDashboard />
-  if (role === 'docente') return <DocenteDashboard />
-  if (role === 'estudiante') return <EstudianteDashboard />
-
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-      <p className="text-red-400">Rol no reconocido. Contacta al administrador.</p>
-    </div>
+    <>
+      <LoadingBar />
+      {role === 'admin' && <AdminDashboard />}
+      {role === 'docente' && <DocenteDashboard />}
+      {role === 'estudiante' && <EstudianteDashboard />}
+      {role !== 'admin' && role !== 'docente' && role !== 'estudiante' && (
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+          <p className="text-red-400">Rol no reconocido. Contacta al administrador.</p>
+        </div>
+      )}
+    </>
   )
 }
 
