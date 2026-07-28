@@ -25,6 +25,8 @@ export default function EnrollmentsManager() {
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [sincronizando, setSincronizando] = useState(false)
+  const [mensajeSync, setMensajeSync] = useState('')
 
   useEffect(function () {
     loadAllStudents()
@@ -46,6 +48,62 @@ export default function EnrollmentsManager() {
       .eq('role', 'estudiante')
       .order('full_name')
     if (!result.error) setAllStudents(result.data)
+  }
+
+  async function handleSincronizarTodo() {
+    if (!confirm('¿Sincronizar matrículas de TODAS las aulas? Cada estudiante quedará matriculado en todas las asignaturas de su Grado y Sección (activas o no) — no se borra nada, solo se completan las que falten.')) return
+    setSincronizando(true)
+    setMensajeSync('')
+
+    const coursesResult = await supabase.from('courses').select('id, grado, grupo')
+    if (coursesResult.error) {
+      setMensajeSync('Error: ' + coursesResult.error.message)
+      setSincronizando(false)
+      return
+    }
+    const courses = coursesResult.data
+
+    const aulasUnicas = {}
+    courses.forEach(function (c) {
+      const key = `${c.grado}__${c.grupo}`
+      if (!aulasUnicas[key]) aulasUnicas[key] = []
+      aulasUnicas[key].push(c.id)
+    })
+
+    let totalAgregadas = 0
+
+    for (const key of Object.keys(aulasUnicas)) {
+      const courseIdsDeAula = aulasUnicas[key]
+
+      const enrollResult = await supabase
+        .from('enrollments')
+        .select('student_id, course_id')
+        .in('course_id', courseIdsDeAula)
+        .eq('status', 'activo')
+      if (enrollResult.error) continue
+
+      const estudiantesDeAula = [...new Set(enrollResult.data.map(function (e) { return e.student_id }))]
+      const yaMatriculado = new Set(enrollResult.data.map(function (e) { return `${e.student_id}__${e.course_id}` }))
+
+      const faltantes = []
+      estudiantesDeAula.forEach(function (studentId) {
+        courseIdsDeAula.forEach(function (courseId) {
+          const key2 = `${studentId}__${courseId}`
+          if (!yaMatriculado.has(key2)) {
+            faltantes.push({ student_id: studentId, course_id: courseId, status: 'activo' })
+          }
+        })
+      })
+
+      if (faltantes.length > 0) {
+        const insertResult = await supabase.from('enrollments').insert(faltantes)
+        if (!insertResult.error) totalAgregadas += faltantes.length
+      }
+    }
+
+    setMensajeSync(`Listo — se completaron ${totalAgregadas} matrícula(s) que faltaban.`)
+    setSincronizando(false)
+    if (selectedGrado && selectedSeccion) loadAula()
   }
 
   async function loadAula() {
@@ -151,7 +209,21 @@ export default function EnrollmentsManager() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4" style={{ color: NAVY_DARK }}>Matrículas</h2>
+      <div className="flex justify-between items-center flex-wrap gap-3 mb-1">
+        <h2 className="text-2xl font-bold" style={{ color: NAVY_DARK }}>Matrículas</h2>
+        <button
+          onClick={handleSincronizarTodo}
+          disabled={sincronizando}
+          className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+          style={{ backgroundColor: GREEN }}
+        >
+          {sincronizando ? 'Sincronizando...' : 'Sincronizar Matrículas (todas las aulas)'}
+        </button>
+      </div>
+      <p className="text-xs text-slate-400 mb-4">
+        Completa automáticamente a cada estudiante en todas las asignaturas de su Grado y Sección — útil si creaste asignaturas nuevas después de matricular alumnos.
+      </p>
+      {mensajeSync && <p className="text-xs mb-4" style={{ color: '#2f7a1f' }}>{mensajeSync}</p>}
 
       <div className="grid grid-cols-2 gap-3 mb-6 max-w-md">
         <div>
