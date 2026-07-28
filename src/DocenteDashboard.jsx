@@ -3,6 +3,7 @@ import { useAuth } from './AuthContext'
 import MyTeachingCourses from './MyTeachingCourses'
 import MisTareas from './MisTareas'
 import NotificationBell from './NotificationBell'
+import Mensajes from './Mensajes'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -41,6 +42,7 @@ export default function DocenteDashboard() {
   const menuItems = [
     { id: 'cursos', label: 'Mis Asignaturas', icon: BookIcon },
     { id: 'tareas', label: 'Mis Tareas', icon: TaskIcon },
+    { id: 'mensajes', label: 'Mensajes', icon: TaskIcon },
   ]
 
   const initials = (profile?.full_name || 'DO')
@@ -149,6 +151,7 @@ export default function DocenteDashboard() {
         <main className="flex-1 p-6 md:p-10">
           {activeSection === 'cursos' && <MyTeachingCourses />}
           {activeSection === 'tareas' && <MisTareas />}
+          {activeSection === 'mensajes' && <Mensajes />}
         </main>
       </div>
     </div>

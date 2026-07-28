@@ -4,6 +4,7 @@ import MyCourses from './MyCourses'
 import StudentGrades from './StudentGrades'
 import TareasPendientes from './TareasPendientes'
 import NotificationBell from './NotificationBell'
+import Mensajes from './Mensajes'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -18,6 +19,7 @@ export default function EstudianteDashboard() {
     { id: 'cursos', label: 'Mis Asignaturas', icon: BookIcon },
     { id: 'pendientes', label: 'Tareas Pendientes', icon: ChartIcon },
     { id: 'notas', label: 'Notas', icon: ChartIcon },
+    { id: 'mensajes', label: 'Mensajes', icon: VideoIcon },
     { id: 'zoom', label: 'Clases en vivo', icon: VideoIcon },
   ]
 
@@ -128,6 +130,7 @@ export default function EstudianteDashboard() {
           {activeSection === 'cursos' && <MyCourses />}
           {activeSection === 'pendientes' && <TareasPendientes />}
           {activeSection === 'notas' && <StudentGrades />}
+          {activeSection === 'mensajes' && <Mensajes />}
           {activeSection === 'zoom' && (
             <EmptyState title="Clases en vivo" subtitle="Aquí aparecerán tus próximas sesiones de Zoom." />
           )}
