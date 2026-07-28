@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from './supabaseClient'
 import ExcelJS from 'exceljs'
+import { compararPorApellido } from './gradeUtils'
 
 const NAVY_DARK = '#0F2A4A'
 const GREEN = '#5DAA47'
@@ -247,7 +248,7 @@ export default function CierrePeriodo() {
             .eq('course_id', course.id)
             .eq('status', 'activo')
           const students = enrollResult.error ? [] : enrollResult.data.map(function (e) { return e.student })
-          students.sort(function (a, b) { return a.full_name.localeCompare(b.full_name) })
+          students.sort(function (a, b) { return compararPorApellido(a.full_name, b.full_name) })
 
           const assignmentIds = assignments.map(function (a) { return a.id })
           let cellValues = {}

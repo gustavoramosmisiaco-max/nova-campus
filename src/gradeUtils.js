@@ -13,3 +13,16 @@ export function getLetterColor(score) {
   if (score >= 11) return 'text-yellow-400'
   return 'text-red-400'
 }
+
+export function apellidoKey(fullName) {
+  if (!fullName) return ''
+  const palabras = fullName.trim().split(/\s+/).filter(Boolean)
+  if (palabras.length <= 2) return fullName.toLowerCase()
+  const apellidos = palabras.slice(-2).join(' ')
+  const nombres = palabras.slice(0, -2).join(' ')
+  return (apellidos + ' ' + nombres).toLowerCase()
+}
+
+export function compararPorApellido(a, b) {
+  return apellidoKey(a).localeCompare(apellidoKey(b))
+}

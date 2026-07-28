@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
-import { getLetterGrade } from './gradeUtils'
+import { getLetterGrade, compararPorApellido } from './gradeUtils'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import ExcelJS from 'exceljs'
@@ -161,7 +161,7 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
     if (enrollResult.error) return null
     const students = enrollResult.data
       .map(function (e) { return e.student })
-      .sort(function (a, b) { return a.full_name.localeCompare(b.full_name) })
+      .sort(function (a, b) { return compararPorApellido(a.full_name, b.full_name) })
 
     let cellValues = {}
     if (assignmentIds.length > 0) {

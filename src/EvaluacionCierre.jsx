@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
-import { getLetterGrade, getLetterColor } from './gradeUtils'
+import { getLetterGrade, getLetterColor, compararPorApellido } from './gradeUtils'
 
 const NAVY_DARK = '#0F2A4A'
 const GREEN = '#5DAA47'
@@ -60,7 +60,7 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
       setLoading(false)
       return
     }
-    const studentsList = enrollResult.data.map(function (e) { return e.student }).sort(function (a, b) { return a.full_name.localeCompare(b.full_name) })
+    const studentsList = enrollResult.data.map(function (e) { return e.student }).sort(function (a, b) { return compararPorApellido(a.full_name, b.full_name) })
     setStudents(studentsList)
 
     const notasResult = await supabase

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
+import { compararPorApellido } from './gradeUtils'
 
 const NAVY_DARK = '#0F2A4A'
 const GREEN_DARK = '#2f7a1f'
@@ -55,6 +56,7 @@ export default function DocentesList() {
       }
     })
 
+    enriched.sort(function (a, b) { return compararPorApellido(a.full_name, b.full_name) })
     setDocentes(enriched)
     setLoading(false)
   }

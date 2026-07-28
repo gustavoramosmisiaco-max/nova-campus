@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import ExcelJS from 'exceljs'
+import { compararPorApellido } from './gradeUtils'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -53,7 +54,10 @@ export default function ImportarDocentes() {
       .select('id, full_name')
       .eq('role', 'docente')
       .order('full_name', { ascending: true })
-    if (!result.error) setDocentes(result.data)
+    if (!result.error) {
+      const ordenados = [...result.data].sort(function (a, b) { return compararPorApellido(a.full_name, b.full_name) })
+      setDocentes(ordenados)
+    }
     setLoadingDocentes(false)
   }
 
