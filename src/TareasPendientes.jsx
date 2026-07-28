@@ -192,7 +192,10 @@ export default function TareasPendientes() {
       const nuevas = faltantes.map(function (studentId) {
         return { assignment_id: assignment.id, student_id: studentId, file_url: path, submitted_at: new Date().toISOString() }
       })
-      await supabase.from('submissions').insert(nuevas)
+      const cascadaResult = await supabase.from('submissions').insert(nuevas)
+      if (cascadaResult.error) {
+        setError('Tu entrega se guardó, pero no se pudo copiar a tus compañeros de grupo: ' + cascadaResult.error.message)
+      }
     }
   }
 
