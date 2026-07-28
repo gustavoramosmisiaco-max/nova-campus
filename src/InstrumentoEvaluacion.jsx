@@ -291,9 +291,11 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
 
     mergedRow(4, `Propósito: ${a.proposito || '—'}`, COLOR_METADATA, 'FF000000', 11, false)
     mergedRow(5, `Competencia: ${a.competencia?.nombre || '—'}`, COLOR_METADATA, 'FF000000', 11, false)
-    mergedRow(6, `N° ${a.numero_actividad} — Actividad: ${a.nombre}   |   Unidad: ${unidadTexto(m.unidadInfo)}`, COLOR_METADATA, 'FF000000', 11, false)
+    mergedRow(6, `N° de Actividad: ${a.numero_actividad}`, COLOR_METADATA, 'FF000000', 11, false)
+    mergedRow(7, `Actividad: ${a.nombre}`, COLOR_METADATA, 'FF000000', 11, false)
+    mergedRow(8, `Unidad: ${unidadTexto(m.unidadInfo)}`, COLOR_METADATA, 'FF000000', 11, false)
 
-    let r = 8
+    let r = 10
     m.capacidades.forEach(function (cap) {
       mergedRow(r, cap.capacidad.nombre, COLOR_CAPACIDAD, 'FFFFFFFF', 12, true)
       r++
@@ -363,9 +365,12 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
 
     mergedRow(4, `Competencia: ${a.competencia?.nombre || '—'}`, COLOR_METADATA, 'FF000000', 11, false)
     mergedRow(5, `Propósito: ${a.proposito || '—'}`, COLOR_METADATA, 'FF000000', 11, false)
-    mergedRow(6, `N° ${a.numero_actividad} — Actividad: ${a.nombre}   |   Unidad: ${unidadTexto(m.unidadInfo)}   Docente: ${profile?.full_name || ''}`, COLOR_METADATA, 'FF000000', 11, false)
+    mergedRow(6, `N° de Actividad: ${a.numero_actividad}`, COLOR_METADATA, 'FF000000', 11, false)
+    mergedRow(7, `Actividad: ${a.nombre}`, COLOR_METADATA, 'FF000000', 11, false)
+    mergedRow(8, `Unidad: ${unidadTexto(m.unidadInfo)}`, COLOR_METADATA, 'FF000000', 11, false)
+    mergedRow(9, `Docente: ${profile?.full_name || ''}`, COLOR_METADATA, 'FF000000', 11, false)
 
-    let r = 8
+    let r = 11
     m.capacidades.forEach(function (cap) {
       mergedRow(r, cap.capacidad.nombre, COLOR_CAPACIDAD, 'FFFFFFFF', 12, true)
       r++
@@ -435,7 +440,9 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
     y = coloredBlock(doc, y, `Fecha: ${todayFormatted()}   Grado: ${courseGrado}° SECUNDARIA   Sección: ${courseGrupo}`, RGB_METADATA, [0, 0, 0], 9, true, pageWidth)
     y = coloredBlock(doc, y, `Propósito: ${a.proposito || '—'}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
     y = coloredBlock(doc, y, `Competencia: ${a.competencia?.nombre || '—'}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
-    y = coloredBlock(doc, y, `N° ${a.numero_actividad} — Actividad: ${a.nombre}   |   Unidad: ${unidadTexto(m.unidadInfo)}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
+    y = coloredBlock(doc, y, `N° de Actividad: ${a.numero_actividad}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
+    y = coloredBlock(doc, y, `Actividad: ${a.nombre}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
+    y = coloredBlock(doc, y, `Unidad: ${unidadTexto(m.unidadInfo)}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
     y += 1.5
 
     m.capacidades.forEach(function (cap) {
@@ -486,7 +493,10 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
     y = coloredBlock(doc, y, `Fecha: ${todayFormatted()}   Grado: ${courseGrado}° SECUNDARIA   Sección: ${courseGrupo}`, RGB_METADATA, [0, 0, 0], 9, true, pageWidth)
     y = coloredBlock(doc, y, `Competencia: ${a.competencia?.nombre || '—'}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
     y = coloredBlock(doc, y, `Propósito: ${a.proposito || '—'}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
-    y = coloredBlock(doc, y, `N° ${a.numero_actividad} — Actividad: ${a.nombre}   |   Unidad: ${unidadTexto(m.unidadInfo)}   Docente: ${profile?.full_name || ''}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
+    y = coloredBlock(doc, y, `N° de Actividad: ${a.numero_actividad}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
+    y = coloredBlock(doc, y, `Actividad: ${a.nombre}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
+    y = coloredBlock(doc, y, `Unidad: ${unidadTexto(m.unidadInfo)}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
+    y = coloredBlock(doc, y, `Docente: ${profile?.full_name || ''}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
     y += 1.5
 
     m.capacidades.forEach(function (cap) {
