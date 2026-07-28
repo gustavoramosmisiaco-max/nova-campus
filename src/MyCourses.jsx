@@ -5,6 +5,7 @@ import CourseMaterials from './CourseMaterials'
 import CourseAssignmentsStudent from './CourseAssignmentsStudent'
 import CourseZoomStudent from './CourseZoomStudent'
 import { getLetterGrade, getLetterColor } from './gradeUtils'
+import GruposEstudiante from './GruposEstudiante'
 
 const DIAS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
@@ -57,7 +58,7 @@ function CourseDetailStudent({ course, onBack }) {
 
       {!selectedUnidad && !selectedActividad && (
         <div className="flex gap-2 mb-6 border-b" style={{ borderColor: '#E5E9F0' }}>
-          {[{ id: 'actividades', label: 'Actividades' }, { id: 'notas', label: 'Mis Notas' }, { id: 'zoom', label: 'Videoclases' }].map(function (t) {
+          {[{ id: 'actividades', label: 'Actividades' }, { id: 'notas', label: 'Mis Notas' }, { id: 'grupos', label: 'Grupos de Trabajo' }, { id: 'zoom', label: 'Videoclases' }].map(function (t) {
             const active = tab === t.id
             return (
               <button
@@ -80,6 +81,10 @@ function CourseDetailStudent({ course, onBack }) {
 
         {tab === 'notas' && !selectedUnidad && !selectedActividad && (
           <NotasDeAsignatura courseId={course.id} />
+        )}
+
+        {tab === 'grupos' && !selectedUnidad && !selectedActividad && (
+          <GruposEstudiante courseId={course.id} />
         )}
 
         {tab === 'actividades' && (

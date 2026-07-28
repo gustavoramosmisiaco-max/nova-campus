@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 import { compararPorApellido } from './gradeUtils'
+import PreviewModal from './PreviewModal'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -203,7 +204,9 @@ function HiloConversacion({ contacto, onBack }) {
   const [mensajes, setMensajes] = useState([])
   const [loading, setLoading] = useState(true)
   const [texto, setTexto] = useState('')
+  const [archivo, setArchivo] = useState(null)
   const [enviando, setEnviando] = useState(false)
+  const [preview, setPreview] = useState(null)
   const bottomRef = useRef(null)
 
   useEffect(function () {
@@ -234,16 +237,32 @@ function HiloConversacion({ contacto, onBack }) {
   }
 
   async function handleEnviar() {
-    if (!texto.trim()) return
+    if (!texto.trim() && !archivo) return
     setEnviando(true)
     const contenido = texto.trim()
+    const archivoAEnviar = archivo
     setTexto('')
+    setArchivo(null)
+
+    let archivoUrl = null
+    if (archivoAEnviar) {
+      const safeName = archivoAEnviar.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')
+      const path = `${session.user.id}/${Date.now()}_${safeName}`
+      const uploadResult = await supabase.storage.from('mensajes').upload(path, archivoAEnviar)
+      if (uploadResult.error) {
+        alert('Error al subir el archivo: ' + uploadResult.error.message)
+        setEnviando(false)
+        return
+      }
+      archivoUrl = path
+    }
 
     const result = await supabase.from('mensajes').insert({
       remitente_id: session.user.id,
       destinatario_id: contacto.personaId,
       course_id: contacto.courseId || null,
       contenido: contenido,
+      archivo_url: archivoUrl,
     })
 
     if (!result.error) {
@@ -251,13 +270,22 @@ function HiloConversacion({ contacto, onBack }) {
         user_id: contacto.personaId,
         tipo: 'mensaje',
         titulo: 'Nuevo mensaje',
-        mensaje: contenido.length > 60 ? contenido.slice(0, 60) + '...' : contenido,
+        mensaje: contenido ? (contenido.length > 60 ? contenido.slice(0, 60) + '...' : contenido) : 'Te enviaron un archivo',
       })
       cargar()
     } else {
       alert('Error al enviar: ' + result.error.message)
     }
     setEnviando(false)
+  }
+
+  async function handleVerArchivo(path) {
+    const result = await supabase.storage.from('mensajes').createSignedUrl(path, 300)
+    if (result.error) { alert('Error al abrir el archivo: ' + result.error.message); return }
+    const parts = path.split('/')
+    const name = parts[parts.length - 1]
+    const ext = name.split('.').pop().toLowerCase()
+    setPreview({ url: result.data.signedUrl, type: ext, name: name })
   }
 
   return (
@@ -279,13 +307,29 @@ function HiloConversacion({ contacto, onBack }) {
           <div className="space-y-2">
             {mensajes.map(function (m) {
               const esMio = m.remitente_id === session.user.id
+              const esImagen = m.archivo_url && /\.(jpg|jpeg|png|gif|webp)$/i.test(m.archivo_url)
               return (
                 <div key={m.id} className="flex" style={{ justifyContent: esMio ? 'flex-end' : 'flex-start' }}>
                   <div
                     className="rounded-2xl px-3 py-2 max-w-[75%]"
                     style={esMio ? { backgroundColor: GREEN, color: 'white' } : { backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #E5E9F0' }}
                   >
-                    <p className="text-sm whitespace-pre-wrap">{m.contenido}</p>
+                    {m.archivo_url && (
+                      esImagen ? (
+                        <button onClick={function () { handleVerArchivo(m.archivo_url) }} className="block mb-1">
+                          <span className="text-xs underline">🖼️ Ver imagen</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={function () { handleVerArchivo(m.archivo_url) }}
+                          className="flex items-center gap-2 rounded-lg px-2 py-1.5 mb-1 text-xs"
+                          style={esMio ? { backgroundColor: 'rgba(255,255,255,0.2)' } : { backgroundColor: '#F4F6F9' }}
+                        >
+                          📄 Ver archivo
+                        </button>
+                      )
+                    )}
+                    {m.contenido && <p className="text-sm whitespace-pre-wrap">{m.contenido}</p>}
                     <p className="text-xs mt-1" style={{ opacity: 0.7 }}>{tiempoRelativo(m.created_at)}</p>
                   </div>
                 </div>
@@ -296,25 +340,39 @@ function HiloConversacion({ contacto, onBack }) {
         )}
       </div>
 
-      <div className="flex-shrink-0 flex gap-2">
-        <textarea
-          value={texto}
-          onChange={function (e) { setTexto(e.target.value) }}
-          onKeyDown={function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleEnviar() } }}
-          placeholder="Escribe tu mensaje..."
-          rows={2}
-          className="flex-1 rounded-xl px-3 py-2 text-sm outline-none resize-none"
-          style={inputStyle}
-        />
-        <button
-          onClick={handleEnviar}
-          disabled={enviando || !texto.trim()}
-          className="px-4 rounded-xl text-white font-semibold text-sm transition hover:opacity-90 disabled:opacity-50"
-          style={{ backgroundColor: GREEN }}
-        >
-          Enviar
-        </button>
+      <div className="flex-shrink-0">
+        {archivo && (
+          <div className="flex items-center gap-2 mb-2 text-xs rounded-lg px-3 py-1.5" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
+            📎 {archivo.name}
+            <button onClick={function () { setArchivo(null) }} className="font-bold ml-1">✕</button>
+          </div>
+        )}
+        <div className="flex gap-2 items-end">
+          <label className="w-10 h-10 rounded-xl flex items-center justify-center cursor-pointer flex-shrink-0" style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5' }}>
+            📎
+            <input type="file" accept="image/*,application/pdf" className="hidden" onChange={function (e) { setArchivo(e.target.files[0]) }} />
+          </label>
+          <textarea
+            value={texto}
+            onChange={function (e) { setTexto(e.target.value) }}
+            onKeyDown={function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleEnviar() } }}
+            placeholder="Escribe tu mensaje..."
+            rows={2}
+            className="flex-1 rounded-xl px-3 py-2 text-sm outline-none resize-none"
+            style={inputStyle}
+          />
+          <button
+            onClick={handleEnviar}
+            disabled={enviando || (!texto.trim() && !archivo)}
+            className="px-4 h-10 rounded-xl text-white font-semibold text-sm transition hover:opacity-90 disabled:opacity-50"
+            style={{ backgroundColor: GREEN }}
+          >
+            Enviar
+          </button>
+        </div>
       </div>
+
+      <PreviewModal preview={preview} onClose={function () { setPreview(null) }} />
     </div>
   )
 }

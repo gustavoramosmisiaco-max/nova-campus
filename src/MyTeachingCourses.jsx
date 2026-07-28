@@ -5,6 +5,7 @@ import CourseActivities from './CourseActivities'
 import CourseZoomTeacher from './CourseZoomTeacher'
 import RegistroAuxiliarPorArea from './RegistroAuxiliarPorArea'
 import InstrumentoEvaluacion from './InstrumentoEvaluacion'
+import GruposTrabajo from './GruposTrabajo'
 
 const DIAS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 const GRADOS = [1, 2, 3, 4, 5]
@@ -34,6 +35,7 @@ function CourseDetailTeacher({ course, onBack }) {
     { id: 'instrumento', label: 'Instrumento de Evaluación' },
     { id: 'registro', label: 'Registro Auxiliar' },
     { id: 'zoom', label: 'Videoclases' },
+    { id: 'grupos', label: 'Grupos de Trabajo' },
   ]
 
   return (
@@ -93,6 +95,7 @@ function CourseDetailTeacher({ course, onBack }) {
         )}
         {tab === 'registro' && <RegistroAuxiliarPorArea courseId={course.id} />}
         {tab === 'zoom' && <CourseZoomTeacher courseId={course.id} />}
+        {tab === 'grupos' && <GruposTrabajo courseId={course.id} />}
       </div>
     </div>
   )
