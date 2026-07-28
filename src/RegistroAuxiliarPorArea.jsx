@@ -29,6 +29,13 @@ async function descargarWorkbook(workbook, filename) {
 const BIMESTRES = [1, 2, 3, 4]
 const NOMBRE_BIMESTRE = { 1: 'I Bimestre', 2: 'II Bimestre', 3: 'III Bimestre', 4: 'IV Bimestre' }
 
+const NIVELES_INFO = [
+  { letra: 'AD', nombre: 'Logro destacado', color: '#1d5c8f', bg: '#DEEBF7' },
+  { letra: 'A', nombre: 'Logro esperado', color: '#2f7a1f', bg: '#E7F3E4' },
+  { letra: 'B', nombre: 'En proceso', color: '#B45309', bg: '#FFF7E6' },
+  { letra: 'C', nombre: 'En inicio', color: '#B91C1C', bg: '#FDECEC' },
+]
+
 function average(numbers) {
   const validos = numbers.filter(function (n) { return n != null })
   if (validos.length === 0) return null
@@ -282,6 +289,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
   }
 
   const [exportando, setExportando] = useState(false)
+  const [vista, setVista] = useState('registro')
 
   async function exportExcel() {
     setExportando(true)
@@ -543,7 +551,25 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
         </div>
       </div>
 
-      {students.length === 0 ? (
+      <div className="flex gap-2 mb-5 border-b" style={{ borderColor: '#E5E9F0' }}>
+        {[
+          { id: 'registro', label: 'Registro' },
+          { id: 'estadistico', label: 'Reporte Estadístico' },
+          { id: 'mapa', label: 'Mapa de Calor' },
+        ].map(function (t) {
+          const active = vista === t.id
+          return (
+            <button key={t.id} onClick={function () { setVista(t.id) }}
+              className="px-4 py-2.5 text-sm font-semibold border-b-2 transition"
+              style={active ? { borderColor: GREEN, color: NAVY_DARK } : { borderColor: 'transparent', color: '#94A3B8' }}>
+              {t.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {vista === 'registro' && (
+      students.length === 0 ? (
         <p className="text-slate-400 text-sm">No hay estudiantes matriculados en esta aula.</p>
       ) : competenciasData.every(function (c) { return c.capacidades.every(function (cap) { return cap.instancias.length === 0 }) }) ? (
         <p className="text-slate-400 text-sm">Aún no hay actividades/tareas registradas en este bimestre.</p>
@@ -711,7 +737,12 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
             </tbody>
           </table>
         </div>
+      )
       )}
+
+      {vista === 'estadistico' && <ReporteEstadistico competenciasData={competenciasData} students={students} promedioArea={promedioArea} promedioCompetencia={promedioCompetencia} />}
+
+      {vista === 'mapa' && <MapaCalor competenciasData={competenciasData} students={students} promedioArea={promedioArea} promedioCompetencia={promedioCompetencia} />}
 
       {/* Popups de criterio/desempeño */}
       {competenciasData.map(function (comp) {
@@ -749,6 +780,150 @@ function Dato({ label, valor }) {
     <div>
       <p className="text-xs text-slate-400 mb-0.5">{label}</p>
       <p className="text-sm" style={{ color: NAVY_DARK }}>{valor}</p>
+    </div>
+  )
+}
+
+// ============================================================
+// Reporte Estadístico: tabla de frecuencias, % aprobados/desaprobados
+// ============================================================
+function ReporteEstadistico({ competenciasData, students, promedioArea, promedioCompetencia }) {
+  function contarNiveles(getNota) {
+    const conteo = { AD: 0, A: 0, B: 0, C: 0 }
+    let conNota = 0
+    students.forEach(function (s) {
+      const valor = getNota(s.id)
+      if (valor == null) return
+      conteo[getLetterGrade(valor)]++
+      conNota++
+    })
+    return { conteo: conteo, conNota: conNota }
+  }
+
+  const generalStats = contarNiveles(promedioArea)
+  const totalEstudiantes = students.length
+
+  return (
+    <div>
+      <h4 className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>Cantidad de estudiantes por nivel — Promedio del Área</h4>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+        {NIVELES_INFO.map(function (n) {
+          const cantidad = generalStats.conteo[n.letra]
+          const pct = generalStats.conNota > 0 ? Math.round((cantidad / generalStats.conNota) * 100) : 0
+          return (
+            <div key={n.letra} className="rounded-2xl p-4" style={{ backgroundColor: n.bg, border: `1px solid ${n.color}33` }}>
+              <p className="text-xs font-semibold" style={{ color: n.color }}>{n.letra} — {n.nombre}</p>
+              <p className="text-3xl font-bold mt-1" style={{ color: n.color }}>{cantidad}</p>
+              <p className="text-xs mt-0.5" style={{ color: n.color }}>{pct}% del aula</p>
+            </div>
+          )
+        })}
+      </div>
+
+      <h4 className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>Aprobados vs Desaprobados por Competencia</h4>
+      <div className="space-y-3 mb-4">
+        {competenciasData.map(function (comp) {
+          const stats = contarNiveles(function (studentId) { return promedioCompetencia(studentId, comp) })
+          const aprobados = stats.conteo.AD + stats.conteo.A + stats.conteo.B
+          const desaprobados = stats.conteo.C
+          const total = stats.conNota
+          const pctAprob = total > 0 ? Math.round((aprobados / total) * 100) : 0
+          const pctDesaprob = total > 0 ? Math.round((desaprobados / total) * 100) : 0
+          return (
+            <div key={comp.id} className="bg-white rounded-xl p-4" style={{ border: '1px solid #E5E9F0' }}>
+              <div className="flex justify-between items-center mb-2 flex-wrap gap-1">
+                <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{comp.nombre}</p>
+                <p className="text-xs text-slate-400">
+                  <span style={{ color: '#2f7a1f' }}>{aprobados} aprobados ({pctAprob}%)</span>
+                  {' · '}
+                  <span style={{ color: '#B91C1C' }}>{desaprobados} desaprobados ({pctDesaprob}%)</span>
+                  {total === 0 && ' · sin notas aún'}
+                </p>
+              </div>
+              <div className="w-full h-2.5 rounded-full overflow-hidden flex" style={{ backgroundColor: '#F4F6F9' }}>
+                <div style={{ width: `${pctAprob}%`, backgroundColor: '#5DAA47' }} />
+                <div style={{ width: `${pctDesaprob}%`, backgroundColor: '#B91C1C' }} />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <p className="text-xs text-slate-400">
+        Promedio automático consolidado del periodo, calculado por estudiante y por área a partir de las tareas publicadas y la evaluación de cierre de cada unidad finalizada. Total de estudiantes en el aula: {totalEstudiantes}.
+      </p>
+    </div>
+  )
+}
+
+// ============================================================
+// Mapa de Calor: estudiantes x competencias, coloreado por nivel
+// ============================================================
+function MapaCalor({ competenciasData, students, promedioArea, promedioCompetencia }) {
+  function colorDeNivel(valor) {
+    if (valor == null) return { bg: '#F4F6F9', color: '#94A3B8' }
+    const letra = getLetterGrade(valor)
+    const info = NIVELES_INFO.find(function (n) { return n.letra === letra })
+    return { bg: info.bg, color: info.color }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-4 mb-4 flex-wrap">
+        {NIVELES_INFO.map(function (n) {
+          return (
+            <div key={n.letra} className="flex items-center gap-2">
+              <span className="w-4 h-4 rounded" style={{ backgroundColor: n.bg, border: `1px solid ${n.color}` }} />
+              <span className="text-xs" style={{ color: NAVY_DARK }}>{n.letra} — {n.nombre}</span>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="overflow-auto" style={{ maxHeight: '70vh' }}>
+        <table className="border-collapse" style={{ minWidth: '100%' }}>
+          <thead className="sticky top-0 z-10">
+            <tr>
+              <td className="p-2 font-semibold sticky left-0" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #E5E9F0', minWidth: 170 }}>
+                Apellidos y Nombres
+              </td>
+              <td className="p-2 text-center font-semibold" style={{ backgroundColor: NAVY_DARK, color: 'white', border: '1px solid #0a1f38', minWidth: 60 }}>
+                Promedio Área
+              </td>
+              {competenciasData.map(function (comp) {
+                return (
+                  <td key={comp.id} className="p-2 text-center font-semibold" style={{ backgroundColor: GREEN, color: 'white', border: '1px solid #4a9038', minWidth: 130, fontSize: 11 }}>
+                    {comp.nombre}
+                  </td>
+                )
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {students.map(function (s) {
+              const provArea = promedioArea(s.id)
+              const colorArea = colorDeNivel(provArea)
+              return (
+                <tr key={s.id}>
+                  <td className="p-2 sticky left-0" style={{ backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #E5E9F0' }}>{s.full_name}</td>
+                  <td className="p-2 text-center font-bold" style={{ backgroundColor: colorArea.bg, color: colorArea.color, border: '1px solid #E5E9F0' }}>
+                    {provArea != null ? getLetterGrade(provArea) : '—'}
+                  </td>
+                  {competenciasData.map(function (comp) {
+                    const prov = promedioCompetencia(s.id, comp)
+                    const c = colorDeNivel(prov)
+                    return (
+                      <td key={comp.id} className="p-2 text-center font-semibold" style={{ backgroundColor: c.bg, color: c.color, border: '1px solid #E5E9F0' }}>
+                        {prov != null ? getLetterGrade(prov) : '—'}
+                      </td>
+                    )
+                  })}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
