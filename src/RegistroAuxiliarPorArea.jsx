@@ -310,7 +310,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
     }
 
     mergedRow(1, ficha.institucion || 'Institución educativa', COLOR_INSTITUCION, 'FFFFFFFF', 14, true)
-    mergedRow(2, 'REGISTRO AUXILIAR DE EVALUACIÓN', COLOR_TITULO, 'FFFFFFFF', 12, true)
+    mergedRow(2, `REGISTRO AUXILIAR ${ficha.anio}`, COLOR_TITULO, 'FFFFFFFF', 12, true)
     mergedRow(
       3,
       `UGEL: ${ficha.ugel || '—'}   DRE: ${ficha.dre || '—'}   Director(a): ${ficha.director || '—'}`,
@@ -352,7 +352,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
 
     let colCursor = 3
     competenciasData.forEach(function (comp) {
-      const colsComp = comp.capacidades.reduce(function (a, cap) { return a + Math.max(cap.instancias.length, 1) }, 0) + 2
+      const colsComp = comp.capacidades.reduce(function (a, cap) { return a + Math.max(cap.instancias.length, 1) + 1 }, 0) + 2
       ws.mergeCells(rowComp, colCursor, rowComp, colCursor + colsComp - 1)
       const cellComp = ws.getCell(rowComp, colCursor)
       cellComp.value = comp.nombre
@@ -379,29 +379,38 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
             const cellAct = ws.getCell(rowAct, colCapCursor + i)
             cellAct.value = `Act.${inst.actividadNumero}`
             cellAct.font = { size: 8 }
-            cellAct.alignment = { horizontal: 'center' }
+            cellAct.alignment = { horizontal: 'center', vertical: 'middle', textRotation: 90 }
             cellAct.note = `Tarea: ${inst.tituloTarea}\n\nCriterio: ${inst.criterio || '—'}\n\nDesempeño: ${inst.desempeno || '—'}`
           })
         }
         colCapCursor += span
+
+        // Columna Promedio de la Capacidad
+        ws.mergeCells(rowCap, colCapCursor, rowAct, colCapCursor)
+        const cellPromCap = ws.getCell(rowCap, colCapCursor)
+        cellPromCap.value = 'Promedio Capacidad'
+        cellPromCap.font = { bold: true, size: 8 }
+        cellPromCap.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4F6F9' } }
+        cellPromCap.alignment = { horizontal: 'center', vertical: 'middle', textRotation: 90 }
+        colCapCursor++
       })
 
       // Columna Cierre
       ws.mergeCells(rowCap, colCapCursor, rowAct, colCapCursor)
       const cellCierre = ws.getCell(rowCap, colCapCursor)
-      cellCierre.value = 'Eval. de Unidad'
-      cellCierre.font = { bold: true, size: 9 }
+      cellCierre.value = 'Evaluación de Unidad'
+      cellCierre.font = { bold: true, size: 8 }
       cellCierre.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_CIERRE } }
-      cellCierre.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+      cellCierre.alignment = { horizontal: 'center', vertical: 'middle', textRotation: 90 }
       colCapCursor++
 
       // Columna Promedio Competencia
       ws.mergeCells(rowCap, colCapCursor, rowAct, colCapCursor)
       const cellPC = ws.getCell(rowCap, colCapCursor)
       cellPC.value = 'Promedio Competencia'
-      cellPC.font = { bold: true, size: 9 }
+      cellPC.font = { bold: true, size: 8 }
       cellPC.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDEEBF7' } }
-      cellPC.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+      cellPC.alignment = { horizontal: 'center', vertical: 'middle', textRotation: 90 }
 
       colCursor += colsComp
     })
@@ -423,7 +432,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
       let c = 3
       competenciasData.forEach(function (comp) {
         comp.capacidades.forEach(function (cap) {
-          if (cap.instancias.length === 0) { c++; return }
+          if (cap.instancias.length === 0) { c++; c++; return }
           cap.instancias.forEach(function (inst) {
             const nota = notaTarea(s.id, inst.assignmentId, cap.id)
             const letra = nota != null ? getLetterGrade(nota) : '—'
@@ -433,6 +442,14 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
             cell.alignment = { horizontal: 'center' }
             c++
           })
+          const provCap = promedioCapacidad(s.id, cap)
+          const letraCap = provCap != null ? getLetterGrade(provCap) : '—'
+          const cellCap = row.getCell(c)
+          cellCap.value = letraCap
+          cellCap.font = { bold: true, color: { argb: provCap != null ? NIVEL_COLOR_ARGB[letraCap] : 'FF94A3B8' } }
+          cellCap.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4F6F9' } }
+          cellCap.alignment = { horizontal: 'center' }
+          c++
         })
         const cierre = notaCierre(s.id, comp.id)
         const letraCierre = cierre != null ? getLetterGrade(cierre) : '—'
@@ -542,7 +559,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
                   Promedio<br />del Área
                 </td>
                 {competenciasData.map(function (comp) {
-                  const cols = comp.capacidades.reduce(function (acc, cap) { return acc + Math.max(cap.instancias.length, 1) }, 0) + 2
+                  const cols = comp.capacidades.reduce(function (acc, cap) { return acc + Math.max(cap.instancias.length, 1) + 1 }, 0) + 2
                   return (
                     <td key={comp.id} colSpan={cols} className="p-1.5 text-center font-semibold text-white" style={{ backgroundColor: GREEN, border: '1px solid #4a9038', fontSize: 12 }}>
                       {comp.nombre}
@@ -552,19 +569,22 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
               </tr>
               <tr>
                 {competenciasData.map(function (comp) {
-                  return comp.capacidades.map(function (cap) {
+                  return comp.capacidades.flatMap(function (cap) {
                     const span = Math.max(cap.instancias.length, 1)
-                    return (
+                    return [
                       <td key={cap.id} colSpan={span} className="p-1.5 text-center" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f', border: '1px solid #E5E9F0', fontSize: 11, minWidth: 100 * span }}>
                         {cap.nombre}
-                      </td>
-                    )
+                      </td>,
+                      <td key={cap.id + '_promcap'} rowSpan={4} className="p-1 text-center font-semibold" style={{ backgroundColor: '#F4F6F9', color: '#2f7a1f', border: '1px solid #E5E9F0', fontSize: 10, minWidth: 28, verticalAlign: 'middle' }}>
+                        <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>Promedio Capacidad</span>
+                      </td>,
+                    ]
                   }).concat([
-                    <td key={comp.id + '_cierre'} rowSpan={4} className="p-1.5 text-center font-semibold" style={{ backgroundColor: '#FFF7E6', color: '#B45309', border: '1px solid #E5E9F0', fontSize: 11, minWidth: 70, verticalAlign: 'middle' }}>
-                      Evaluación<br />de Unidad
+                    <td key={comp.id + '_cierre'} rowSpan={4} className="p-1 text-center font-semibold" style={{ backgroundColor: '#FFF7E6', color: '#B45309', border: '1px solid #E5E9F0', fontSize: 10, minWidth: 28, verticalAlign: 'middle' }}>
+                      <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>Evaluación de Unidad</span>
                     </td>,
-                    <td key={comp.id + '_prom'} rowSpan={4} className="p-1.5 text-center font-semibold" style={{ backgroundColor: '#DEEBF7', color: NAVY_DARK, border: '1px solid #E5E9F0', fontSize: 11, minWidth: 60, verticalAlign: 'middle' }}>
-                      Promedio<br />Competencia
+                    <td key={comp.id + '_prom'} rowSpan={4} className="p-1 text-center font-semibold" style={{ backgroundColor: '#DEEBF7', color: NAVY_DARK, border: '1px solid #E5E9F0', fontSize: 10, minWidth: 28, verticalAlign: 'middle' }}>
+                      <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>Promedio Competencia</span>
                     </td>,
                   ])
                 })}
@@ -577,8 +597,8 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
                     }
                     return cap.instancias.map(function (inst) {
                       return (
-                        <td key={inst.assignmentId} className="p-1.5 text-center" style={{ backgroundColor: '#FAFAF8', border: '1px solid #E5E9F0', fontSize: 10, color: '#5F5E5A', minWidth: 100 }}>
-                          Act.{inst.actividadNumero}
+                        <td key={inst.assignmentId} className="p-1 text-center" style={{ backgroundColor: '#FAFAF8', border: '1px solid #E5E9F0', fontSize: 10, color: '#5F5E5A', minWidth: 28, verticalAlign: 'middle' }}>
+                          <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>Act.{inst.actividadNumero}</span>
                         </td>
                       )
                     })
@@ -595,10 +615,10 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
                         <td
                           key={key}
                           onClick={function () { toggle(key) }}
-                          className="p-1.5 text-center cursor-pointer"
-                          style={{ backgroundColor: '#FAFAF8', border: '1px solid #E5E9F0', fontSize: 10, color: '#164a72', textDecoration: 'underline dotted' }}
+                          className="p-1 text-center cursor-pointer"
+                          style={{ backgroundColor: '#FAFAF8', border: '1px solid #E5E9F0', fontSize: 10, color: '#164a72', minWidth: 28 }}
                         >
-                          Criterio
+                          <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap', textDecoration: 'underline dotted' }}>Criterio</span>
                         </td>
                       )
                     })
@@ -615,10 +635,10 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
                         <td
                           key={key}
                           onClick={function () { toggle(key) }}
-                          className="p-1.5 text-center cursor-pointer"
-                          style={{ backgroundColor: '#FAFAF8', border: '1px solid #E5E9F0', fontSize: 10, color: '#8a5cb0', textDecoration: 'underline dotted' }}
+                          className="p-1 text-center cursor-pointer"
+                          style={{ backgroundColor: '#FAFAF8', border: '1px solid #E5E9F0', fontSize: 10, color: '#8a5cb0', minWidth: 28 }}
                         >
-                          Desempeño
+                          <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap', textDecoration: 'underline dotted' }}>Desempeño</span>
                         </td>
                       )
                     })
@@ -644,22 +664,31 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
                       const cierre = notaCierre(s.id, comp.id)
                       return (
                         <>
-                          {comp.capacidades.map(function (cap) {
-                            if (cap.instancias.length === 0) {
-                              return <td key={cap.id + '_' + s.id} style={{ border: '1px solid #E5E9F0' }}></td>
-                            }
-                            return cap.instancias.map(function (inst) {
-                              const nota = notaTarea(s.id, inst.assignmentId, cap.id)
-                              return (
-                                <td key={inst.assignmentId + '_' + s.id} className="p-2 text-center" style={{ border: '1px solid #E5E9F0' }}>
-                                  {nota != null ? (
-                                    <span className={'font-semibold ' + getLetterColor(nota)}>{getLetterGrade(nota)}</span>
-                                  ) : (
-                                    <span style={{ color: '#CBD5E1' }}>—</span>
-                                  )}
-                                </td>
-                              )
-                            })
+                          {comp.capacidades.flatMap(function (cap) {
+                            const provCap = promedioCapacidad(s.id, cap)
+                            const celdasActividad = cap.instancias.length === 0
+                              ? [<td key={cap.id + '_' + s.id} style={{ border: '1px solid #E5E9F0' }}></td>]
+                              : cap.instancias.map(function (inst) {
+                                const nota = notaTarea(s.id, inst.assignmentId, cap.id)
+                                return (
+                                  <td key={inst.assignmentId + '_' + s.id} className="p-2 text-center" style={{ border: '1px solid #E5E9F0' }}>
+                                    {nota != null ? (
+                                      <span className={'font-semibold ' + getLetterColor(nota)}>{getLetterGrade(nota)}</span>
+                                    ) : (
+                                      <span style={{ color: '#CBD5E1' }}>—</span>
+                                    )}
+                                  </td>
+                                )
+                              })
+                            return celdasActividad.concat([
+                              <td key={cap.id + '_promcap_' + s.id} className="p-2 text-center font-semibold" style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}>
+                                {provCap != null ? (
+                                  <span className={getLetterColor(provCap)}>{getLetterGrade(provCap)}</span>
+                                ) : (
+                                  <span style={{ color: '#CBD5E1' }}>—</span>
+                                )}
+                              </td>,
+                            ])
                           })}
                           <td key={comp.id + '_cierre_' + s.id} className="p-2 text-center font-semibold" style={{ backgroundColor: '#FFFBF0', border: '1px solid #E5E9F0' }}>
                             {cierre != null ? (
