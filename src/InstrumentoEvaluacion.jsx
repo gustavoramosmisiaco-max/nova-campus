@@ -60,6 +60,11 @@ function coloredBlock(doc, y, text, fillColor, textColor, fontSize, bold, pageWi
   return y + blockHeight + 0.8
 }
 
+function unidadTexto(unidadInfo) {
+  if (!unidadInfo) return '—'
+  return `${unidadInfo.tipo} ${unidadInfo.numero}${unidadInfo.nombre ? ' · ' + unidadInfo.nombre : ''}`
+}
+
 function todayFormatted() {
   const d = new Date()
   const pad = function (n) { return String(n).padStart(2, '0') }
@@ -90,16 +95,9 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [matrix, setMatrix] = useState(null)
-  const [institucion, setInstitucion] = useState(function () {
-    return localStorage.getItem('nova_institucion') || ''
-  })
+  const [institucion, setInstitucion] = useState('')
   const [selectedForExport, setSelectedForExport] = useState(new Set())
   const [exporting, setExporting] = useState(false)
-
-  function saveInstitucion(value) {
-    setInstitucion(value)
-    localStorage.setItem('nova_institucion', value)
-  }
 
   useEffect(function () {
     loadAll()
@@ -107,6 +105,21 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
 
   async function loadAll() {
     setLoading(true)
+
+    const courseResult = await supabase
+      .from('courses')
+      .select('institucion_id')
+      .eq('id', courseId)
+      .single()
+    if (courseResult.data?.institucion_id) {
+      const instResult = await supabase
+        .from('instituciones_educativas')
+        .select('nombre')
+        .eq('id', courseResult.data.institucion_id)
+        .single()
+      if (!instResult.error) setInstitucion(instResult.data.nombre)
+    }
+
     const unidadesResult = await supabase
       .from('unidades')
       .select('id, tipo, numero, nombre')
@@ -195,8 +208,11 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
       })
     }
 
+    const unidadInfo = unidades.find(function (u) { return u.id === actividad.unidad_id })
+
     return {
       actividad: actividad,
+      unidadInfo: unidadInfo,
       tipoInstrumento: actividad.tipo_instrumento || 'Lista de cotejo',
       capacidades: capacidades,
       students: students,
@@ -275,7 +291,7 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
 
     mergedRow(4, `Propósito: ${a.proposito || '—'}`, COLOR_METADATA, 'FF000000', 11, false)
     mergedRow(5, `Competencia: ${a.competencia?.nombre || '—'}`, COLOR_METADATA, 'FF000000', 11, false)
-    mergedRow(6, `Actividad: ${a.nombre}`, COLOR_METADATA, 'FF000000', 11, false)
+    mergedRow(6, `N° ${a.numero_actividad} — Actividad: ${a.nombre}   |   Unidad: ${unidadTexto(m.unidadInfo)}`, COLOR_METADATA, 'FF000000', 11, false)
 
     let r = 8
     m.capacidades.forEach(function (cap) {
@@ -315,6 +331,8 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
       })
       r++
     })
+
+    ws.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 }
   }
 
   function buildRubricaSheet(ws, m) {
@@ -345,7 +363,7 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
 
     mergedRow(4, `Competencia: ${a.competencia?.nombre || '—'}`, COLOR_METADATA, 'FF000000', 11, false)
     mergedRow(5, `Propósito: ${a.proposito || '—'}`, COLOR_METADATA, 'FF000000', 11, false)
-    mergedRow(6, `Actividad: ${a.nombre}   Docente: ${profile?.full_name || ''}`, COLOR_METADATA, 'FF000000', 11, false)
+    mergedRow(6, `N° ${a.numero_actividad} — Actividad: ${a.nombre}   |   Unidad: ${unidadTexto(m.unidadInfo)}   Docente: ${profile?.full_name || ''}`, COLOR_METADATA, 'FF000000', 11, false)
 
     let r = 8
     m.capacidades.forEach(function (cap) {
@@ -400,6 +418,8 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
       })
       r++
     })
+
+    ws.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 }
   }
 
   // ============================================================
@@ -415,7 +435,7 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
     y = coloredBlock(doc, y, `Fecha: ${todayFormatted()}   Grado: ${courseGrado}° SECUNDARIA   Sección: ${courseGrupo}`, RGB_METADATA, [0, 0, 0], 9, true, pageWidth)
     y = coloredBlock(doc, y, `Propósito: ${a.proposito || '—'}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
     y = coloredBlock(doc, y, `Competencia: ${a.competencia?.nombre || '—'}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
-    y = coloredBlock(doc, y, `Actividad: ${a.nombre}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
+    y = coloredBlock(doc, y, `N° ${a.numero_actividad} — Actividad: ${a.nombre}   |   Unidad: ${unidadTexto(m.unidadInfo)}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
     y += 1.5
 
     m.capacidades.forEach(function (cap) {
@@ -466,7 +486,7 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
     y = coloredBlock(doc, y, `Fecha: ${todayFormatted()}   Grado: ${courseGrado}° SECUNDARIA   Sección: ${courseGrupo}`, RGB_METADATA, [0, 0, 0], 9, true, pageWidth)
     y = coloredBlock(doc, y, `Competencia: ${a.competencia?.nombre || '—'}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
     y = coloredBlock(doc, y, `Propósito: ${a.proposito || '—'}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
-    y = coloredBlock(doc, y, `Actividad: ${a.nombre}   Docente: ${profile?.full_name || ''}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
+    y = coloredBlock(doc, y, `N° ${a.numero_actividad} — Actividad: ${a.nombre}   |   Unidad: ${unidadTexto(m.unidadInfo)}   Docente: ${profile?.full_name || ''}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
     y += 1.5
 
     m.capacidades.forEach(function (cap) {
@@ -522,7 +542,7 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
   // Exportar UNA sola actividad (vista actual)
   // ============================================================
   async function exportarActualExcel() {
-    if (!institucion.trim()) { alert('Completa el nombre de la institución educativa antes de exportar.'); return }
+    if (!institucion.trim()) { alert('Este curso no tiene una Institución asignada. Ve a "Cursos" y asígnala antes de exportar.'); return }
     const workbook = new ExcelJS.Workbook()
     const ws = workbook.addWorksheet(matrix.tipoInstrumento === 'Rúbrica' ? 'Rúbrica' : 'Lista de Cotejo')
     if (matrix.tipoInstrumento === 'Rúbrica') buildRubricaSheet(ws, matrix)
@@ -532,7 +552,7 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
   }
 
   function exportarActualPDF() {
-    if (!institucion.trim()) { alert('Completa el nombre de la institución educativa antes de exportar.'); return }
+    if (!institucion.trim()) { alert('Este curso no tiene una Institución asignada. Ve a "Cursos" y asígnala antes de exportar.'); return }
     const doc = new jsPDF({ orientation: 'landscape', format: 'a4' })
     if (matrix.tipoInstrumento === 'Rúbrica') drawRubricaPDF(doc, matrix)
     else drawListaCotejoPDF(doc, matrix)
@@ -544,7 +564,7 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
   // Exportar VARIAS actividades seleccionadas (checkboxes)
   // ============================================================
   async function exportarSeleccionadosExcel() {
-    if (!institucion.trim()) { alert('Completa el nombre de la institución educativa antes de exportar.'); return }
+    if (!institucion.trim()) { alert('Este curso no tiene una Institución asignada. Ve a "Cursos" y asígnala antes de exportar.'); return }
     if (selectedForExport.size === 0) { alert('Marca al menos una actividad para exportar.'); return }
     setExporting(true)
 
@@ -566,7 +586,7 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
   }
 
   async function exportarSeleccionadosPDF() {
-    if (!institucion.trim()) { alert('Completa el nombre de la institución educativa antes de exportar.'); return }
+    if (!institucion.trim()) { alert('Este curso no tiene una Institución asignada. Ve a "Cursos" y asígnala antes de exportar.'); return }
     if (selectedForExport.size === 0) { alert('Marca al menos una actividad para exportar.'); return }
     setExporting(true)
 
@@ -595,21 +615,10 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
 
   return (
     <div>
-      <h3 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>Instrumento de Evaluación</h3>
-
-      <div className="mb-5 max-w-md">
-        <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>
-          Institución educativa (para exportar)
-        </label>
-        <input
-          type="text"
-          value={institucion}
-          onChange={function (e) { saveInstitucion(e.target.value) }}
-          placeholder="Ej: I.E.P. Señor de Luren"
-          className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-          style={inputStyle}
-        />
-      </div>
+      <h3 className="text-lg font-bold mb-1" style={{ color: NAVY_DARK }}>Instrumento de Evaluación</h3>
+      <p className="text-xs text-slate-400 mb-5">
+        Institución: <strong>{institucion || 'Sin asignar (revisa la Institución del curso en "Cursos")'}</strong>
+      </p>
 
       {/* ===================== Ver una actividad ===================== */}
       <div className="mb-8 pb-6" style={{ borderBottom: '2px solid #E5E9F0' }}>
@@ -776,8 +785,16 @@ function ListaCotejoView({ matrix, courseGrado, courseGrupo }) {
               <td style={tableCell} colSpan={5}>{a.competencia?.nombre || '—'}</td>
             </tr>
             <tr>
+              <td style={tableHeadCell}>N° de Actividad:</td>
+              <td style={tableCell} colSpan={5}>{a.numero_actividad}</td>
+            </tr>
+            <tr>
               <td style={tableHeadCell}>Actividad:</td>
               <td style={tableCell} colSpan={5}>{a.nombre}</td>
+            </tr>
+            <tr>
+              <td style={tableHeadCell}>Unidad:</td>
+              <td style={tableCell} colSpan={5}>{unidadTexto(matrix.unidadInfo)}</td>
             </tr>
           </>
         }
@@ -887,8 +904,16 @@ function RubricaView({ matrix, courseGrado, courseGrupo, docente }) {
               <td style={tableCell} colSpan={5}>{a.proposito || '—'}</td>
             </tr>
             <tr>
+              <td style={tableHeadCell}>N° de Actividad:</td>
+              <td style={tableCell} colSpan={5}>{a.numero_actividad}</td>
+            </tr>
+            <tr>
               <td style={tableHeadCell}>Actividad:</td>
               <td style={tableCell} colSpan={5}>{a.nombre}</td>
+            </tr>
+            <tr>
+              <td style={tableHeadCell}>Unidad:</td>
+              <td style={tableCell} colSpan={5}>{unidadTexto(matrix.unidadInfo)}</td>
             </tr>
             <tr>
               <td style={tableHeadCell}>Docente:</td>
