@@ -321,7 +321,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
                   Promedio<br />del Área
                 </td>
                 {competenciasData.map(function (comp) {
-                  const cols = comp.capacidades.reduce(function (acc, cap) { return acc + Math.max(cap.instancias.length, 1) }, 0) + 1
+                  const cols = comp.capacidades.reduce(function (acc, cap) { return acc + Math.max(cap.instancias.length, 1) }, 0) + 2
                   return (
                     <td key={comp.id} colSpan={cols} className="p-1.5 text-center font-semibold text-white" style={{ backgroundColor: GREEN, border: '1px solid #4a9038', fontSize: 12 }}>
                       {comp.nombre}
@@ -338,11 +338,14 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
                         {cap.nombre}
                       </td>
                     )
-                  }).concat(
+                  }).concat([
+                    <td key={comp.id + '_cierre'} rowSpan={4} className="p-1.5 text-center font-semibold" style={{ backgroundColor: '#FFF7E6', color: '#B45309', border: '1px solid #E5E9F0', fontSize: 11, minWidth: 70, verticalAlign: 'middle' }}>
+                      Evaluación<br />de Unidad
+                    </td>,
                     <td key={comp.id + '_prom'} rowSpan={4} className="p-1.5 text-center font-semibold" style={{ backgroundColor: '#DEEBF7', color: NAVY_DARK, border: '1px solid #E5E9F0', fontSize: 11, minWidth: 60, verticalAlign: 'middle' }}>
                       Promedio<br />Competencia
-                    </td>
-                  )
+                    </td>,
+                  ])
                 })}
               </tr>
               <tr>
@@ -417,6 +420,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
                     })()}
                     {competenciasData.map(function (comp) {
                       const provComp = promedioCompetencia(s.id, comp)
+                      const cierre = notaCierre(s.id, comp.id)
                       return (
                         <>
                           {comp.capacidades.map(function (cap) {
@@ -436,6 +440,13 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
                               )
                             })
                           })}
+                          <td key={comp.id + '_cierre_' + s.id} className="p-2 text-center font-semibold" style={{ backgroundColor: '#FFFBF0', border: '1px solid #E5E9F0' }}>
+                            {cierre != null ? (
+                              <span className={getLetterColor(cierre)}>{getLetterGrade(cierre)}</span>
+                            ) : (
+                              <span style={{ color: '#CBD5E1' }}>—</span>
+                            )}
+                          </td>
                           <td key={comp.id + '_prom_' + s.id} className="p-2 text-center font-bold" style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}>
                             {provComp != null ? (
                               <span className={getLetterColor(provComp)}>{getLetterGrade(provComp)}</span>
