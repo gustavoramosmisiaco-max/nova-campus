@@ -117,11 +117,13 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
     const capResult = await supabase.from('capacidades').select('*').in('competencia_id', competenciaIds).order('orden')
     const capacidades = capResult.error ? [] : capResult.data
 
-    // Unidades de este bimestre, en cualquiera de las asignaturas del área
+    // Unidades de este bimestre, compartidas por toda el Área+Grado+Sección
     const unidResult = await supabase
       .from('unidades')
-      .select('id, numero, course_id, finalizada')
-      .in('course_id', courseIds)
+      .select('id, numero, finalizada')
+      .eq('area_id', areaId)
+      .eq('grado', grado)
+      .eq('grupo', grupo)
     const unidadesBimestre = (unidResult.error ? [] : unidResult.data).filter(function (u) {
       return Math.ceil(u.numero / 2) === bimestre
     })

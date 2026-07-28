@@ -87,6 +87,7 @@ function CourseDetailStudent({ course, onBack }) {
             ) : selectedUnidad ? (
               <UnidadActividadesStudent
                 unidad={selectedUnidad}
+                courseId={course.id}
                 onBack={function () { setSelectedUnidad(null) }}
                 onSelectActividad={setSelectedActividad}
               />
@@ -102,6 +103,7 @@ function CourseDetailStudent({ course, onBack }) {
 
 function UnidadesListStudent({ courseId, onSelectUnidad }) {
   const [unidades, setUnidades] = useState([])
+  const [conteoPropio, setConteoPropio] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -111,13 +113,45 @@ function UnidadesListStudent({ courseId, onSelectUnidad }) {
 
   async function loadUnidades() {
     setLoading(true)
+    const courseResult = await supabase
+      .from('courses')
+      .select('grado, grupo, asignaturas(area_id)')
+      .eq('id', courseId)
+      .single()
+
+    if (courseResult.error || !courseResult.data?.asignaturas) {
+      setError('No se pudo determinar el Área de este curso.')
+      setLoading(false)
+      return
+    }
+
     const result = await supabase
       .from('unidades')
-      .select('*, actividades(count)')
-      .eq('course_id', courseId)
+      .select('*')
+      .eq('area_id', courseResult.data.asignaturas.area_id)
+      .eq('grado', courseResult.data.grado)
+      .eq('grupo', courseResult.data.grupo)
       .order('numero', { ascending: true })
-    if (result.error) setError(result.error.message)
-    else setUnidades(result.data)
+    if (result.error) {
+      setError(result.error.message)
+      setLoading(false)
+      return
+    }
+    setUnidades(result.data)
+
+    const unidadIds = result.data.map(function (u) { return u.id })
+    if (unidadIds.length > 0) {
+      const actResult = await supabase
+        .from('actividades')
+        .select('unidad_id')
+        .eq('course_id', courseId)
+        .in('unidad_id', unidadIds)
+      if (!actResult.error) {
+        const conteo = {}
+        actResult.data.forEach(function (a) { conteo[a.unidad_id] = (conteo[a.unidad_id] || 0) + 1 })
+        setConteoPropio(conteo)
+      }
+    }
     setLoading(false)
   }
 
@@ -144,7 +178,7 @@ function UnidadesListStudent({ courseId, onSelectUnidad }) {
                   <span className="text-xs font-semibold" style={{ color: GREEN_DARK }}>{u.tipo} {u.numero}</span>
                 </div>
                 <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>{u.nombre || `${u.tipo} ${u.numero}`}</p>
-                <p className="text-xs text-slate-400 mt-1">{u.actividades?.[0]?.count ?? 0} actividad(es)</p>
+                <p className="text-xs text-slate-400 mt-1">{conteoPropio[u.id] || 0} actividad(es)</p>
               </button>
             )
           })}
@@ -154,7 +188,7 @@ function UnidadesListStudent({ courseId, onSelectUnidad }) {
   )
 }
 
-function UnidadActividadesStudent({ unidad, onBack, onSelectActividad }) {
+function UnidadActividadesStudent({ unidad, courseId, onBack, onSelectActividad }) {
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -169,6 +203,7 @@ function UnidadActividadesStudent({ unidad, onBack, onSelectActividad }) {
       .from('actividades')
       .select('*, competencia:competencias(nombre, codigo)')
       .eq('unidad_id', unidad.id)
+      .eq('course_id', courseId)
       .order('created_at', { ascending: true })
     if (result.error) setError(result.error.message)
     else setActivities(result.data)

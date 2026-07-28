@@ -59,7 +59,9 @@ export default function CourseActivities({ courseId }) {
 // ============================================================
 function UnidadesList({ courseId, onSelectUnidad }) {
   const { session } = useAuth()
+  const [aula, setAula] = useState(null)
   const [unidades, setUnidades] = useState([])
+  const [conteoPropio, setConteoPropio] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -69,18 +71,61 @@ function UnidadesList({ courseId, onSelectUnidad }) {
   const [nombre, setNombre] = useState('')
 
   useEffect(function () {
-    loadUnidades()
+    cargarAulaYUnidades()
   }, [courseId])
 
-  async function loadUnidades() {
+  async function cargarAulaYUnidades() {
+    setLoading(true)
+    const courseResult = await supabase
+      .from('courses')
+      .select('grado, grupo, asignaturas(area_id)')
+      .eq('id', courseId)
+      .single()
+
+    if (courseResult.error || !courseResult.data?.asignaturas) {
+      setError('No se pudo determinar el Área de este curso.')
+      setLoading(false)
+      return
+    }
+    const infoAula = {
+      areaId: courseResult.data.asignaturas.area_id,
+      grado: courseResult.data.grado,
+      grupo: courseResult.data.grupo,
+    }
+    setAula(infoAula)
+    await loadUnidades(infoAula)
+  }
+
+  async function loadUnidades(infoAula) {
     setLoading(true)
     const result = await supabase
       .from('unidades')
-      .select('*, actividades(count)')
-      .eq('course_id', courseId)
+      .select('*')
+      .eq('area_id', infoAula.areaId)
+      .eq('grado', infoAula.grado)
+      .eq('grupo', infoAula.grupo)
       .order('numero', { ascending: true })
-    if (result.error) setError(result.error.message)
-    else setUnidades(result.data)
+    if (result.error) {
+      setError(result.error.message)
+      setLoading(false)
+      return
+    }
+    setUnidades(result.data)
+
+    // Cuántas actividades tiene ESTA asignatura (no las otras) dentro de cada carpeta compartida
+    const unidadIds = result.data.map(function (u) { return u.id })
+    if (unidadIds.length > 0) {
+      const actResult = await supabase
+        .from('actividades')
+        .select('unidad_id')
+        .eq('course_id', courseId)
+        .in('unidad_id', unidadIds)
+      if (!actResult.error) {
+        const conteo = {}
+        actResult.data.forEach(function (a) { conteo[a.unidad_id] = (conteo[a.unidad_id] || 0) + 1 })
+        setConteoPropio(conteo)
+      }
+    }
     setLoading(false)
   }
 
@@ -107,7 +152,7 @@ function UnidadesList({ courseId, onSelectUnidad }) {
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    const payload = { course_id: courseId, tipo: tipo, numero: numero, nombre: nombre || null }
+    const payload = { area_id: aula.areaId, grado: aula.grado, grupo: aula.grupo, tipo: tipo, numero: numero, nombre: nombre || null }
 
     let result
     if (editingId) {
@@ -118,26 +163,30 @@ function UnidadesList({ courseId, onSelectUnidad }) {
     }
 
     if (result.error) {
-      setError(result.error.message)
+      if (result.error.code === '23505') {
+        setError('Ya existe una carpeta con ese Tipo y Número para esta Área (probablemente creada desde otra asignatura). Búscala en la lista de abajo en vez de crearla de nuevo.')
+      } else {
+        setError(result.error.message)
+      }
       return
     }
     resetForm()
     setShowForm(false)
-    loadUnidades()
+    loadUnidades(aula)
   }
 
   async function handleDelete(id) {
-    if (!confirm('¿Eliminar esta carpeta? Se eliminarán también sus actividades, materiales y tareas.')) return
+    if (!confirm('¿Eliminar esta carpeta? Es compartida por TODAS las asignaturas de esta área (Biología, Química, Física, etc.) — se eliminarán también sus actividades, materiales y tareas de todas ellas.')) return
     const result = await supabase.from('unidades').delete().eq('id', id)
     if (result.error) alert('Error: ' + result.error.message)
-    else loadUnidades()
+    else loadUnidades(aula)
   }
 
   if (loading) return <p className="text-slate-400 text-sm">Cargando carpetas...</p>
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-1">
         <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>Unidades y Experiencias de Aprendizaje</h3>
         <button
           onClick={function () { if (showForm) setShowForm(false); else openNew() }}
@@ -147,6 +196,9 @@ function UnidadesList({ courseId, onSelectUnidad }) {
           {showForm ? 'Cancelar' : '+ Nueva carpeta'}
         </button>
       </div>
+      <p className="text-xs text-slate-400 mb-4">
+        Estas carpetas se comparten entre todas las asignaturas de esta Área para este Grado y Sección (ej. Biología, Química y Física). Si otra asignatura ya creó "Experiencia 5", aparecerá aquí — solo agrega tus propias actividades adentro.
+      </p>
 
       {showForm && (
         <form
@@ -236,7 +288,7 @@ function UnidadesList({ courseId, onSelectUnidad }) {
                   </div>
                   <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>{u.nombre || `${u.tipo} ${u.numero}`}</p>
                   <p className="text-xs text-slate-400 mt-1">
-                    {u.actividades?.[0]?.count ?? 0} actividad(es)
+                    {conteoPropio[u.id] || 0} actividad(es) de esta asignatura
                   </p>
                 </button>
                 <div className="flex gap-2">
@@ -308,6 +360,7 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
       .from('actividades')
       .select('*, competencia:competencias(nombre, codigo), actividad_capacidades(criterio, desempeno, desc_ad, desc_a, desc_b, desc_c, capacidad:capacidades(id, nombre, orden))')
       .eq('unidad_id', unidad.id)
+      .eq('course_id', courseId)
       .order('created_at', { ascending: true })
     if (result.error) setError(result.error.message)
     else setActivities(result.data)

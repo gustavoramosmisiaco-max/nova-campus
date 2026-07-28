@@ -108,7 +108,7 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
 
     const courseResult = await supabase
       .from('courses')
-      .select('institucion_id')
+      .select('institucion_id, grado, grupo, asignaturas(area_id)')
       .eq('id', courseId)
       .single()
     if (courseResult.data?.institucion_id) {
@@ -120,11 +120,16 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
       if (!instResult.error) setInstitucion(instResult.data.nombre)
     }
 
-    const unidadesResult = await supabase
-      .from('unidades')
-      .select('id, tipo, numero, nombre')
-      .eq('course_id', courseId)
-      .order('numero', { ascending: true })
+    const areaId = courseResult.data?.asignaturas?.area_id
+    const unidadesResult = areaId
+      ? await supabase
+          .from('unidades')
+          .select('id, tipo, numero, nombre')
+          .eq('area_id', areaId)
+          .eq('grado', courseResult.data.grado)
+          .eq('grupo', courseResult.data.grupo)
+          .order('numero', { ascending: true })
+      : { error: null, data: [] }
     if (!unidadesResult.error) setUnidades(unidadesResult.data)
 
     const result = await supabase
