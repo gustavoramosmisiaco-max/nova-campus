@@ -21,7 +21,7 @@ export default function DocentesList() {
 
     const profilesResult = await supabase
       .from('profiles')
-      .select('id, full_name')
+      .select('id, full_name, whatsapp')
       .eq('role', 'docente')
       .order('full_name', { ascending: true })
 
@@ -61,6 +61,12 @@ export default function DocentesList() {
     setLoading(false)
   }
 
+  async function guardarWhatsapp(id, valor) {
+    const result = await supabase.from('profiles').update({ whatsapp: valor }).eq('id', id)
+    if (result.error) alert('Error: ' + result.error.message)
+    else setDocentes(function (prev) { return prev.map(function (d) { return d.id === id ? { ...d, whatsapp: valor } : d }) })
+  }
+
   async function handleDelete(id, nombre) {
     if (!confirm(`¿Eliminar la cuenta de "${nombre}"? Esta acción no se puede deshacer.`)) return
     setDeletingId(id)
@@ -94,6 +100,7 @@ export default function DocentesList() {
           <tr style={{ borderBottom: '1px solid #E5E9F0' }}>
             <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Nombre</th>
             <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Cursos a cargo</th>
+            <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>WhatsApp</th>
             <th className="text-right py-2 font-semibold" style={{ color: NAVY_DARK }}></th>
           </tr>
         </thead>
@@ -104,6 +111,16 @@ export default function DocentesList() {
                 <td className="py-2 pr-3" style={{ color: NAVY_DARK }}>{d.full_name}</td>
                 <td className="py-2 pr-3 text-slate-500 text-xs">
                   {d.cursos.length > 0 ? d.cursos.join(' · ') : '—'}
+                </td>
+                <td className="py-2 pr-3">
+                  <input
+                    type="text"
+                    defaultValue={d.whatsapp || ''}
+                    placeholder="51987654321"
+                    className="w-32 rounded-lg px-2 py-1 text-xs outline-none"
+                    style={{ backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }}
+                    onBlur={function (e) { if (e.target.value !== (d.whatsapp || '')) guardarWhatsapp(d.id, e.target.value) }}
+                  />
                 </td>
                 <td className="py-2 text-right">
                   <button
