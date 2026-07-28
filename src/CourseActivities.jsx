@@ -634,8 +634,38 @@ function ActividadTareas({ actividad }) {
       .select('*, assignment_capacidades(capacidad:capacidades(nombre))')
       .eq('actividad_id', actividad.id)
       .order('fecha_entrega', { ascending: false })
-    if (result.error) setError(result.error.message)
-    else setAssignments(result.data)
+    if (result.error) {
+      setError(result.error.message)
+      setLoading(false)
+      return
+    }
+
+    const enrollResult = await supabase
+      .from('enrollments')
+      .select('id', { count: 'exact', head: true })
+      .eq('course_id', actividad.course_id)
+      .eq('status', 'activo')
+    const totalMatriculados = enrollResult.count || 0
+
+    const assignmentIds = result.data.map(function (a) { return a.id })
+    let countMap = {}
+    if (assignmentIds.length > 0) {
+      const subsCountResult = await supabase
+        .from('submissions')
+        .select('assignment_id')
+        .in('assignment_id', assignmentIds)
+      if (!subsCountResult.error) {
+        subsCountResult.data.forEach(function (s) {
+          countMap[s.assignment_id] = (countMap[s.assignment_id] || 0) + 1
+        })
+      }
+    }
+
+    const enriched = result.data.map(function (a) {
+      return { ...a, totalMatriculados: totalMatriculados, totalEntregados: countMap[a.id] || 0 }
+    })
+
+    setAssignments(enriched)
     setLoading(false)
   }
 
@@ -1077,6 +1107,7 @@ function ActividadTareas({ actividad }) {
       ) : (
         <ul className="space-y-3">
           {assignments.map(function (a) {
+            const pct = a.totalMatriculados > 0 ? Math.round((a.totalEntregados / a.totalMatriculados) * 100) : 0
             return (
               <li key={a.id} className="rounded-xl p-4" style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}>
                 <div className="flex justify-between items-start flex-wrap gap-3">
@@ -1088,6 +1119,18 @@ function ActividadTareas({ actividad }) {
                     <button onClick={function () { openSubmissions(a) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>Ver entregas</button>
                     <button onClick={function () { openEdit(a) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>Editar</button>
                     <button onClick={function () { handleDeleteAssignment(a.id) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: '#B91C1C' }}>Eliminar</button>
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs text-slate-500">Entregas: {a.totalEntregados} de {a.totalMatriculados}</span>
+                    <span className="text-xs font-semibold" style={{ color: pct === 100 ? GREEN : pct >= 50 ? '#B45309' : '#B91C1C' }}>{pct}%</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#E5E9F0' }}>
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${pct}%`, backgroundColor: pct === 100 ? GREEN : pct >= 50 ? '#B45309' : '#B91C1C' }}
+                    />
                   </div>
                 </div>
               </li>

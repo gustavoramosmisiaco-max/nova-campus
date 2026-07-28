@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuth } from './AuthContext'
 import MyCourses from './MyCourses'
 import StudentGrades from './StudentGrades'
+import TareasPendientes from './TareasPendientes'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -14,6 +15,7 @@ export default function EstudianteDashboard() {
 
   const menuItems = [
     { id: 'cursos', label: 'Mis Asignaturas', icon: BookIcon },
+    { id: 'pendientes', label: 'Tareas Pendientes', icon: ChartIcon },
     { id: 'notas', label: 'Notas', icon: ChartIcon },
     { id: 'zoom', label: 'Clases en vivo', icon: VideoIcon },
   ]
@@ -122,6 +124,7 @@ export default function EstudianteDashboard() {
         {/* Contenido */}
         <main className="flex-1 p-6 md:p-10">
           {activeSection === 'cursos' && <MyCourses />}
+          {activeSection === 'pendientes' && <TareasPendientes />}
           {activeSection === 'notas' && <StudentGrades />}
           {activeSection === 'zoom' && (
             <EmptyState title="Clases en vivo" subtitle="Aquí aparecerán tus próximas sesiones de Zoom." />
