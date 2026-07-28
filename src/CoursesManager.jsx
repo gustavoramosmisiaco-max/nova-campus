@@ -367,6 +367,105 @@ export default function CoursesManager() {
     setBulkSaving(false)
   }
 
+  const [masivoAreaId, setMasivoAreaId] = useState('')
+  const [masivoAsignaturaIds, setMasivoAsignaturaIds] = useState(new Set())
+  const [masivoGrados, setMasivoGrados] = useState(new Set())
+  const [masivoSecciones, setMasivoSecciones] = useState(new Set())
+  const [masivoInstitucion, setMasivoInstitucion] = useState('')
+  const [masivoCreando, setMasivoCreando] = useState(false)
+  const [masivoMsg, setMasivoMsg] = useState('')
+
+  function toggleSetValue(setFn, value) {
+    setFn(function (prev) {
+      const next = new Set(prev)
+      if (next.has(value)) next.delete(value); else next.add(value)
+      return next
+    })
+  }
+
+  async function handleCrearCursosMasivo() {
+    if (masivoAsignaturaIds.size === 0) { setMasivoMsg('Selecciona al menos una asignatura.'); return }
+    if (masivoGrados.size === 0 || masivoSecciones.size === 0) { setMasivoMsg('Selecciona al menos un Grado y una Sección.'); return }
+
+    setMasivoCreando(true)
+    setMasivoMsg('')
+
+    const asignaturaObjs = areas
+      .flatMap(function (a) { return a.asignaturas })
+      .filter(function (a) { return masivoAsignaturaIds.has(a.id) })
+
+    // Traer combinaciones que ya existan, para no duplicar
+    const existingResult = await supabase
+      .from('courses')
+      .select('asignatura_id, grado, grupo')
+      .in('asignatura_id', [...masivoAsignaturaIds])
+    const existentes = new Set((existingResult.data || []).map(function (c) { return `${c.asignatura_id}__${c.grado}__${c.grupo}` }))
+
+    const payloads = []
+    asignaturaObjs.forEach(function (asig) {
+      masivoGrados.forEach(function (grado) {
+        masivoSecciones.forEach(function (grupo) {
+          const key = `${asig.id}__${grado}__${grupo}`
+          if (existentes.has(key)) return
+          payloads.push({
+            nombre: asig.nombre,
+            asignatura_id: asig.id,
+            grado: grado,
+            grupo: grupo,
+            docente_id: null,
+            institucion_id: masivoInstitucion || null,
+            descripcion: '',
+          })
+        })
+      })
+    })
+
+    if (payloads.length === 0) {
+      setMasivoMsg('Todas esas combinaciones ya existían — no se creó ninguna nueva.')
+      setMasivoCreando(false)
+      return
+    }
+
+    const insertResult = await supabase.from('courses').insert(payloads).select('id, grado, grupo')
+    if (insertResult.error) {
+      setMasivoMsg('Error: ' + insertResult.error.message)
+      setMasivoCreando(false)
+      return
+    }
+
+    // Matricular automáticamente a quien ya esté en cada una de esas aulas
+    for (const nuevoCurso of insertResult.data) {
+      const otrosResult = await supabase
+        .from('courses')
+        .select('id')
+        .eq('grado', nuevoCurso.grado)
+        .eq('grupo', nuevoCurso.grupo)
+        .neq('id', nuevoCurso.id)
+      const otrosIds = (otrosResult.data || []).map(function (c) { return c.id })
+      if (otrosIds.length === 0) continue
+
+      const enrolResult = await supabase
+        .from('enrollments')
+        .select('student_id')
+        .in('course_id', otrosIds)
+        .eq('status', 'activo')
+      const estudiantesUnicos = [...new Set((enrolResult.data || []).map(function (e) { return e.student_id }))]
+      if (estudiantesUnicos.length === 0) continue
+
+      const matriculas = estudiantesUnicos.map(function (studentId) {
+        return { course_id: nuevoCurso.id, student_id: studentId, status: 'activo' }
+      })
+      await supabase.from('enrollments').insert(matriculas)
+    }
+
+    setMasivoMsg(`Se crearon ${payloads.length} curso(s) nuevos, con sus alumnos ya matriculados donde correspondía.`)
+    setMasivoAsignaturaIds(new Set())
+    setMasivoGrados(new Set())
+    setMasivoSecciones(new Set())
+    setMasivoCreando(false)
+    loadCourses()
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-1">
@@ -415,6 +514,98 @@ export default function CoursesManager() {
           </button>
         </div>
         {bulkMsg && <p className="text-xs mt-2" style={{ color: bulkMsg.startsWith('Error') ? '#B91C1C' : '#2f7a1f' }}>{bulkMsg}</p>}
+      </div>
+
+      <div className="bg-white rounded-2xl p-4 mb-6" style={{ border: '1px solid #E5E9F0' }}>
+        <p className="text-sm font-bold mb-1" style={{ color: NAVY_DARK }}>Crear varios cursos de golpe</p>
+        <p className="text-xs text-slate-400 mb-3">
+          Elige una o más Asignaturas, y en qué Grados/Secciones crearlas — se crea un curso por cada combinación, y matricula solos a los alumnos que ya estén en esa aula.
+        </p>
+
+        <div className="mb-3">
+          <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Área</label>
+          <select
+            value={masivoAreaId}
+            onChange={function (e) { setMasivoAreaId(e.target.value); setMasivoAsignaturaIds(new Set()) }}
+            className="rounded-lg px-3 py-2 text-sm outline-none"
+            style={{ ...inputStyle, minWidth: 260 }}
+          >
+            <option value="">-- Selecciona un área --</option>
+            {areas.map(function (a) { return <option key={a.id} value={a.id}>{a.nombre}</option> })}
+          </select>
+        </div>
+
+        {masivoAreaId && (
+          <div className="mb-3">
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Asignaturas</label>
+            <div className="flex flex-wrap gap-2">
+              {(areas.find(function (a) { return a.id === masivoAreaId })?.asignaturas || []).map(function (asig) {
+                const checked = masivoAsignaturaIds.has(asig.id)
+                return (
+                  <button
+                    key={asig.id}
+                    type="button"
+                    onClick={function () { toggleSetValue(setMasivoAsignaturaIds, asig.id) }}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+                    style={checked ? { backgroundColor: GREEN, color: 'white' } : { backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }}
+                  >
+                    {asig.nombre}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="grid sm:grid-cols-3 gap-3 mb-3">
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Grados</label>
+            <div className="flex flex-wrap gap-1.5">
+              {GRADOS.map(function (g) {
+                const checked = masivoGrados.has(g)
+                return (
+                  <button key={g} type="button" onClick={function () { toggleSetValue(setMasivoGrados, g) }}
+                    className="w-9 h-9 rounded-lg text-sm font-semibold transition"
+                    style={checked ? { backgroundColor: NAVY, color: 'white' } : { backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }}>
+                    {g}°
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Secciones</label>
+            <div className="flex flex-wrap gap-1.5">
+              {SECCIONES.map(function (s) {
+                const checked = masivoSecciones.has(s)
+                return (
+                  <button key={s} type="button" onClick={function () { toggleSetValue(setMasivoSecciones, s) }}
+                    className="w-9 h-9 rounded-lg text-sm font-semibold transition"
+                    style={checked ? { backgroundColor: NAVY, color: 'white' } : { backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }}>
+                    {s}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Institución (opcional)</label>
+            <select value={masivoInstitucion} onChange={function (e) { setMasivoInstitucion(e.target.value) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+              <option value="">-- Sin asignar --</option>
+              {instituciones.map(function (i) { return <option key={i.id} value={i.id}>{i.nombre}</option> })}
+            </select>
+          </div>
+        </div>
+
+        <button
+          onClick={handleCrearCursosMasivo}
+          disabled={masivoCreando}
+          className="text-sm font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+          style={{ backgroundColor: GREEN }}
+        >
+          {masivoCreando ? 'Creando...' : 'Crear cursos'}
+        </button>
+        {masivoMsg && <p className="text-xs mt-2" style={{ color: masivoMsg.startsWith('Error') ? '#B91C1C' : '#2f7a1f' }}>{masivoMsg}</p>}
       </div>
 
       {loading ? (
