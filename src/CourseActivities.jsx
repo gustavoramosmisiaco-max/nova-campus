@@ -652,10 +652,11 @@ function ActividadTareas({ actividad }) {
     if (assignmentIds.length > 0) {
       const subsCountResult = await supabase
         .from('submissions')
-        .select('assignment_id')
+        .select('assignment_id, file_url')
         .in('assignment_id', assignmentIds)
       if (!subsCountResult.error) {
         subsCountResult.data.forEach(function (s) {
+          if (s.file_url == null) return // registrado en 0 por el docente, no es una entrega real
           countMap[s.assignment_id] = (countMap[s.assignment_id] || 0) + 1
         })
       }
