@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient'
 import { compararPorApellido } from './gradeUtils'
 
 const NAVY_DARK = '#0F2A4A'
+const NAVY = '#1d5c8f'
 const GREEN_DARK = '#2f7a1f'
 
 const GRADOS = [1, 2, 3, 4, 5]
@@ -36,14 +37,18 @@ export default function EstudiantesList() {
 
     const enrollResult = await supabase
       .from('enrollments')
-      .select('student_id, course:courses(grado, grupo)')
+      .select('student_id, course:courses(grado, grupo, institucion:instituciones_educativas(nombre))')
       .eq('status', 'activo')
 
     const aulaMap = {}
     if (!enrollResult.error) {
       enrollResult.data.forEach(function (e) {
         if (!aulaMap[e.student_id] && e.course) {
-          aulaMap[e.student_id] = { grado: e.course.grado, grupo: e.course.grupo }
+          aulaMap[e.student_id] = {
+            grado: e.course.grado,
+            grupo: e.course.grupo,
+            institucion: e.course.institucion?.nombre || null,
+          }
         }
       })
     }
@@ -77,14 +82,19 @@ export default function EstudiantesList() {
   if (loading) return <p className="text-slate-400 text-sm">Cargando estudiantes...</p>
   if (error) return <p className="text-red-500 text-sm">Error: {error}</p>
 
-  const grupos = []
-  GRADOS.forEach(function (g) {
-    SECCIONES.forEach(function (s) {
-      const items = students.filter(function (st) { return st.aula?.grado === g && st.aula?.grupo === s })
-      if (items.length > 0) grupos.push({ grado: g, grupo: s, items: items })
+  const instituciones = [...new Set(students.map(function (s) { return s.aula?.institucion }).filter(Boolean))].sort()
+  const sinInstitucion = students.filter(function (s) { return !s.aula?.institucion })
+
+  function gruposDeGradoSeccion(lista) {
+    const grupos = []
+    GRADOS.forEach(function (g) {
+      SECCIONES.forEach(function (sec) {
+        const items = lista.filter(function (st) { return st.aula?.grado === g && st.aula?.grupo === sec })
+        if (items.length > 0) grupos.push({ grado: g, grupo: sec, items: items })
+      })
     })
-  })
-  const sinAula = students.filter(function (st) { return !st.aula })
+    return grupos
+  }
 
   function renderTable(items) {
     return (
@@ -118,6 +128,20 @@ export default function EstudiantesList() {
     )
   }
 
+  function renderAulaGroup(grupo) {
+    return (
+      <div key={`${grupo.grado}${grupo.grupo}`} className="bg-white rounded-xl p-4" style={{ border: '1px solid #E5E9F0' }}>
+        <h4
+          className="text-xs font-bold uppercase tracking-wide mb-3 px-3 py-1.5 rounded-lg inline-block"
+          style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}
+        >
+          {grupo.grado}° Secundaria — Sección {grupo.grupo} ({grupo.items.length})
+        </h4>
+        {renderTable(grupo.items)}
+      </div>
+    )
+  }
+
   return (
     <div>
       <h2 className="text-2xl font-bold mb-2" style={{ color: NAVY_DARK }}>Estudiantes</h2>
@@ -126,30 +150,47 @@ export default function EstudiantesList() {
       {students.length === 0 ? (
         <p className="text-slate-400 text-sm">Aún no hay estudiantes registrados.</p>
       ) : (
-        <div className="space-y-6">
-          {grupos.map(function (grupo) {
+        <div className="space-y-8">
+          {instituciones.map(function (inst) {
+            const lista = students.filter(function (s) { return s.aula?.institucion === inst })
+            const grupos = gruposDeGradoSeccion(lista)
             return (
-              <div key={`${grupo.grado}${grupo.grupo}`} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
+              <div key={inst}>
                 <h3
-                  className="text-xs font-bold uppercase tracking-wide mb-3 px-3 py-1.5 rounded-lg inline-block"
-                  style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}
+                  className="text-sm font-bold mb-3 px-3 py-2 rounded-lg inline-block"
+                  style={{ backgroundColor: NAVY_DARK, color: 'white' }}
                 >
-                  {grupo.grado}° Secundaria — Sección {grupo.grupo} ({grupo.items.length})
+                  {inst} ({lista.length})
                 </h3>
-                {renderTable(grupo.items)}
+                <div className="space-y-4">
+                  {grupos.map(renderAulaGroup)}
+                </div>
               </div>
             )
           })}
 
-          {sinAula.length > 0 && (
-            <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
+          {sinInstitucion.length > 0 && (
+            <div>
               <h3
-                className="text-xs font-bold uppercase tracking-wide mb-3 px-3 py-1.5 rounded-lg inline-block"
+                className="text-sm font-bold mb-3 px-3 py-2 rounded-lg inline-block"
                 style={{ backgroundColor: '#FDECEC', color: '#B91C1C' }}
               >
-                Sin aula asignada ({sinAula.length})
+                Sin institución asignada ({sinInstitucion.length})
               </h3>
-              {renderTable(sinAula)}
+              <div className="space-y-4">
+                {gruposDeGradoSeccion(sinInstitucion).map(renderAulaGroup)}
+                {sinInstitucion.filter(function (s) { return !s.aula }).length > 0 && (
+                  <div className="bg-white rounded-xl p-4" style={{ border: '1px solid #E5E9F0' }}>
+                    <h4
+                      className="text-xs font-bold uppercase tracking-wide mb-3 px-3 py-1.5 rounded-lg inline-block"
+                      style={{ backgroundColor: '#FDECEC', color: '#B91C1C' }}
+                    >
+                      Sin aula asignada ({sinInstitucion.filter(function (s) { return !s.aula }).length})
+                    </h4>
+                    {renderTable(sinInstitucion.filter(function (s) { return !s.aula }))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
