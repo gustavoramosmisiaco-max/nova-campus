@@ -126,13 +126,13 @@ export default function StudentGrades() {
     if (assignmentIds.length > 0) {
       const subsResult = await supabase
         .from('submissions')
-        .select('assignment_id, score')
+        .select('assignment_id, score, publicado')
         .eq('student_id', session.user.id)
         .in('assignment_id', assignmentIds)
 
       if (!subsResult.error) {
         subsResult.data.forEach(function (s) {
-          submissionsMap[s.assignment_id] = { score: s.score, entregado: true }
+          submissionsMap[s.assignment_id] = { score: s.score, publicado: s.publicado, entregado: true }
         })
       }
     }
@@ -146,9 +146,9 @@ export default function StudentGrades() {
           const submission = submissionsMap[a.id]
           const isPastDue = new Date(a.fecha_entrega) < now
           const entregado = Boolean(submission)
-          const calificado = entregado && submission.score != null
+          const calificado = entregado && submission.score != null && submission.publicado
 
-          // Regla: tarea vencida SIN entrega -> C automático (0). Si entregó pero no lo calificaron, NO se autocalifica.
+          // Regla: tarea vencida SIN entrega -> C automático (0). Si entregó pero no lo calificaron o no está publicado, NO se autocalifica.
           const autoZero = isPastDue && !entregado
           const finalScore = autoZero ? 0 : (calificado ? submission.score : null)
 

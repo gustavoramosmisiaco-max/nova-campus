@@ -620,6 +620,7 @@ function ActividadTareas({ actividad }) {
   const [enrolledStudents, setEnrolledStudents] = useState([])
   const [loadingSubs, setLoadingSubs] = useState(false)
   const [aplicandoCeros, setAplicandoCeros] = useState(false)
+  const [publicandoNotas, setPublicandoNotas] = useState(false)
   const [preview, setPreview] = useState(null)
 
   useEffect(function () {
@@ -818,6 +819,7 @@ function ActividadTareas({ actividad }) {
         score: 0,
         graded_by: session.user.id,
         graded_at: nowIso,
+        publicado: true,
       })
       .select('id')
       .single()
@@ -859,16 +861,40 @@ function ActividadTareas({ actividad }) {
     openSubmissions(selectedAssignment)
   }
 
+  async function handleSubirNotas() {
+    if (submissions.length === 0) {
+      alert('No hay entregas registradas todavía para publicar.')
+      return
+    }
+    if (!confirm('¿Publicar las notas de esta tarea? Se harán visibles en Instrumento de Evaluación, Registro Auxiliar y para los estudiantes.')) return
+    setPublicandoNotas(true)
+    await supabase.from('submissions').update({ publicado: true }).eq('assignment_id', selectedAssignment.id)
+    setPublicandoNotas(false)
+    openSubmissions(selectedAssignment)
+    alert('Notas publicadas correctamente.')
+  }
+
   const submittedStudentIds = new Set(submissions.map(function (s) { return s.student_id }))
   const missingStudents = enrolledStudents.filter(function (s) { return !submittedStudentIds.has(s.id) })
   const yaVencio = selectedAssignment ? new Date(selectedAssignment.fecha_entrega) < new Date() : false
+  const hayNotasSinPublicar = submissions.some(function (s) { return !s.publicado })
 
   if (selectedAssignment) {
     return (
       <div>
         <button onClick={function () { setSelectedAssignment(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a tareas</button>
         <h3 className="text-lg font-bold mb-1" style={{ color: NAVY_DARK }}>{selectedAssignment.titulo}</h3>
-        <p className="text-slate-500 text-sm mb-4">Entrega: {new Date(selectedAssignment.fecha_entrega).toLocaleString('es-PE')}</p>
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+          <p className="text-slate-500 text-sm">Entrega: {new Date(selectedAssignment.fecha_entrega).toLocaleString('es-PE')}</p>
+          <button
+            onClick={handleSubirNotas}
+            disabled={publicandoNotas || submissions.length === 0}
+            className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+            style={{ backgroundColor: hayNotasSinPublicar ? '#B45309' : GREEN }}
+          >
+            {publicandoNotas ? 'Publicando...' : hayNotasSinPublicar ? 'Subir notas (hay cambios sin publicar)' : 'Subir notas'}
+          </button>
+        </div>
 
         {justificaciones.filter(function (j) { return j.estado === 'pendiente' }).length > 0 && (
           <div className="mb-5 rounded-xl p-4" style={{ backgroundColor: '#FFF7E6', border: '1px solid #F5D98A' }}>
@@ -965,6 +991,14 @@ function ActividadTareas({ actividad }) {
                           style={{ backgroundColor: '#FFF7E6', color: '#B45309' }}
                         >
                           Sin calificar
+                        </span>
+                      )}
+                      {!s.publicado && (
+                        <span
+                          className="text-xs font-semibold px-2 py-0.5 rounded-full inline-block mt-1 ml-1"
+                          style={{ backgroundColor: '#FDECEC', color: '#B91C1C' }}
+                        >
+                          Sin publicar
                         </span>
                       )}
                     </div>

@@ -7,8 +7,6 @@ import autoTable from 'jspdf-autotable'
 import ExcelJS from 'exceljs'
 
 const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 
@@ -21,44 +19,6 @@ const NIVELES = [
 
 const tableCell = { border: '1px solid #94A3B8', padding: '6px 8px', fontSize: '12px' }
 const tableHeadCell = { ...tableCell, backgroundColor: '#F4F6F9', fontWeight: 700, color: NAVY_DARK }
-
-const COLOR_INSTITUCION = 'FF1F4E79'
-const COLOR_TITULO = 'FF2E75B6'
-const COLOR_METADATA = 'FFDEEBF7'
-const COLOR_CAPACIDAD = 'FF548235'
-const COLOR_TABLA_HEAD = 'FF1F4E79'
-const NIVEL_COLOR_ARGB = { AD: 'FF2F7A1F', A: 'FF1D5C8F', B: 'FFB45309', C: 'FFB91C1C' }
-
-const RGB_INSTITUCION = [31, 78, 121]
-const RGB_TITULO = [46, 117, 182]
-const RGB_METADATA = [222, 235, 247]
-const RGB_CAPACIDAD = [84, 130, 53]
-const RGB_TABLA_HEAD = [31, 78, 121]
-const RGB_NIVEL = { AD: [47, 122, 31], A: [29, 92, 143], B: [180, 83, 9], C: [185, 28, 28] }
-
-function coloredBlock(doc, y, text, fillColor, textColor, fontSize, bold, pageWidth, align) {
-  doc.setFontSize(fontSize)
-  doc.setFont(undefined, bold ? 'bold' : 'normal')
-  const maxWidth = pageWidth - 20
-  const lines = doc.splitTextToSize(text, maxWidth)
-  const lineHeight = fontSize * 0.42 + 1.2
-  const blockHeight = lines.length * lineHeight + 2.5
-  if (fillColor) {
-    doc.setFillColor(fillColor[0], fillColor[1], fillColor[2])
-    doc.rect(10, y, pageWidth - 20, blockHeight, 'F')
-  }
-  doc.setTextColor(textColor[0], textColor[1], textColor[2])
-  lines.forEach(function (line, i) {
-    if (align === 'center') {
-      doc.text(line, pageWidth / 2, y + lineHeight * (i + 1), { align: 'center' })
-    } else {
-      doc.text(line, 14, y + lineHeight * (i + 1))
-    }
-  })
-  doc.setFont(undefined, 'normal')
-  doc.setTextColor(0, 0, 0)
-  return y + blockHeight + 0.8
-}
 
 function todayFormatted() {
   const d = new Date()
@@ -82,9 +42,15 @@ async function descargarWorkbook(workbook, filename) {
   URL.revokeObjectURL(url)
 }
 
+const COLOR_INSTITUCION = 'FF1F4E79'
+const COLOR_TITULO = 'FF2E75B6'
+const COLOR_METADATA = 'FFDEEBF7'
+const COLOR_CAPACIDAD = 'FF548235'
+const COLOR_TABLA_HEAD = 'FF1F4E79'
+const NIVEL_COLOR_ARGB = { AD: 'FF2F7A1F', A: 'FF1D5C8F', B: 'FFB45309', C: 'FFB91C1C' }
+
 export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGrado, courseGrupo }) {
   const { profile } = useAuth()
-  const [unidades, setUnidades] = useState([])
   const [activities, setActivities] = useState([])
   const [selectedId, setSelectedId] = useState('')
   const [loading, setLoading] = useState(true)
@@ -93,8 +59,6 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
   const [institucion, setInstitucion] = useState(function () {
     return localStorage.getItem('nova_institucion') || ''
   })
-  const [selectedForExport, setSelectedForExport] = useState(new Set())
-  const [exporting, setExporting] = useState(false)
 
   function saveInstitucion(value) {
     setInstitucion(value)
@@ -102,28 +66,30 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
   }
 
   useEffect(function () {
-    loadAll()
+    loadActivities()
   }, [courseId])
 
-  async function loadAll() {
+  async function loadActivities() {
     setLoading(true)
-    const unidadesResult = await supabase
-      .from('unidades')
-      .select('id, tipo, numero, nombre')
-      .eq('course_id', courseId)
-      .order('numero', { ascending: true })
-    if (!unidadesResult.error) setUnidades(unidadesResult.data)
-
     const result = await supabase
       .from('actividades')
-      .select('id, nombre, numero_actividad, proposito, tipo_instrumento, unidad_id, competencia:competencias(nombre), actividad_capacidades(criterio, desempeno, desc_ad, desc_a, desc_b, desc_c, capacidad:capacidades(id, nombre, orden))')
+      .select('id, nombre, numero_actividad, proposito, tipo_instrumento, competencia:competencias(nombre), actividad_capacidades(criterio, desempeno, desc_ad, desc_a, desc_b, desc_c, capacidad:capacidades(id, nombre, orden))')
       .eq('course_id', courseId)
       .order('created_at', { ascending: true })
     if (!result.error) setActivities(result.data)
     setLoading(false)
   }
 
-  async function computeMatrix(actividad) {
+  async function loadMatrix(actividadId) {
+    setSelectedId(actividadId)
+    if (!actividadId) {
+      setMatrix(null)
+      return
+    }
+    setLoading(true)
+    setError('')
+
+    const actividad = activities.find(function (a) { return a.id === actividadId })
     const capacidades = (actividad.actividad_capacidades || [])
       .slice()
       .sort(function (x, y) { return (x.capacidad.orden || 0) - (y.capacidad.orden || 0) })
@@ -131,8 +97,12 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
     const assignResult = await supabase
       .from('assignments')
       .select('id, fecha_entrega, assignment_capacidades(capacidad_id)')
-      .eq('actividad_id', actividad.id)
-    if (assignResult.error) return null
+      .eq('actividad_id', actividadId)
+    if (assignResult.error) {
+      setError(assignResult.error.message)
+      setLoading(false)
+      return
+    }
     const assignmentIds = assignResult.data.map(function (a) { return a.id })
 
     const enrollResult = await supabase
@@ -140,18 +110,22 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
       .select('student:profiles(id, full_name)')
       .eq('course_id', courseId)
       .eq('status', 'activo')
-    if (enrollResult.error) return null
+    if (enrollResult.error) {
+      setError(enrollResult.error.message)
+      setLoading(false)
+      return
+    }
     const students = enrollResult.data
       .map(function (e) { return e.student })
       .sort(function (a, b) { return a.full_name.localeCompare(b.full_name) })
 
     let cellValues = {}
     if (assignmentIds.length > 0) {
-      const subsResult = await supabase.from('submissions').select('id, student_id, assignment_id').in('assignment_id', assignmentIds)
+      const subsResult = await supabase.from('submissions').select('id, student_id, assignment_id, publicado').in('assignment_id', assignmentIds)
       const submissionsData = subsResult.error ? [] : subsResult.data
       const submissionIds = submissionsData.map(function (s) { return s.id })
       const subMap = {}
-      submissionsData.forEach(function (s) { subMap[s.id] = s.student_id })
+      submissionsData.forEach(function (s) { subMap[s.id] = { studentId: s.student_id, publicado: s.publicado } })
 
       let scoresData = []
       if (submissionIds.length > 0) {
@@ -165,13 +139,16 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
       const now = new Date()
       const grouped = {}
 
+      // Notas ya registradas por el docente (solo si ya fueron publicadas)
       scoresData.forEach(function (row) {
-        const studentId = subMap[row.submission_id]
-        const key = `${studentId}__${row.capacidad_id}`
+        const info = subMap[row.submission_id]
+        if (!info || !info.publicado) return
+        const key = `${info.studentId}__${row.capacidad_id}`
         if (!grouped[key]) grouped[key] = []
         if (row.score != null) grouped[key].push(row.score)
       })
 
+      // Para cada tarea de esta actividad, revisar quién no entregó y ya venció -> C (0)
       assignResult.data.forEach(function (assignment) {
         const isPastDue = new Date(assignment.fecha_entrega) < now
         if (!isPastDue) return
@@ -194,62 +171,143 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
       })
     }
 
-    return {
+    setMatrix({
       actividad: actividad,
       tipoInstrumento: actividad.tipo_instrumento || 'Lista de cotejo',
       capacidades: capacidades,
       students: students,
       cellValues: cellValues,
-    }
-  }
-
-  async function loadMatrix(actividadId) {
-    setSelectedId(actividadId)
-    if (!actividadId) { setMatrix(null); return }
-    setLoading(true)
-    setError('')
-    const actividad = activities.find(function (a) { return a.id === actividadId })
-    const m = await computeMatrix(actividad)
-    setMatrix(m)
+    })
     setLoading(false)
   }
 
-  function toggleActividad(id) {
-    setSelectedForExport(function (prev) {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id); else next.add(id)
-      return next
-    })
-  }
-
-  function toggleCarpeta(unidadId, actividadesDeCarpeta) {
-    setSelectedForExport(function (prev) {
-      const next = new Set(prev)
-      const todosMarcados = actividadesDeCarpeta.every(function (a) { return next.has(a.id) })
-      actividadesDeCarpeta.forEach(function (a) {
-        if (todosMarcados) next.delete(a.id); else next.add(a.id)
-      })
-      return next
-    })
-  }
-
-  function selectAll() {
-    setSelectedForExport(new Set(activities.map(function (a) { return a.id })))
-  }
-
-  function clearSelection() {
-    setSelectedForExport(new Set())
-  }
-
-  // ============================================================
-  // Construcción de una hoja Excel (reutilizable individual + masivo)
-  // ============================================================
-  function buildListaCotejoSheet(ws, m) {
-    const a = m.actividad
-    const totalCols = 2 + m.capacidades.length
-    for (let i = 1; i <= totalCols; i++) {
-      ws.getColumn(i).width = i === 1 ? 14.75 : i === 2 ? 43.375 : 21.625
+  function exportarListaCotejoPDF() {
+    if (!institucion.trim()) {
+      alert('Completa el nombre de la institución educativa antes de exportar.')
+      return
     }
+    const a = matrix.actividad
+    const doc = new jsPDF({ orientation: 'landscape', format: 'a4' })
+    const pageWidth = doc.internal.pageSize.getWidth()
+
+    doc.setFontSize(10)
+    doc.text(institucion, 14, 12)
+    doc.setFontSize(14)
+    doc.text('LISTA DE COTEJO', pageWidth / 2, 12, { align: 'center' })
+
+    doc.setFontSize(9)
+    doc.text(`Fecha: ${todayFormatted()}   Grado: ${courseGrado}° SECUNDARIA   Sección: ${courseGrupo}`, 14, 20)
+    doc.text(`Propósito: ${a.proposito || '—'}`, 14, 26)
+    doc.text(`Competencia: ${a.competencia?.nombre || '—'}`, 14, 32)
+    doc.text(`Actividad: ${a.nombre}`, 14, 38)
+
+    // Bloque de detalle: capacidad, criterio y desempeño (igual que en pantalla)
+    autoTable(doc, {
+      startY: 43,
+      head: [matrix.capacidades.map(function (cap) { return cap.capacidad.nombre })],
+      body: [matrix.capacidades.map(function (cap) {
+        return `Criterio: ${cap.criterio || '—'}\n\nDesempeño: ${cap.desempeno || '—'}`
+      })],
+      styles: { fontSize: 7, cellWidth: 'wrap', valign: 'top' },
+      headStyles: { fillColor: [15, 42, 74], halign: 'center' },
+      margin: { left: 14, right: 14 },
+    })
+
+    const detailEndY = doc.lastAutoTable.finalY + 4
+
+    // Tabla de calificación: solo la letra lograda por capacidad
+    const head = [['N°', 'Apellidos y Nombres', ...matrix.capacidades.map(function (cap) { return cap.capacidad.nombre })]]
+    const body = matrix.students.map(function (s, idx) {
+      const row = [idx + 1, s.full_name]
+      matrix.capacidades.forEach(function (cap) {
+        const score = matrix.cellValues[`${s.id}__${cap.capacidad.id}`]
+        row.push(score != null ? getLetterGrade(score) : '—')
+      })
+      return row
+    })
+
+    autoTable(doc, {
+      startY: detailEndY,
+      head: head,
+      body: body,
+      styles: { fontSize: 8, halign: 'center' },
+      headStyles: { fillColor: [15, 42, 74] },
+      columnStyles: { 1: { halign: 'left' } },
+      margin: { left: 14, right: 14 },
+    })
+
+    doc.save(`Lista_Cotejo_${courseNombre}_Actividad${a.numero_actividad}.pdf`)
+  }
+
+  function exportarRubricaPDF() {
+    if (!institucion.trim()) {
+      alert('Completa el nombre de la institución educativa antes de exportar.')
+      return
+    }
+    const a = matrix.actividad
+    const doc = new jsPDF({ orientation: 'landscape', format: 'a4' })
+    const pageWidth = doc.internal.pageSize.getWidth()
+
+    doc.setFontSize(10)
+    doc.text(institucion, 14, 12)
+    doc.setFontSize(14)
+    doc.text('RÚBRICA DE EVALUACIÓN', pageWidth / 2, 12, { align: 'center' })
+
+    doc.setFontSize(9)
+    doc.text(`Fecha: ${todayFormatted()}   Grado: ${courseGrado}° SECUNDARIA   Sección: ${courseGrupo}`, 14, 20)
+    doc.text(`Competencia: ${a.competencia?.nombre || '—'}`, 14, 26)
+    doc.text(`Propósito: ${a.proposito || '—'}`, 14, 32)
+    doc.text(`Actividad: ${a.nombre}   Docente: ${profile?.full_name || ''}`, 14, 38)
+
+    let startY = 44
+    matrix.capacidades.forEach(function (cap) {
+      doc.setFontSize(10)
+      doc.text(cap.capacidad.nombre, 14, startY)
+      startY += 4
+
+      autoTable(doc, {
+        startY: startY,
+        head: [['AD', 'A', 'B', 'C']],
+        body: [NIVELES.map(function (n) { return cap['desc_' + n.letra.toLowerCase()] || '—' })],
+        styles: { fontSize: 7 },
+        headStyles: { fillColor: [15, 42, 74] },
+        margin: { left: 14, right: 14 },
+      })
+      startY = doc.lastAutoTable.finalY + 4
+
+      const rosterBody = matrix.students.map(function (s, idx) {
+        const score = matrix.cellValues[`${s.id}__${cap.capacidad.id}`]
+        const letra = score != null ? getLetterGrade(score) : '—'
+        return [idx + 1, s.full_name, letra]
+      })
+      autoTable(doc, {
+        startY: startY,
+        head: [['N°', 'Apellidos y Nombres', 'Calificación']],
+        body: rosterBody,
+        styles: { fontSize: 7 },
+        headStyles: { fillColor: [15, 42, 74] },
+        margin: { left: 14, right: 14 },
+      })
+      startY = doc.lastAutoTable.finalY + 10
+    })
+
+    doc.save(`Rubrica_${courseNombre}_Actividad${a.numero_actividad}.pdf`)
+  }
+
+  async function exportarListaCotejoExcel() {
+    if (!institucion.trim()) {
+      alert('Completa el nombre de la institución educativa antes de exportar.')
+      return
+    }
+    const a = matrix.actividad
+    const totalCols = 2 + matrix.capacidades.length
+
+    const workbook = new ExcelJS.Workbook()
+    const ws = workbook.addWorksheet('Lista de Cotejo')
+
+    ws.getColumn(1).width = 14.75
+    ws.getColumn(2).width = 43.375
+    for (let i = 3; i <= totalCols; i++) ws.getColumn(i).width = 21.625
 
     function mergedRow(rowNum, text, fillArgb, fontArgb, size, bold) {
       ws.mergeCells(rowNum, 1, rowNum, totalCols)
@@ -277,7 +335,7 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
     mergedRow(6, `Actividad: ${a.nombre}`, COLOR_METADATA, 'FF000000', 11, false)
 
     let r = 8
-    m.capacidades.forEach(function (cap) {
+    matrix.capacidades.forEach(function (cap) {
       mergedRow(r, cap.capacidad.nombre, COLOR_CAPACIDAD, 'FFFFFFFF', 12, true)
       r++
       mergedRow(r, `Criterio: ${cap.criterio || '—'}`, null, 'FF000000', 10, false)
@@ -288,7 +346,7 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
     r++
 
     const headerRow = ws.getRow(r)
-    ;['N°', 'Apellidos y Nombres', ...m.capacidades.map(function (cap) { return cap.capacidad.nombre })].forEach(function (text, i) {
+    ;['N°', 'Apellidos y Nombres', ...matrix.capacidades.map(function (cap) { return cap.capacidad.nombre })].forEach(function (text, i) {
       const cell = headerRow.getCell(i + 1)
       cell.value = text
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
@@ -298,13 +356,13 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
     })
     r++
 
-    m.students.forEach(function (s, idx) {
+    matrix.students.forEach(function (s, idx) {
       const row = ws.getRow(r)
       row.getCell(1).value = idx + 1
       row.getCell(2).value = s.full_name
       row.getCell(1).border = row.getCell(2).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
-      m.capacidades.forEach(function (cap, ci) {
-        const score = m.cellValues[`${s.id}__${cap.capacidad.id}`]
+      matrix.capacidades.forEach(function (cap, ci) {
+        const score = matrix.cellValues[`${s.id}__${cap.capacidad.id}`]
         const letra = score != null ? getLetterGrade(score) : '—'
         const cell = row.getCell(3 + ci)
         cell.value = letra
@@ -314,11 +372,20 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
       })
       r++
     })
+
+    await descargarWorkbook(workbook, `Lista_Cotejo_${courseNombre}_Actividad${a.numero_actividad}.xlsx`)
   }
 
-  function buildRubricaSheet(ws, m) {
-    const a = m.actividad
+  async function exportarRubricaExcel() {
+    if (!institucion.trim()) {
+      alert('Completa el nombre de la institución educativa antes de exportar.')
+      return
+    }
+    const a = matrix.actividad
     const totalCols = 4
+
+    const workbook = new ExcelJS.Workbook()
+    const ws = workbook.addWorksheet('Rúbrica')
     for (let i = 1; i <= totalCols; i++) ws.getColumn(i).width = 32
 
     function mergedRow(rowNum, text, fillArgb, fontArgb, size, bold) {
@@ -347,7 +414,7 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
     mergedRow(6, `Actividad: ${a.nombre}   Docente: ${profile?.full_name || ''}`, COLOR_METADATA, 'FF000000', 11, false)
 
     let r = 8
-    m.capacidades.forEach(function (cap) {
+    matrix.capacidades.forEach(function (cap) {
       mergedRow(r, cap.capacidad.nombre, COLOR_CAPACIDAD, 'FFFFFFFF', 12, true)
       r++
       if (cap.criterio) {
@@ -384,8 +451,8 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
       })
       r++
 
-      m.students.forEach(function (s, idx) {
-        const score = m.cellValues[`${s.id}__${cap.capacidad.id}`]
+      matrix.students.forEach(function (s, idx) {
+        const score = matrix.cellValues[`${s.id}__${cap.capacidad.id}`]
         const letra = score != null ? getLetterGrade(score) : '—'
         const row = ws.getRow(r)
         row.getCell(1).value = idx + 1
@@ -399,221 +466,17 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
       })
       r++
     })
+
+    await descargarWorkbook(workbook, `Rubrica_${courseNombre}_Actividad${a.numero_actividad}.xlsx`)
   }
-
-  // ============================================================
-  // Dibujo de una página PDF (reutilizable individual + masivo)
-  // ============================================================
-  function drawListaCotejoPDF(doc, m) {
-    const a = m.actividad
-    const pageWidth = doc.internal.pageSize.getWidth()
-    let y = 4
-
-    y = coloredBlock(doc, y, institucion, RGB_INSTITUCION, [255, 255, 255], 14, true, pageWidth)
-    y = coloredBlock(doc, y, 'LISTA DE COTEJO', RGB_TITULO, [255, 255, 255], 12, true, pageWidth, 'center')
-    y = coloredBlock(doc, y, `Fecha: ${todayFormatted()}   Grado: ${courseGrado}° SECUNDARIA   Sección: ${courseGrupo}`, RGB_METADATA, [0, 0, 0], 9, true, pageWidth)
-    y = coloredBlock(doc, y, `Propósito: ${a.proposito || '—'}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
-    y = coloredBlock(doc, y, `Competencia: ${a.competencia?.nombre || '—'}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
-    y = coloredBlock(doc, y, `Actividad: ${a.nombre}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
-    y += 1.5
-
-    m.capacidades.forEach(function (cap) {
-      if (y > doc.internal.pageSize.getHeight() - 50) { doc.addPage(); y = 4 }
-      y = coloredBlock(doc, y, cap.capacidad.nombre, RGB_CAPACIDAD, [255, 255, 255], 10, true, pageWidth)
-      y = coloredBlock(doc, y, `Criterio: ${cap.criterio || '—'}`, null, [0, 0, 0], 8, false, pageWidth)
-      y = coloredBlock(doc, y, `Desempeño: ${cap.desempeno || '—'}`, null, [0, 0, 0], 8, false, pageWidth)
-    })
-    y += 1.5
-
-    const head = [['N°', 'Apellidos y Nombres', ...m.capacidades.map(function (cap) { return cap.capacidad.nombre })]]
-    const body = m.students.map(function (s, idx) {
-      const row = [idx + 1, s.full_name]
-      m.capacidades.forEach(function (cap) {
-        const score = m.cellValues[`${s.id}__${cap.capacidad.id}`]
-        row.push(score != null ? getLetterGrade(score) : '—')
-      })
-      return row
-    })
-
-    autoTable(doc, {
-      startY: y,
-      head: head,
-      body: body,
-      styles: { fontSize: 8, halign: 'center' },
-      headStyles: { fillColor: RGB_TABLA_HEAD, textColor: [255, 255, 255] },
-      columnStyles: { 1: { halign: 'left' } },
-      margin: { left: 10, right: 10 },
-      didParseCell: function (data) {
-        if (data.section === 'body' && data.column.index >= 2) {
-          const val = data.cell.raw
-          if (RGB_NIVEL[val]) {
-            data.cell.styles.textColor = RGB_NIVEL[val]
-            data.cell.styles.fontStyle = 'bold'
-          }
-        }
-      },
-    })
-  }
-
-  function drawRubricaPDF(doc, m) {
-    const a = m.actividad
-    const pageWidth = doc.internal.pageSize.getWidth()
-    let y = 4
-
-    y = coloredBlock(doc, y, institucion, RGB_INSTITUCION, [255, 255, 255], 14, true, pageWidth)
-    y = coloredBlock(doc, y, 'RÚBRICA DE EVALUACIÓN', RGB_TITULO, [255, 255, 255], 12, true, pageWidth, 'center')
-    y = coloredBlock(doc, y, `Fecha: ${todayFormatted()}   Grado: ${courseGrado}° SECUNDARIA   Sección: ${courseGrupo}`, RGB_METADATA, [0, 0, 0], 9, true, pageWidth)
-    y = coloredBlock(doc, y, `Competencia: ${a.competencia?.nombre || '—'}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
-    y = coloredBlock(doc, y, `Propósito: ${a.proposito || '—'}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
-    y = coloredBlock(doc, y, `Actividad: ${a.nombre}   Docente: ${profile?.full_name || ''}`, RGB_METADATA, [0, 0, 0], 8, false, pageWidth)
-    y += 1.5
-
-    m.capacidades.forEach(function (cap) {
-      if (y > doc.internal.pageSize.getHeight() - 70) { doc.addPage(); y = 4 }
-      y = coloredBlock(doc, y, cap.capacidad.nombre, RGB_CAPACIDAD, [255, 255, 255], 10, true, pageWidth)
-      if (cap.criterio) {
-        y = coloredBlock(doc, y, `Criterio: ${cap.criterio}`, null, [0, 0, 0], 8, false, pageWidth)
-      }
-
-      autoTable(doc, {
-        startY: y,
-        head: [['AD', 'A', 'B', 'C']],
-        body: [NIVELES.map(function (n) { return cap['desc_' + n.letra.toLowerCase()] || '—' })],
-        styles: { fontSize: 7 },
-        margin: { left: 10, right: 10 },
-        didParseCell: function (data) {
-          if (data.section === 'head') {
-            const letras = ['AD', 'A', 'B', 'C']
-            data.cell.styles.fillColor = RGB_NIVEL[letras[data.column.index]]
-            data.cell.styles.textColor = [255, 255, 255]
-          }
-        },
-      })
-      y = doc.lastAutoTable.finalY + 3
-
-      const rosterBody = m.students.map(function (s, idx) {
-        const score = m.cellValues[`${s.id}__${cap.capacidad.id}`]
-        const letra = score != null ? getLetterGrade(score) : '—'
-        return [idx + 1, s.full_name, letra]
-      })
-      autoTable(doc, {
-        startY: y,
-        head: [['N°', 'Apellidos y Nombres', 'Calificación']],
-        body: rosterBody,
-        styles: { fontSize: 7 },
-        headStyles: { fillColor: RGB_TABLA_HEAD, textColor: [255, 255, 255] },
-        margin: { left: 10, right: 10 },
-        didParseCell: function (data) {
-          if (data.section === 'body' && data.column.index === 2) {
-            const val = data.cell.raw
-            if (RGB_NIVEL[val]) {
-              data.cell.styles.textColor = RGB_NIVEL[val]
-              data.cell.styles.fontStyle = 'bold'
-            }
-          }
-        },
-      })
-      y = doc.lastAutoTable.finalY + 8
-    })
-  }
-
-  // ============================================================
-  // Exportar UNA sola actividad (vista actual)
-  // ============================================================
-  async function exportarActualExcel() {
-    if (!institucion.trim()) { alert('Completa el nombre de la institución educativa antes de exportar.'); return }
-    const workbook = new ExcelJS.Workbook()
-    const ws = workbook.addWorksheet(matrix.tipoInstrumento === 'Rúbrica' ? 'Rúbrica' : 'Lista de Cotejo')
-    if (matrix.tipoInstrumento === 'Rúbrica') buildRubricaSheet(ws, matrix)
-    else buildListaCotejoSheet(ws, matrix)
-    const a = matrix.actividad
-    await descargarWorkbook(workbook, `${matrix.tipoInstrumento === 'Rúbrica' ? 'Rubrica' : 'Lista_Cotejo'}_${courseNombre}_Actividad${a.numero_actividad}.xlsx`)
-  }
-
-  function exportarActualPDF() {
-    if (!institucion.trim()) { alert('Completa el nombre de la institución educativa antes de exportar.'); return }
-    const doc = new jsPDF({ orientation: 'landscape', format: 'a4' })
-    if (matrix.tipoInstrumento === 'Rúbrica') drawRubricaPDF(doc, matrix)
-    else drawListaCotejoPDF(doc, matrix)
-    const a = matrix.actividad
-    doc.save(`${matrix.tipoInstrumento === 'Rúbrica' ? 'Rubrica' : 'Lista_Cotejo'}_${courseNombre}_Actividad${a.numero_actividad}.pdf`)
-  }
-
-  // ============================================================
-  // Exportar VARIAS actividades seleccionadas (checkboxes)
-  // ============================================================
-  async function exportarSeleccionadosExcel() {
-    if (!institucion.trim()) { alert('Completa el nombre de la institución educativa antes de exportar.'); return }
-    if (selectedForExport.size === 0) { alert('Marca al menos una actividad para exportar.'); return }
-    setExporting(true)
-
-    const seleccionadas = activities.filter(function (a) { return selectedForExport.has(a.id) })
-    const workbook = new ExcelJS.Workbook()
-
-    for (const act of seleccionadas) {
-      const m = await computeMatrix(act)
-      if (!m || m.capacidades.length === 0) continue
-      const rawName = `Act${act.numero_actividad}-${act.nombre}`
-      const sheetName = rawName.replace(/[\\/*?:[\]]/g, '').slice(0, 31)
-      const ws = workbook.addWorksheet(sheetName || `Actividad ${act.numero_actividad}`)
-      if (m.tipoInstrumento === 'Rúbrica') buildRubricaSheet(ws, m)
-      else buildListaCotejoSheet(ws, m)
-    }
-
-    await descargarWorkbook(workbook, `Instrumentos_${courseNombre}.xlsx`)
-    setExporting(false)
-  }
-
-  async function exportarSeleccionadosPDF() {
-    if (!institucion.trim()) { alert('Completa el nombre de la institución educativa antes de exportar.'); return }
-    if (selectedForExport.size === 0) { alert('Marca al menos una actividad para exportar.'); return }
-    setExporting(true)
-
-    const seleccionadas = activities.filter(function (a) { return selectedForExport.has(a.id) })
-    const doc = new jsPDF({ orientation: 'landscape', format: 'a4' })
-    let first = true
-
-    for (const act of seleccionadas) {
-      const m = await computeMatrix(act)
-      if (!m || m.capacidades.length === 0) continue
-      if (!first) doc.addPage()
-      first = false
-      if (m.tipoInstrumento === 'Rúbrica') drawRubricaPDF(doc, m)
-      else drawListaCotejoPDF(doc, m)
-    }
-
-    doc.save(`Instrumentos_${courseNombre}.pdf`)
-    setExporting(false)
-  }
-
-  const actividadesPorUnidad = unidades.map(function (u) {
-    return { unidad: u, actividades: activities.filter(function (a) { return a.unidad_id === u.id }) }
-  }).filter(function (grupo) { return grupo.actividades.length > 0 })
-
-  const sinCarpeta = activities.filter(function (a) { return !a.unidad_id })
 
   return (
     <div>
       <h3 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>Instrumento de Evaluación</h3>
 
-      <div className="mb-5 max-w-md">
-        <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>
-          Institución educativa (para exportar)
-        </label>
-        <input
-          type="text"
-          value={institucion}
-          onChange={function (e) { saveInstitucion(e.target.value) }}
-          placeholder="Ej: I.E.P. Señor de Luren"
-          className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-          style={inputStyle}
-        />
-      </div>
-
-      {/* ===================== Ver una actividad ===================== */}
-      <div className="mb-8 pb-6" style={{ borderBottom: '2px solid #E5E9F0' }}>
-        <h4 className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>Ver una actividad</h4>
-        <div className="max-w-md mb-3">
+      <div className="grid md:grid-cols-2 gap-3 mb-5">
+        <div>
+          <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Actividad</label>
           <select
             value={selectedId}
             onChange={function (e) { loadMatrix(e.target.value) }}
@@ -626,114 +489,53 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
             })}
           </select>
         </div>
-
-        {matrix && matrix.capacidades.length > 0 && (
-          <div className="flex gap-2 mb-3">
-            <button onClick={exportarActualExcel} className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: '#1d5c8f' }}>
-              Exportar Excel
-            </button>
-            <button onClick={exportarActualPDF} className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: GREEN }}>
-              Exportar PDF
-            </button>
-          </div>
-        )}
-
-        {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
-
-        {selectedId && (
-          loading ? (
-            <p className="text-slate-400 text-sm">Cargando...</p>
-          ) : !matrix || matrix.capacidades.length === 0 ? (
-            <p className="text-slate-400 text-sm">Esta actividad no tiene capacidades vinculadas.</p>
-          ) : matrix.tipoInstrumento === 'Rúbrica' ? (
-            <RubricaView matrix={matrix} courseGrado={courseGrado} courseGrupo={courseGrupo} docente={profile?.full_name} />
-          ) : (
-            <ListaCotejoView matrix={matrix} courseGrado={courseGrado} courseGrupo={courseGrupo} />
-          )
-        )}
+        <div>
+          <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>
+            Institución educativa (para exportar)
+          </label>
+          <input
+            type="text"
+            value={institucion}
+            onChange={function (e) { saveInstitucion(e.target.value) }}
+            placeholder="Ej: I.E.P. Señor de Luren"
+            className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+            style={inputStyle}
+          />
+        </div>
       </div>
 
-      {/* ===================== Exportación masiva ===================== */}
-      <div>
-        <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
-          <h4 className="text-sm font-bold" style={{ color: NAVY_DARK }}>Exportar varios instrumentos</h4>
-          <div className="flex gap-2">
-            <button onClick={selectAll} className="text-xs font-semibold px-3 py-1.5 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>
-              Marcar todo
-            </button>
-            <button onClick={clearSelection} className="text-xs font-semibold px-3 py-1.5 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>
-              Desmarcar todo
-            </button>
-          </div>
-        </div>
-
-        {loading ? (
-          <p className="text-slate-400 text-sm">Cargando...</p>
-        ) : activities.length === 0 ? (
-          <p className="text-slate-400 text-sm">Aún no hay actividades en este curso.</p>
-        ) : (
-          <div className="space-y-4 mb-4">
-            {actividadesPorUnidad.map(function (grupo) {
-              const todosMarcados = grupo.actividades.every(function (a) { return selectedForExport.has(a.id) })
-              return (
-                <div key={grupo.unidad.id} className="rounded-xl p-4" style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}>
-                  <label className="flex items-center gap-2 mb-2 cursor-pointer">
-                    <input type="checkbox" checked={todosMarcados} onChange={function () { toggleCarpeta(grupo.unidad.id, grupo.actividades) }} />
-                    <span className="text-sm font-bold" style={{ color: NAVY_DARK }}>
-                      {grupo.unidad.tipo} {grupo.unidad.numero}{grupo.unidad.nombre ? ` · ${grupo.unidad.nombre}` : ''}
-                    </span>
-                  </label>
-                  <div className="pl-6 space-y-1.5">
-                    {grupo.actividades.map(function (a) {
-                      return (
-                        <label key={a.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                          <input type="checkbox" checked={selectedForExport.has(a.id)} onChange={function () { toggleActividad(a.id) }} />
-                          <span style={{ color: NAVY_DARK }}>Actividad {a.numero_actividad} · {a.nombre}</span>
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
-              )
-            })}
-
-            {sinCarpeta.length > 0 && (
-              <div className="rounded-xl p-4" style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}>
-                <p className="text-sm font-bold mb-2" style={{ color: NAVY_DARK }}>Sin carpeta</p>
-                <div className="space-y-1.5">
-                  {sinCarpeta.map(function (a) {
-                    return (
-                      <label key={a.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                        <input type="checkbox" checked={selectedForExport.has(a.id)} onChange={function () { toggleActividad(a.id) }} />
-                        <span style={{ color: NAVY_DARK }}>Actividad {a.numero_actividad} · {a.nombre}</span>
-                      </label>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="flex gap-2">
+      {matrix && matrix.capacidades.length > 0 && (
+        <div className="flex justify-end gap-2 mb-3">
           <button
-            onClick={exportarSeleccionadosExcel}
-            disabled={exporting}
-            className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+            onClick={matrix.tipoInstrumento === 'Rúbrica' ? exportarRubricaExcel : exportarListaCotejoExcel}
+            className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
             style={{ backgroundColor: '#1d5c8f' }}
           >
-            {exporting ? 'Generando...' : `Exportar seleccionados a Excel (${selectedForExport.size})`}
+            Exportar Excel
           </button>
           <button
-            onClick={exportarSeleccionadosPDF}
-            disabled={exporting}
-            className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
-            style={{ backgroundColor: GREEN }}
+            onClick={matrix.tipoInstrumento === 'Rúbrica' ? exportarRubricaPDF : exportarListaCotejoPDF}
+            className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+            style={{ backgroundColor: '#5DAA47' }}
           >
-            {exporting ? 'Generando...' : `Exportar seleccionados a PDF (${selectedForExport.size})`}
+            Exportar PDF
           </button>
         </div>
-      </div>
+      )}
+
+      {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+
+      {selectedId && (
+        loading ? (
+          <p className="text-slate-400 text-sm">Cargando...</p>
+        ) : !matrix || matrix.capacidades.length === 0 ? (
+          <p className="text-slate-400 text-sm">Esta actividad no tiene capacidades vinculadas.</p>
+        ) : matrix.tipoInstrumento === 'Rúbrica' ? (
+          <RubricaView matrix={matrix} courseGrado={courseGrado} courseGrupo={courseGrupo} docente={profile?.full_name} />
+        ) : (
+          <ListaCotejoView matrix={matrix} courseGrado={courseGrado} courseGrupo={courseGrupo} />
+        )
+      )}
     </div>
   )
 }

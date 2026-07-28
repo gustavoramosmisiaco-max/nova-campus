@@ -120,12 +120,12 @@ export default function RegistroAuxiliar({ courseId, courseNombre, courseGrado, 
     if (assignmentIds.length > 0) {
       const subsResult = await supabase
         .from('submissions')
-        .select('student_id, assignment_id, score')
+        .select('student_id, assignment_id, score, publicado')
         .in('assignment_id', assignmentIds)
 
       if (!subsResult.error) {
         subsResult.data.forEach(function (s) {
-          subsMap[`${s.student_id}__${s.assignment_id}`] = s.score
+          subsMap[`${s.student_id}__${s.assignment_id}`] = { score: s.score, publicado: s.publicado }
         })
       }
     }
@@ -134,10 +134,12 @@ export default function RegistroAuxiliar({ courseId, courseNombre, courseGrado, 
     const rows = enrollResult.data.map(function (e) {
       const student = e.student
       const notas = assignResult.data.map(function (a) {
-        const raw = subsMap[`${student.id}__${a.id}`]
+        const info = subsMap[`${student.id}__${a.id}`]
+        const entregado = Boolean(info)
         const isPastDue = new Date(a.fecha_entrega) < now
-        const noSubmission = raw == null
-        const score = isPastDue && noSubmission ? 0 : (raw != null ? raw : null)
+        let score = null
+        if (entregado && info.publicado) score = info.score
+        else if (!entregado && isPastDue) score = 0
         return { assignmentId: a.id, score: score }
       })
       const validScores = notas.map(function (n) { return n.score }).filter(function (s) { return s != null })
