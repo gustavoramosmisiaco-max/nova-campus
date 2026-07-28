@@ -760,7 +760,7 @@ function HeaderBlock({ courseGrado, courseGrupo, extra }) {
 function ListaCotejoView({ matrix, courseGrado, courseGrupo }) {
   const a = matrix.actividad
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-auto" style={{ maxHeight: '70vh' }}>
       <h2 className="text-center text-lg font-bold mb-3" style={{ color: NAVY_DARK }}>LISTA DE COTEJO</h2>
       <HeaderBlock
         courseGrado={courseGrado}
@@ -871,7 +871,7 @@ function ListaCotejoView({ matrix, courseGrado, courseGrupo }) {
 function RubricaView({ matrix, courseGrado, courseGrupo, docente }) {
   const a = matrix.actividad
   return (
-    <div className="overflow-x-auto space-y-8">
+    <div className="overflow-auto space-y-8" style={{ maxHeight: '70vh' }}>
       <h2 className="text-center text-lg font-bold" style={{ color: NAVY_DARK }}>RÚBRICA DE EVALUACIÓN</h2>
       <HeaderBlock
         courseGrado={courseGrado}

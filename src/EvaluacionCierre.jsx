@@ -171,7 +171,7 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
       ) : !error && students.length === 0 ? (
         <p className="text-slate-400 text-sm">No hay estudiantes matriculados en este curso.</p>
       ) : !error && (
-        <div className="overflow-x-auto">
+        <div className="overflow-auto" style={{ maxHeight: '70vh' }}>
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr>

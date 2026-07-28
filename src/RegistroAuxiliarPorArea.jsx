@@ -310,7 +310,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
       ) : competenciasData.every(function (c) { return c.capacidades.every(function (cap) { return cap.instancias.length === 0 }) }) ? (
         <p className="text-slate-400 text-sm">Aún no hay actividades/tareas registradas en este bimestre.</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-auto" style={{ maxHeight: '70vh' }}>
           <table className="border-collapse" style={{ minWidth: '100%' }}>
             <thead className="sticky top-0 z-20">
               <tr>
