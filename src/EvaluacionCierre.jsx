@@ -175,12 +175,12 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr>
-                <td className="p-2 font-semibold sticky left-0" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #E5E9F0', minWidth: 180 }}>
+                <td className="p-2 font-semibold sticky left-0 top-0 z-20" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #E5E9F0', minWidth: 180 }}>
                   Apellidos y Nombres
                 </td>
                 {competencias.map(function (c) {
                   return (
-                    <td key={c.id} className="p-2 text-center font-semibold" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #E5E9F0', minWidth: 160 }}>
+                    <td key={c.id} className="p-2 text-center font-semibold sticky top-0 z-10" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #E5E9F0', minWidth: 160 }}>
                       {c.nombre}
                     </td>
                   )

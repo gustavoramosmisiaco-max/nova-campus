@@ -826,7 +826,7 @@ function ListaCotejoView({ matrix, courseGrado, courseGrupo }) {
       </table>
 
       <table style={{ borderCollapse: 'collapse', width: '100%', marginTop: '-1px', tableLayout: 'fixed' }}>
-        <thead>
+        <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
           <tr>
             <td style={{ ...tableHeadCell, width: 40 }}>N°</td>
             <td style={{ ...tableHeadCell, width: 220 }}>APELLIDOS Y NOMBRES</td>
@@ -925,7 +925,7 @@ function RubricaView({ matrix, courseGrado, courseGrupo, docente }) {
             </table>
 
             <table style={{ borderCollapse: 'collapse', width: '100%', marginTop: '-1px' }}>
-              <thead>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                 <tr>
                   <td style={{ ...tableHeadCell, width: 40 }}>N°</td>
                   <td style={{ ...tableHeadCell, minWidth: 220 }}>Apellidos y Nombres</td>

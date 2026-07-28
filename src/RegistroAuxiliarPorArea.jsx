@@ -312,7 +312,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
       ) : (
         <div className="overflow-x-auto">
           <table className="border-collapse" style={{ minWidth: '100%' }}>
-            <thead>
+            <thead className="sticky top-0 z-20">
               <tr>
                 <td rowSpan={5} className="p-2 font-semibold sticky left-0" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #E5E9F0', minWidth: 170, verticalAlign: 'bottom' }}>
                   Apellidos y Nombres
