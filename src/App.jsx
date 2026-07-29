@@ -6,6 +6,7 @@ import DocenteDashboard from './DocenteDashboard'
 import EstudianteDashboard from './EstudianteDashboard'
 import LoadingBar from './LoadingBar'
 import PortalPadres from './PortalPadres'
+import { PresenceProvider } from './PresenceContext'
 
 function App() {
   const { session, role, loading } = useAuth()
@@ -37,7 +38,7 @@ function App() {
   }
 
   return (
-    <>
+    <PresenceProvider>
       <LoadingBar />
       {role === 'admin' && <AdminDashboard />}
       {role === 'docente' && <DocenteDashboard />}
@@ -47,7 +48,7 @@ function App() {
           <p className="text-red-400">Rol no reconocido. Contacta al administrador.</p>
         </div>
       )}
-    </>
+    </PresenceProvider>
   )
 }
 

@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext'
 import { compararPorApellido } from './gradeUtils'
 import PreviewModal from './PreviewModal'
 import { estaEnLinea } from './PresenceHeartbeat'
+import { usePresence } from './PresenceContext'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -27,6 +28,7 @@ function tiempoRelativo(fecha) {
 
 export default function Mensajes() {
   const { session, profile } = useAuth()
+  const { isOnline } = usePresence()
   const esDocente = profile?.role === 'docente'
 
   const [loading, setLoading] = useState(true)
@@ -80,17 +82,6 @@ export default function Mensajes() {
       }
     }
     listaContactos.sort(function (a, b) { return compararPorApellido(a.personaNombre, b.personaNombre) })
-
-    const idsUnicos = [...new Set(listaContactos.map(function (c) { return c.personaId }))]
-    if (idsUnicos.length > 0) {
-      const presenciaResult = await supabase.from('profiles').select('id, last_active_at').in('id', idsUnicos)
-      const mapaPresencia = {}
-      if (!presenciaResult.error) {
-        presenciaResult.data.forEach(function (p) { mapaPresencia[p.id] = estaEnLinea(p.last_active_at) })
-      }
-      listaContactos = listaContactos.map(function (c) { return { ...c, enLinea: mapaPresencia[c.personaId] || false } })
-    }
-
     setContactos(listaContactos)
 
     const mensajesResult = await supabase
@@ -163,9 +154,9 @@ export default function Mensajes() {
                     >
                       <p className="text-sm font-semibold flex items-center gap-1.5" style={{ color: NAVY_DARK }}>
                         {c.personaNombre}
-                        {c.enLinea && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#5DAA47' }} title="En línea" />}
+                        {isOnline(c.personaId) && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#5DAA47' }} title="En línea" />}
                       </p>
-                      <p className="text-xs text-slate-400">{c.courseNombre}{c.enLinea ? ' · En línea' : ''}</p>
+                      <p className="text-xs text-slate-400">{c.courseNombre}{isOnline(c.personaId) ? ' · En línea' : ''}</p>
                     </button>
                   </li>
                 )
@@ -196,7 +187,7 @@ export default function Mensajes() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold truncate" style={{ color: NAVY_DARK }}>{nombre}</p>
-                      {contacto?.enLinea && <span className="w-2 h-2 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: '#5DAA47' }} title="En línea" />}
+                      {contacto && isOnline(contacto.personaId) && <span className="w-2 h-2 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: '#5DAA47' }} title="En línea" />}
                       {conv.noLeidos > 0 && (
                         <span className="text-xs font-bold px-1.5 rounded-full text-white" style={{ backgroundColor: '#B91C1C' }}>{conv.noLeidos}</span>
                       )}
@@ -217,6 +208,7 @@ export default function Mensajes() {
 
 function HiloConversacion({ contacto, onBack }) {
   const { session } = useAuth()
+  const { isOnline } = usePresence()
   const [mensajes, setMensajes] = useState([])
   const [loading, setLoading] = useState(true)
   const [texto, setTexto] = useState('')
@@ -312,7 +304,7 @@ function HiloConversacion({ contacto, onBack }) {
       <div className="flex-shrink-0 mb-3">
         <p className="text-base font-bold flex items-center gap-2" style={{ color: NAVY_DARK }}>
           {contacto.personaNombre}
-          {contacto.enLinea && (
+          {isOnline(contacto.personaId) && (
             <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex items-center gap-1" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
               <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#5DAA47' }} />
               En línea

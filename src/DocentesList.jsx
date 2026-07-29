@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { compararPorApellido } from './gradeUtils'
 import { estaEnLinea } from './PresenceHeartbeat'
+import { usePresence } from './PresenceContext'
 
 const NAVY_DARK = '#0F2A4A'
 const GREEN_DARK = '#2f7a1f'
 
 export default function DocentesList() {
+  const { isOnline } = usePresence()
   const [docentes, setDocentes] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -111,7 +113,7 @@ export default function DocentesList() {
               <tr key={d.id} style={{ borderBottom: '1px solid #F4F6F9' }}>
                 <td className="py-2 pr-3" style={{ color: NAVY_DARK }}>
                   <span className="flex items-center gap-1.5">
-                    {estaEnLinea(d.last_active_at) && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#5DAA47' }} title="En línea" />}
+                    {isOnline(d.id) && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#5DAA47' }} title="En línea" />}
                     {d.full_name}
                   </span>
                 </td>
