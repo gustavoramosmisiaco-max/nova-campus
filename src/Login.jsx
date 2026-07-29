@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from './AuthContext'
 
-export default function Login() {
+export default function Login({ onVerPortalPadres }) {
   const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -102,6 +102,17 @@ export default function Login() {
             >
               {loading ? 'Ingresando...' : 'Ingresar'}
             </button>
+
+            {onVerPortalPadres && (
+              <button
+                type="button"
+                onClick={onVerPortalPadres}
+                className="w-full text-sm font-semibold py-2.5 rounded-xl transition hover:opacity-80"
+                style={{ backgroundColor: '#F4F6F9', color: '#2f7a1f' }}
+              >
+                ¿Eres padre de familia? Ingresa aquí
+              </button>
+            )}
           </form>
 
           <p className="text-center text-slate-400 text-xs mt-10">
