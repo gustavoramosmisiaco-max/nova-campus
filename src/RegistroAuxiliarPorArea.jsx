@@ -408,7 +408,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
       // Columna Cierre
       ws.mergeCells(rowCap, colCapCursor, rowAct, colCapCursor)
       const cellCierre = ws.getCell(rowCap, colCapCursor)
-      cellCierre.value = 'Evaluación de Unidad'
+      cellCierre.value = 'Evaluación de Bimestre'
       cellCierre.font = { bold: true, size: 8 }
       cellCierre.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_CIERRE } }
       cellCierre.alignment = { horizontal: 'center', vertical: 'middle', textRotation: 90 }
@@ -752,7 +752,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
                     ]
                   }).concat([
                     <td key={comp.id + '_cierre'} rowSpan={4} className="p-1 text-center font-semibold" style={{ backgroundColor: '#FFF7E6', color: '#B45309', border: '1px solid #E5E9F0', fontSize: 10, minWidth: 28, verticalAlign: 'middle' }}>
-                      <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>Evaluación de Unidad</span>
+                      <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>Evaluación de Bimestre</span>
                     </td>,
                     <td key={comp.id + '_prom'} rowSpan={4} className="p-1 text-center font-semibold" style={{ backgroundColor: '#DEEBF7', color: NAVY_DARK, border: '1px solid #E5E9F0', fontSize: 10, minWidth: 28, verticalAlign: 'middle' }}>
                       <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>Promedio Competencia</span>
