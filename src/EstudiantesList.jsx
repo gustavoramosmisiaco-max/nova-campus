@@ -37,7 +37,7 @@ export default function EstudiantesList() {
 
     const profilesResult = await supabase
       .from('profiles')
-      .select('id, full_name')
+      .select('id, full_name, codigo_padre')
       .eq('role', 'estudiante')
       .order('full_name', { ascending: true })
 
@@ -112,6 +112,7 @@ export default function EstudiantesList() {
             <thead>
               <tr style={{ borderBottom: '1px solid #E5E9F0' }}>
                 <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Nombre</th>
+                <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Código de padre</th>
                 <th className="text-right py-2 font-semibold" style={{ color: NAVY_DARK }}></th>
               </tr>
             </thead>
@@ -120,6 +121,11 @@ export default function EstudiantesList() {
                 return (
                   <tr key={s.id} style={{ borderBottom: '1px solid #F4F6F9' }}>
                     <td className="py-2 pr-3" style={{ color: NAVY_DARK }}>{s.full_name}</td>
+                    <td className="py-2 pr-3">
+                      <span className="text-xs font-mono font-semibold px-2 py-1 rounded-lg" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
+                        {s.codigo_padre || '—'}
+                      </span>
+                    </td>
                     <td className="py-2 text-right">
                       <button
                         onClick={function () { handleDelete(s.id, s.full_name) }}
