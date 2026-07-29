@@ -42,7 +42,7 @@ function App() {
       {role === 'admin' && <AdminDashboard />}
       {role === 'docente' && <DocenteDashboard />}
       {role === 'estudiante' && <EstudianteDashboard />}
-      {role !== 'admin' && role !== 'docente' && role !== 'estudiante' && (
+      {role !== 'admin' && role !== 'docente' && role !== 'estudiante' && role != null && (
         <div className="min-h-screen bg-slate-900 flex items-center justify-center">
           <p className="text-red-400">Rol no reconocido. Contacta al administrador.</p>
         </div>

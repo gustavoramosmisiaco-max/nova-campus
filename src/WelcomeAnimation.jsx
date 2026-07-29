@@ -66,7 +66,7 @@ export default function WelcomeAnimation({ role, nombre }) {
   const [visible, setVisible] = useState(false)
 
   useEffect(function () {
-    const key = 'nova_welcome_shown'
+    const key = `nova_welcome_shown_${role}`
     const yaMostrado = sessionStorage.getItem(key)
     if (!yaMostrado && role) {
       sessionStorage.setItem(key, '1')
