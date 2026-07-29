@@ -63,6 +63,7 @@ export default function PortalPadres({ onBack }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [datos, setDatos] = useState(null)
+  const [areaSeleccionada, setAreaSeleccionada] = useState(null)
 
   async function handleBuscar(e) {
     e.preventDefault()
@@ -157,19 +158,74 @@ export default function PortalPadres({ onBack }) {
             </div>
 
             <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
-              <p className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>Asignaturas</p>
-              <ul className="space-y-2">
-                {datos.cursos.map(function (c, i) {
-                  return (
-                    <li key={i} className="text-sm flex justify-between items-center rounded-lg px-3 py-2" style={{ backgroundColor: '#F4F6F9' }}>
-                      <div>
-                        <p style={{ color: NAVY_DARK }}>{c.nombre}</p>
-                        <p className="text-xs text-slate-400">{c.area} · {c.grado}° "{c.grupo}" · {c.docente}</p>
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
+              <p className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>
+                Áreas y Asignaturas — {datos.bimestre}° Bimestre
+              </p>
+
+              {areaSeleccionada == null ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {datos.notas.map(function (area, i) {
+                    const letra = area.promedio != null ? getLetterGrade(area.promedio) : null
+                    return (
+                      <button
+                        key={i}
+                        onClick={function () { setAreaSeleccionada(i) }}
+                        className="text-left rounded-xl p-3 transition hover:-translate-y-0.5"
+                        style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span style={{ color: GREEN }}>📁</span>
+                          <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{area.areaNombre}</p>
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          {datos.cursos.filter(function (c) { return c.area === area.areaNombre }).map(function (c) { return c.nombre }).join(', ')}
+                        </p>
+                        <p className="text-xs mt-1">
+                          Promedio: <strong style={{ color: NAVY_DARK }}>{letra || '—'}</strong>
+                        </p>
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : (function () {
+                const area = datos.notas[areaSeleccionada]
+                const cursosDeArea = datos.cursos.filter(function (c) { return c.area === area.areaNombre })
+                return (
+                  <div>
+                    <button onClick={function () { setAreaSeleccionada(null) }} className="text-xs font-semibold mb-3 hover:underline" style={{ color: NAVY }}>
+                      ← Volver a Áreas
+                    </button>
+                    <p className="text-sm font-bold mb-1" style={{ color: NAVY_DARK }}>{area.areaNombre}</p>
+                    <p className="text-xs text-slate-400 mb-3">
+                      {cursosDeArea.map(function (c) { return `${c.nombre} (${c.docente})` }).join(' · ')}
+                    </p>
+                    <div className="space-y-2">
+                      {area.competencias.map(function (comp, ci) {
+                        const letraComp = comp.promedio != null ? getLetterGrade(comp.promedio) : null
+                        return (
+                          <div key={ci} className="rounded-lg p-3" style={{ backgroundColor: '#F4F6F9' }}>
+                            <div className="flex justify-between items-center">
+                              <p className="text-xs font-semibold" style={{ color: '#2f7a1f' }}>{comp.nombre}</p>
+                              <p className="text-xs font-bold" style={{ color: NAVY_DARK }}>{letraComp || '—'}</p>
+                            </div>
+                            <ul className="mt-1.5 space-y-1">
+                              {comp.capacidades.map(function (cap, capi) {
+                                const letraCap = cap.promedio != null ? getLetterGrade(cap.promedio) : null
+                                return (
+                                  <li key={capi} className="text-xs flex justify-between" style={{ color: '#5F5E5A' }}>
+                                    <span>{cap.nombre}</span>
+                                    <span className="font-semibold">{letraCap || '—'}</span>
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
 
             <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
@@ -215,7 +271,7 @@ export default function PortalPadres({ onBack }) {
             )}
 
             <button
-              onClick={function () { setDatos(null); setCodigo('') }}
+              onClick={function () { setDatos(null); setCodigo(''); setAreaSeleccionada(null) }}
               className="w-full text-sm font-semibold py-2.5 rounded-lg transition"
               style={{ backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }}
             >
