@@ -254,6 +254,7 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
             const dueDate = new Date(a.fecha_entrega)
             const isPast = dueDate < new Date()
             const hasSubmission = Boolean(submission)
+            const hasRealSubmission = Boolean(submission) && submission.file_url != null
             const isGraded = hasSubmission && submission.score != null
             const isUploading = uploadingId === a.id
             const justificacionAprobada = justificacion?.estado === 'aprobada'
@@ -307,7 +308,7 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
                 </div>
 
                 <div className="flex items-center gap-3 mt-3 flex-wrap">
-                  {hasSubmission && (
+                  {hasRealSubmission && (
                     <button
                       onClick={function () { handlePreview(submission.file_url) }}
                       className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
@@ -317,7 +318,7 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
                     </button>
                   )}
 
-                  {!isGraded && habilitadoParaSubir && (
+                  {(!isGraded || justificacionAprobada) && habilitadoParaSubir && (
                     <label
                       className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white cursor-pointer transition hover:opacity-90"
                       style={{ backgroundColor: isUploading ? '#94A3B8' : GREEN }}
@@ -333,7 +334,7 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
                   )}
                 </div>
 
-                {isPast && !hasSubmission && !justificacionAprobada && (
+                {isPast && !hasRealSubmission && !justificacionAprobada && (
                   <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: '#FDECEC', border: '1px solid #F5C6C6' }}>
                     <p className="text-xs" style={{ color: '#B91C1C' }}>
                       El plazo de entrega venció el {dueDate.toLocaleDateString('es-PE')}. Ya no puedes subir tu tarea directamente{unidadFinalizada ? '.' : ', pero puedes enviar una justificación a tu docente.'}
