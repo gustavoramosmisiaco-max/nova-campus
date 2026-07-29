@@ -15,6 +15,12 @@ const GREEN_DARK = '#2f7a1f'
 export default function DocenteDashboard() {
   const { profile, logout } = useAuth()
   const [despidiendo, setDespidiendo] = useState(false)
+  const [tareaDestacadaId, setTareaDestacadaId] = useState(null)
+
+  function handleNavigate(tab, referenciaId) {
+    setActiveSection(tab)
+    if (referenciaId) setTareaDestacadaId(referenciaId)
+  }
 
   function handleLogoutConDespedida() {
     setDespidiendo(true)
@@ -135,7 +141,7 @@ export default function DocenteDashboard() {
           </div>
 
           <div className="flex items-center gap-3">
-            <NotificationBell onNavigate={setActiveSection} />
+            <NotificationBell onNavigate={handleNavigate} />
             <div className="text-right hidden sm:block">
               <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{profile?.full_name}</p>
               <p className="text-xs" style={{ color: GREEN_DARK }}>Docente</p>
@@ -159,7 +165,12 @@ export default function DocenteDashboard() {
         {/* Contenido */}
         <main className="flex-1 p-6 md:p-10">
           {activeSection === 'cursos' && <MyTeachingCourses />}
-          {activeSection === 'tareas' && <MisTareas />}
+          {activeSection === 'tareas' && (
+            <MisTareas
+              tareaDestacadaId={tareaDestacadaId}
+              onTareaDestacadaAtendida={function () { setTareaDestacadaId(null) }}
+            />
+          )}
           {activeSection === 'mensajes' && <Mensajes />}
         </main>
       </div>

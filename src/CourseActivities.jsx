@@ -935,6 +935,7 @@ function ActividadTareas({ actividad }) {
         tipo: 'justificacion',
         titulo: nuevoEstado === 'aprobada' ? 'Tu justificación fue aprobada' : 'Tu justificación fue rechazada',
         mensaje: selectedAssignment?.titulo || '',
+        referencia_id: selectedAssignment?.id || null,
       })
     }
     openSubmissions(selectedAssignment)

@@ -11,7 +11,7 @@ const GREEN_DARK = '#2f7a1f'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 
-export default function MisTareas() {
+export default function MisTareas({ tareaDestacadaId, onTareaDestacadaAtendida }) {
   const { session } = useAuth()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -21,6 +21,22 @@ export default function MisTareas() {
   useEffect(function () {
     cargarTodo()
   }, [])
+
+  useEffect(function () {
+    if (tareaDestacadaId) abrirTareaDestacada(tareaDestacadaId)
+  }, [tareaDestacadaId])
+
+  async function abrirTareaDestacada(assignmentId) {
+    const result = await supabase
+      .from('assignments')
+      .select('id, titulo, fecha_entrega, actividad_id, course_id, tipo_entrega, actividad:actividades(numero_actividad, nombre)')
+      .eq('id', assignmentId)
+      .single()
+    if (!result.error) {
+      setSelectedTarea(result.data)
+    }
+    if (onTareaDestacadaAtendida) onTareaDestacadaAtendida()
+  }
 
   async function cargarTodo() {
     setLoading(true)
@@ -277,10 +293,21 @@ function CalificarTarea({ tarea, onBack }) {
   }
 
   async function handleRevisarJustificacion(justId, nuevoEstado) {
+    const justificacionActual = justificaciones.find(function (j) { return j.id === justId })
     await supabase
       .from('justificaciones')
       .update({ estado: nuevoEstado, reviewed_by: session.user.id, reviewed_at: new Date().toISOString() })
       .eq('id', justId)
+
+    if (justificacionActual) {
+      await supabase.from('notificaciones').insert({
+        user_id: justificacionActual.student_id,
+        tipo: 'justificacion',
+        titulo: nuevoEstado === 'aprobada' ? 'Tu justificación fue aprobada' : 'Tu justificación fue rechazada',
+        mensaje: tarea.titulo,
+        referencia_id: tarea.id,
+      })
+    }
     cargarDetalle()
   }
 

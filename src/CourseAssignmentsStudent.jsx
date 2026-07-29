@@ -237,6 +237,7 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
           tipo: 'justificacion',
           titulo: 'Nueva justificación recibida',
           mensaje: `${profile?.full_name || 'Un estudiante'} justificó: ${assignment.titulo}`,
+          referencia_id: assignment.id,
         })
       }
       setJustificandoId(null)

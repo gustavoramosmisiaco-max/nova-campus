@@ -28,15 +28,22 @@ function tiempoRelativo(fecha) {
   return `hace ${dias} días`
 }
 
-const TIPO_A_PESTANA = {
+const TIPO_A_PESTANA_ESTUDIANTE = {
   tarea_nueva: 'pendientes',
   nota_publicada: 'notas',
   justificacion: 'pendientes',
   mensaje: 'mensajes',
 }
 
+const TIPO_A_PESTANA_DOCENTE = {
+  tarea_nueva: 'tareas',
+  nota_publicada: 'tareas',
+  justificacion: 'tareas',
+  mensaje: 'mensajes',
+}
+
 export default function NotificationBell({ onNavigate }) {
-  const { session } = useAuth()
+  const { session, profile } = useAuth()
   const [open, setOpen] = useState(false)
   const [notificaciones, setNotificaciones] = useState([])
   const [loading, setLoading] = useState(true)
@@ -135,8 +142,9 @@ export default function NotificationBell({ onNavigate }) {
                     key={n.id}
                     onClick={function () {
                       if (!n.leido) marcarLeida(n.id)
-                      const destino = TIPO_A_PESTANA[n.tipo]
-                      if (destino && onNavigate) onNavigate(destino)
+                      const mapaPestanas = profile?.role === 'docente' ? TIPO_A_PESTANA_DOCENTE : TIPO_A_PESTANA_ESTUDIANTE
+                      const destino = mapaPestanas[n.tipo]
+                      if (destino && onNavigate) onNavigate(destino, n.referencia_id)
                       setOpen(false)
                     }}
                     className="w-full text-left px-4 py-3 transition"
