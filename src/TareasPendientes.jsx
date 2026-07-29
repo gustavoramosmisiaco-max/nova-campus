@@ -297,114 +297,6 @@ export default function TareasPendientes() {
     return partes.join(' — ')
   }
 
-  function TareaCard({ item, tipo }) {
-    const isUploading = uploadingId === item.id
-    return (
-      <li className="rounded-xl p-4" style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}>
-        <p className="text-xs text-slate-400 mb-1">{ubicacionTexto(item)}</p>
-        <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{item.titulo}</p>
-        <p className="text-xs text-slate-500 mt-1">
-          Entrega: {new Date(item.fecha_entrega).toLocaleString('es-PE')}
-        </p>
-
-        {(tipo === 'pendiente' || tipo === 'habilitada') && (
-          <label
-            className="mt-3 inline-block text-xs font-semibold px-3 py-1.5 rounded-lg text-white cursor-pointer transition hover:opacity-90"
-            style={{ backgroundColor: isUploading ? '#94A3B8' : GREEN }}
-          >
-            {isUploading ? 'Subiendo...' : 'Subir entrega'}
-            <input
-              type="file"
-              className="hidden"
-              disabled={isUploading}
-              onChange={function (e) { handleUpload(item, e.target.files[0]) }}
-            />
-          </label>
-        )}
-
-        {tipo === 'vencida' && (
-          <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: '#FDECEC', border: '1px solid #F5C6C6' }}>
-            <p className="text-xs" style={{ color: '#B91C1C' }}>
-              El plazo venció. Ya no puedes subir tu tarea directamente{item.actividad?.unidad?.finalizada ? '.' : ', pero puedes enviar una justificación.'}
-            </p>
-            {item.actividad?.unidad?.finalizada ? (
-              <p className="text-xs mt-2 font-semibold" style={{ color: '#B91C1C' }}>
-                {item.actividad.unidad.tipo} {item.actividad.unidad.numero} ya fue cerrada por tu docente — no se pueden presentar justificaciones.
-              </p>
-            ) : (
-              <>
-                {item.justificacion?.estado === 'rechazada' && (
-                  <p className="text-xs mt-1 font-semibold" style={{ color: '#B91C1C' }}>
-                    Tu justificación anterior fue rechazada. Puedes enviar una nueva.
-                  </p>
-                )}
-                {justificandoId !== item.id ? (
-                  <button
-                    onClick={function () { abrirJustificacion(item.id) }}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 mt-2"
-                    style={{ backgroundColor: '#B45309' }}
-                  >
-                    Presentar justificación
-                  </button>
-                ) : (
-              <div className="mt-2 space-y-2">
-                <textarea
-                  value={justMensaje}
-                  onChange={function (e) { setJustMensaje(e.target.value) }}
-                  placeholder="Explica por qué no pudiste entregar a tiempo..."
-                  rows={3}
-                  className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-                  style={inputStyle}
-                />
-                <div className="flex items-center gap-3 flex-wrap">
-                  <label
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer transition hover:opacity-90"
-                    style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
-                  >
-                    Adjuntar evidencia
-                    <input type="file" className="hidden" onChange={function (e) { setJustFile(e.target.files[0]) }} />
-                  </label>
-                  <span className="text-xs text-slate-500">{justFile ? justFile.name : 'Ningún archivo (opcional)'}</span>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={function () { setJustificandoId(null) }}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
-                    style={{ backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={function () { enviarJustificacion(item) }}
-                    disabled={enviandoJust}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
-                    style={{ backgroundColor: GREEN }}
-                  >
-                    {enviandoJust ? 'Enviando...' : 'Enviar justificación'}
-                  </button>
-                </div>
-              </div>
-            )}
-              </>
-            )}
-          </div>
-        )}
-
-        {tipo === 'revision' && (
-          <p className="text-xs mt-2 font-semibold" style={{ color: '#B45309' }}>
-            Justificación enviada, en espera de revisión del docente.
-          </p>
-        )}
-
-        {tipo === 'habilitada' && (
-          <p className="text-xs mt-2 font-semibold" style={{ color: '#2f7a1f' }}>
-            Tu docente aprobó tu justificación. Ya puedes subir tu tarea.
-          </p>
-        )}
-      </li>
-    )
-  }
-
   if (loading) return <p className="text-slate-400 text-sm">Cargando tus tareas...</p>
   if (error) return <p className="text-red-500 text-sm">Error: {error}</p>
 
@@ -428,7 +320,16 @@ export default function TareasPendientes() {
         <div className="mb-6">
           <h3 className="text-sm font-bold mb-3" style={{ color: '#B91C1C' }}>Vencidas sin entregar ({vencidas.length})</h3>
           <ul className="space-y-3">
-            {vencidas.map(function (item) { return <TareaCard key={item.id} item={item} tipo="vencida" /> })}
+            {vencidas.map(function (item) { return <TareaCard
+              key={item.id}
+              item={item} tipo="vencida"
+              uploadingId={uploadingId} handleUpload={handleUpload}
+              justificandoId={justificandoId} abrirJustificacion={abrirJustificacion}
+              justMensaje={justMensaje} setJustMensaje={setJustMensaje}
+              justFile={justFile} setJustFile={setJustFile}
+              enviandoJust={enviandoJust} enviarJustificacion={enviarJustificacion}
+              ubicacionTexto={ubicacionTexto} setJustificandoId={setJustificandoId}
+            /> })}
           </ul>
         </div>
       )}
@@ -437,7 +338,16 @@ export default function TareasPendientes() {
         <div className="mb-6">
           <h3 className="text-sm font-bold mb-3" style={{ color: '#2f7a1f' }}>Habilitadas para entregar ({habilitadas.length})</h3>
           <ul className="space-y-3">
-            {habilitadas.map(function (item) { return <TareaCard key={item.id} item={item} tipo="habilitada" /> })}
+            {habilitadas.map(function (item) { return <TareaCard
+              key={item.id}
+              item={item} tipo="habilitada"
+              uploadingId={uploadingId} handleUpload={handleUpload}
+              justificandoId={justificandoId} abrirJustificacion={abrirJustificacion}
+              justMensaje={justMensaje} setJustMensaje={setJustMensaje}
+              justFile={justFile} setJustFile={setJustFile}
+              enviandoJust={enviandoJust} enviarJustificacion={enviarJustificacion}
+              ubicacionTexto={ubicacionTexto} setJustificandoId={setJustificandoId}
+            /> })}
           </ul>
         </div>
       )}
@@ -446,7 +356,16 @@ export default function TareasPendientes() {
         <div className="mb-6">
           <h3 className="text-sm font-bold mb-3" style={{ color: '#B45309' }}>Justificación en revisión ({enRevision.length})</h3>
           <ul className="space-y-3">
-            {enRevision.map(function (item) { return <TareaCard key={item.id} item={item} tipo="revision" /> })}
+            {enRevision.map(function (item) { return <TareaCard
+              key={item.id}
+              item={item} tipo="revision"
+              uploadingId={uploadingId} handleUpload={handleUpload}
+              justificandoId={justificandoId} abrirJustificacion={abrirJustificacion}
+              justMensaje={justMensaje} setJustMensaje={setJustMensaje}
+              justFile={justFile} setJustFile={setJustFile}
+              enviandoJust={enviandoJust} enviarJustificacion={enviarJustificacion}
+              ubicacionTexto={ubicacionTexto} setJustificandoId={setJustificandoId}
+            /> })}
           </ul>
         </div>
       )}
@@ -455,12 +374,140 @@ export default function TareasPendientes() {
         <div className="mb-6">
           <h3 className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>Pendientes, aún no vencen ({pendientes.length})</h3>
           <ul className="space-y-3">
-            {pendientes.map(function (item) { return <TareaCard key={item.id} item={item} tipo="pendiente" /> })}
+            {pendientes.map(function (item) { return <TareaCard
+              key={item.id}
+              item={item} tipo="pendiente"
+              uploadingId={uploadingId} handleUpload={handleUpload}
+              justificandoId={justificandoId} abrirJustificacion={abrirJustificacion}
+              justMensaje={justMensaje} setJustMensaje={setJustMensaje}
+              justFile={justFile} setJustFile={setJustFile}
+              enviandoJust={enviandoJust} enviarJustificacion={enviarJustificacion}
+              ubicacionTexto={ubicacionTexto} setJustificandoId={setJustificandoId}
+            /> })}
           </ul>
         </div>
       )}
 
       <PreviewModal preview={preview} onClose={function () { setPreview(null) }} />
     </div>
+  )
+}
+
+// ============================================================
+// Tarjeta de una tarea (fuera del componente principal para no perder el foco al escribir)
+// ============================================================
+function TareaCard({
+  item, tipo,
+  uploadingId, handleUpload,
+  justificandoId, abrirJustificacion, setJustificandoId,
+  justMensaje, setJustMensaje,
+  justFile, setJustFile,
+  enviandoJust, enviarJustificacion,
+  ubicacionTexto,
+}) {
+  const isUploading = uploadingId === item.id
+  return (
+    <li className="rounded-xl p-4" style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}>
+      <p className="text-xs text-slate-400 mb-1">{ubicacionTexto(item)}</p>
+      <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{item.titulo}</p>
+      <p className="text-xs text-slate-500 mt-1">
+        Entrega: {new Date(item.fecha_entrega).toLocaleString('es-PE')}
+      </p>
+
+      {(tipo === 'pendiente' || tipo === 'habilitada') && (
+        <label
+          className="mt-3 inline-block text-xs font-semibold px-3 py-1.5 rounded-lg text-white cursor-pointer transition hover:opacity-90"
+          style={{ backgroundColor: isUploading ? '#94A3B8' : GREEN }}
+        >
+          {isUploading ? 'Subiendo...' : 'Subir entrega'}
+          <input
+            type="file"
+            className="hidden"
+            disabled={isUploading}
+            onChange={function (e) { handleUpload(item, e.target.files[0]) }}
+          />
+        </label>
+      )}
+
+      {tipo === 'vencida' && (
+        <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: '#FDECEC', border: '1px solid #F5C6C6' }}>
+          <p className="text-xs" style={{ color: '#B91C1C' }}>
+            El plazo venció. Ya no puedes subir tu tarea directamente{item.actividad?.unidad?.finalizada ? '.' : ', pero puedes enviar una justificación.'}
+          </p>
+          {item.actividad?.unidad?.finalizada ? (
+            <p className="text-xs mt-2 font-semibold" style={{ color: '#B91C1C' }}>
+              {item.actividad.unidad.tipo} {item.actividad.unidad.numero} ya fue cerrada por tu docente — no se pueden presentar justificaciones.
+            </p>
+          ) : (
+            <>
+              {item.justificacion?.estado === 'rechazada' && (
+                <p className="text-xs mt-1 font-semibold" style={{ color: '#B91C1C' }}>
+                  Tu justificación anterior fue rechazada. Puedes enviar una nueva.
+                </p>
+              )}
+              {justificandoId !== item.id ? (
+                <button
+                  onClick={function () { abrirJustificacion(item.id) }}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 mt-2"
+                  style={{ backgroundColor: '#B45309' }}
+                >
+                  Presentar justificación
+                </button>
+              ) : (
+                <div className="mt-2 space-y-2">
+                  <textarea
+                    value={justMensaje}
+                    onChange={function (e) { setJustMensaje(e.target.value) }}
+                    placeholder="Explica por qué no pudiste entregar a tiempo..."
+                    rows={3}
+                    className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                    style={inputStyle}
+                  />
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <label
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer transition hover:opacity-90"
+                      style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+                    >
+                      Adjuntar evidencia
+                      <input type="file" className="hidden" onChange={function (e) { setJustFile(e.target.files[0]) }} />
+                    </label>
+                    <span className="text-xs text-slate-500">{justFile ? justFile.name : 'Ningún archivo (opcional)'}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={function () { setJustificandoId(null) }}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+                      style={{ backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={function () { enviarJustificacion(item) }}
+                      disabled={enviandoJust}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+                      style={{ backgroundColor: GREEN }}
+                    >
+                      {enviandoJust ? 'Enviando...' : 'Enviar justificación'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {tipo === 'revision' && (
+        <p className="text-xs mt-2 font-semibold" style={{ color: '#B45309' }}>
+          Justificación enviada, en espera de revisión del docente.
+        </p>
+      )}
+
+      {tipo === 'habilitada' && (
+        <p className="text-xs mt-2 font-semibold" style={{ color: '#2f7a1f' }}>
+          Tu docente aprobó tu justificación. Ya puedes subir tu tarea.
+        </p>
+      )}
+    </li>
   )
 }
