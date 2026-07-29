@@ -60,7 +60,7 @@ export default function TareasPendientes() {
 
     const assignResult = await supabase
       .from('assignments')
-      .select('id, titulo, tema, fecha_entrega, course_id, actividad_id, tipo_entrega, actividad:actividades(nombre, numero_actividad, unidad:unidades(tipo, numero))')
+      .select('id, titulo, tema, fecha_entrega, course_id, actividad_id, tipo_entrega, actividad:actividades(nombre, numero_actividad, unidad:unidades(tipo, numero, finalizada))')
       .in('course_id', courseIds)
       .order('fecha_entrega', { ascending: true })
 
@@ -296,22 +296,28 @@ export default function TareasPendientes() {
         {tipo === 'vencida' && (
           <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: '#FDECEC', border: '1px solid #F5C6C6' }}>
             <p className="text-xs" style={{ color: '#B91C1C' }}>
-              El plazo venció. Ya no puedes subir tu tarea directamente, pero puedes enviar una justificación.
+              El plazo venció. Ya no puedes subir tu tarea directamente{item.actividad?.unidad?.finalizada ? '.' : ', pero puedes enviar una justificación.'}
             </p>
-            {item.justificacion?.estado === 'rechazada' && (
-              <p className="text-xs mt-1 font-semibold" style={{ color: '#B91C1C' }}>
-                Tu justificación anterior fue rechazada. Puedes enviar una nueva.
+            {item.actividad?.unidad?.finalizada ? (
+              <p className="text-xs mt-2 font-semibold" style={{ color: '#B91C1C' }}>
+                {item.actividad.unidad.tipo} {item.actividad.unidad.numero} ya fue cerrada por tu docente — no se pueden presentar justificaciones.
               </p>
-            )}
-            {justificandoId !== item.id ? (
-              <button
-                onClick={function () { abrirJustificacion(item.id) }}
-                className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 mt-2"
-                style={{ backgroundColor: '#B45309' }}
-              >
-                Presentar justificación
-              </button>
             ) : (
+              <>
+                {item.justificacion?.estado === 'rechazada' && (
+                  <p className="text-xs mt-1 font-semibold" style={{ color: '#B91C1C' }}>
+                    Tu justificación anterior fue rechazada. Puedes enviar una nueva.
+                  </p>
+                )}
+                {justificandoId !== item.id ? (
+                  <button
+                    onClick={function () { abrirJustificacion(item.id) }}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 mt-2"
+                    style={{ backgroundColor: '#B45309' }}
+                  >
+                    Presentar justificación
+                  </button>
+                ) : (
               <div className="mt-2 space-y-2">
                 <textarea
                   value={justMensaje}
@@ -349,6 +355,8 @@ export default function TareasPendientes() {
                   </button>
                 </div>
               </div>
+            )}
+              </>
             )}
           </div>
         )}

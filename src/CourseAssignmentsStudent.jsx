@@ -34,7 +34,7 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
 
     let query = supabase
       .from('assignments')
-      .select('*')
+      .select('*, actividad:actividades(unidad:unidades(finalizada, tipo, numero))')
       .order('fecha_entrega', { ascending: false })
     query = actividadId ? query.eq('actividad_id', actividadId) : query.eq('course_id', courseId)
 
@@ -247,6 +247,7 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
             const isUploading = uploadingId === a.id
             const justificacionAprobada = justificacion?.estado === 'aprobada'
             const habilitadoParaSubir = !isPast || justificacionAprobada
+            const unidadFinalizada = a.actividad?.unidad?.finalizada || false
 
             return (
               <li
@@ -324,29 +325,37 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
                 {isPast && !hasSubmission && !justificacionAprobada && (
                   <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: '#FDECEC', border: '1px solid #F5C6C6' }}>
                     <p className="text-xs" style={{ color: '#B91C1C' }}>
-                      El plazo de entrega venció el {dueDate.toLocaleDateString('es-PE')}. Ya no puedes subir tu tarea directamente, pero puedes enviar una justificación a tu docente.
+                      El plazo de entrega venció el {dueDate.toLocaleDateString('es-PE')}. Ya no puedes subir tu tarea directamente{unidadFinalizada ? '.' : ', pero puedes enviar una justificación a tu docente.'}
                     </p>
 
-                    {justificacion?.estado === 'pendiente' ? (
-                      <p className="text-xs mt-2 font-semibold" style={{ color: '#B45309' }}>
-                        Justificación enviada, en espera de revisión del docente.
+                    {unidadFinalizada ? (
+                      <p className="text-xs mt-2 font-semibold" style={{ color: '#B91C1C' }}>
+                        {a.actividad?.unidad?.tipo} {a.actividad?.unidad?.numero} ya fue cerrada por tu docente — no se pueden presentar justificaciones para esta unidad.
                       </p>
-                    ) : justificacion?.estado === 'rechazada' ? (
-                      <div className="mt-2">
-                        <p className="text-xs font-semibold" style={{ color: '#B91C1C' }}>
-                          Tu justificación anterior fue rechazada. Puedes enviar una nueva.
-                        </p>
-                      </div>
-                    ) : null}
+                    ) : (
+                      <>
+                        {justificacion?.estado === 'pendiente' ? (
+                          <p className="text-xs mt-2 font-semibold" style={{ color: '#B45309' }}>
+                            Justificación enviada, en espera de revisión del docente.
+                          </p>
+                        ) : justificacion?.estado === 'rechazada' ? (
+                          <div className="mt-2">
+                            <p className="text-xs font-semibold" style={{ color: '#B91C1C' }}>
+                              Tu justificación anterior fue rechazada. Puedes enviar una nueva.
+                            </p>
+                          </div>
+                        ) : null}
 
-                    {(!justificacion || justificacion.estado === 'rechazada') && justificandoId !== a.id && (
-                      <button
-                        onClick={function () { abrirJustificacion(a.id) }}
-                        className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 mt-2"
-                        style={{ backgroundColor: '#B45309' }}
-                      >
-                        Presentar justificación
-                      </button>
+                        {(!justificacion || justificacion.estado === 'rechazada') && justificandoId !== a.id && (
+                          <button
+                            onClick={function () { abrirJustificacion(a.id) }}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 mt-2"
+                            style={{ backgroundColor: '#B45309' }}
+                          >
+                            Presentar justificación
+                          </button>
+                        )}
+                      </>
                     )}
 
                     {justificandoId === a.id && (
