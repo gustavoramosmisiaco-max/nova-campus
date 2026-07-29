@@ -6,6 +6,7 @@ import TareasPendientes from './TareasPendientes'
 import NotificationBell from './NotificationBell'
 import Mensajes from './Mensajes'
 import BloqueoPanel from './BloqueoPanel'
+import WelcomeAnimation from './WelcomeAnimation'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -32,6 +33,8 @@ export default function EstudianteDashboard() {
     .toUpperCase()
 
   return (
+    <>
+    <WelcomeAnimation role="estudiante" nombre={profile?.full_name} />
     <BloqueoPanel>
     <div className="min-h-screen flex" style={{ backgroundColor: '#F4F6F9' }}>
 
@@ -140,6 +143,7 @@ export default function EstudianteDashboard() {
       </div>
     </div>
     </BloqueoPanel>
+    </>
   )
 }
 
