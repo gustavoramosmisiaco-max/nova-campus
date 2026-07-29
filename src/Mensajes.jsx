@@ -221,6 +221,33 @@ function HiloConversacion({ contacto, onBack }) {
     cargar()
   }, [contacto.personaId, contacto.courseId])
 
+  useEffect(function () {
+    const channel = supabase
+      .channel(`mensajes-${contacto.personaId}-${contacto.courseId || 'sin-curso'}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensajes' }, function (payload) {
+        const m = payload.new
+        const esDeEstaConversacion =
+          ((m.remitente_id === session.user.id && m.destinatario_id === contacto.personaId) ||
+            (m.remitente_id === contacto.personaId && m.destinatario_id === session.user.id)) &&
+          ((contacto.courseId && m.course_id === contacto.courseId) || (!contacto.courseId && m.course_id == null))
+
+        if (!esDeEstaConversacion) return
+
+        setMensajes(function (prev) {
+          if (prev.some(function (existing) { return existing.id === m.id })) return prev
+          return [...prev, m]
+        })
+        setTimeout(function () { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, 100)
+
+        if (m.destinatario_id === session.user.id && !m.leido) {
+          supabase.from('mensajes').update({ leido: true }).eq('id', m.id)
+        }
+      })
+      .subscribe()
+
+    return function () { supabase.removeChannel(channel) }
+  }, [contacto.personaId, contacto.courseId])
+
   async function cargar() {
     setLoading(true)
     let query = supabase

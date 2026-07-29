@@ -95,6 +95,23 @@ function ChatGrupo({ grupo, onBack }) {
     cargar()
   }, [grupo.id])
 
+  useEffect(function () {
+    const channel = supabase
+      .channel(`mensajes-grupo-${grupo.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensajes_grupo', filter: `grupo_id=eq.${grupo.id}` }, async function (payload) {
+        const m = payload.new
+        const remitenteResult = await supabase.from('profiles').select('full_name').eq('id', m.remitente_id).single()
+        setMensajes(function (prev) {
+          if (prev.some(function (existing) { return existing.id === m.id })) return prev
+          return [...prev, { ...m, remitente: remitenteResult.data }]
+        })
+        setTimeout(function () { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, 100)
+      })
+      .subscribe()
+
+    return function () { supabase.removeChannel(channel) }
+  }, [grupo.id])
+
   async function cargar() {
     setLoading(true)
     const result = await supabase
