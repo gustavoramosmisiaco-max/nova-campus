@@ -10,6 +10,7 @@ import EstudiantesList from './EstudiantesList'
 import DocentesList from './DocentesList'
 import ReportesManager from './ReportesManager'
 import InstitucionesManager from './InstitucionesManager'
+import WelcomeAnimation from './WelcomeAnimation'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -42,6 +43,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: '#F4F6F9' }}>
+      <WelcomeAnimation role="admin" nombre={profile?.full_name} />
 
       {/* Sidebar */}
       <aside

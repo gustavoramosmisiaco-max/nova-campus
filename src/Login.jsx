@@ -52,7 +52,7 @@ export default function Login({ onVerPortalPadres }) {
           className="text-base leading-relaxed max-w-sm"
           style={{ color: '#F0F4F8', textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}
         >
-          Tu aula virtual para Biología, Química, Física y Matemática.
+          Cada día es una nueva oportunidad para descubrir el mundo que te rodea.
         </p>
       </div>
 

@@ -4,6 +4,7 @@ import MyTeachingCourses from './MyTeachingCourses'
 import MisTareas from './MisTareas'
 import NotificationBell from './NotificationBell'
 import Mensajes from './Mensajes'
+import WelcomeAnimation from './WelcomeAnimation'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -54,6 +55,7 @@ export default function DocenteDashboard() {
 
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: '#F4F6F9' }}>
+      <WelcomeAnimation role="docente" nombre={profile?.full_name} />
 
       {/* Sidebar */}
       <aside
