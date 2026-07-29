@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { getLetterGrade } from './gradeUtils'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -30,15 +31,15 @@ function generarPDF(datos) {
     doc.setFontSize(11)
     doc.setTextColor(15, 42, 74)
     doc.setFont(undefined, 'bold')
-    doc.text(`${area.areaNombre}  —  Promedio: ${area.promedio != null ? area.promedio.toFixed(1) : '—'}`, 14, y)
+    doc.text(`${area.areaNombre}  —  Promedio: ${area.promedio != null ? getLetterGrade(area.promedio) : '—'}`, 14, y)
     doc.setFont(undefined, 'normal')
     y += 4
 
     const filas = []
     area.competencias.forEach(function (comp) {
-      filas.push([comp.nombre, '', comp.promedio != null ? comp.promedio.toFixed(1) : '—'])
+      filas.push([comp.nombre, '', comp.promedio != null ? getLetterGrade(comp.promedio) : '—'])
       comp.capacidades.forEach(function (cap) {
-        filas.push(['', cap.nombre, cap.promedio != null ? cap.promedio.toFixed(1) : '—'])
+        filas.push(['', cap.nombre, cap.promedio != null ? getLetterGrade(cap.promedio) : '—'])
       })
     })
 
