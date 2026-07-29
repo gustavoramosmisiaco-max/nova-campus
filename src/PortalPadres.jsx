@@ -2,6 +2,7 @@ import { useState } from 'react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { getLetterGrade } from './gradeUtils'
+import WelcomeAnimation from './WelcomeAnimation'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -95,6 +96,7 @@ export default function PortalPadres({ onBack }) {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#F4F6F9' }}>
+      {datos && <WelcomeAnimation role="padre" nombre="" />}
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
           <img src="/logo.png" alt="Nova Campus" className="w-14 h-14 object-contain rounded-full bg-white p-1 mx-auto mb-3" style={{ boxShadow: '0 2px 8px rgba(15,42,74,0.15)' }} />

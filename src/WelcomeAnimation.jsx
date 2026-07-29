@@ -23,6 +23,12 @@ const CONFIG_POR_ROL = {
     titulo: '¡Hola de nuevo!',
     subtitulo: 'Listo para aprender algo nuevo hoy.',
   },
+  padre: {
+    icono: 'padre',
+    color: '#B45309',
+    titulo: 'Bienvenido, familia Nova',
+    subtitulo: 'Aquí puedes ver el progreso de tu hijo(a).',
+  },
 }
 
 function IconoAdmin({ color }) {
@@ -60,16 +66,23 @@ function IconoEstudiante({ color }) {
   )
 }
 
-const ICONOS = { admin: IconoAdmin, docente: IconoDocente, estudiante: IconoEstudiante }
+function IconoPadre({ color }) {
+  return (
+    <svg width="72" height="72" viewBox="0 0 24 24" fill="none">
+      <g style={{ transformOrigin: '12px 12px', animation: 'nova-bounce 1.1s ease-in-out infinite' }}>
+        <path d="M12 21s-7.5-4.6-10-9.3C0.3 8.4 2 5 5.5 5c2 0 3.5 1.2 4.5 2.8C11 6.2 12.5 5 14.5 5 18 5 19.7 8.4 22 11.7 19.5 16.4 12 21 12 21z" fill={color} />
+      </g>
+    </svg>
+  )
+}
+
+const ICONOS = { admin: IconoAdmin, docente: IconoDocente, estudiante: IconoEstudiante, padre: IconoPadre }
 
 export default function WelcomeAnimation({ role, nombre }) {
   const [visible, setVisible] = useState(false)
 
   useEffect(function () {
-    const key = `nova_welcome_shown_${role}`
-    const yaMostrado = sessionStorage.getItem(key)
-    if (!yaMostrado && role) {
-      sessionStorage.setItem(key, '1')
+    if (role) {
       setVisible(true)
       const timer = setTimeout(function () { setVisible(false) }, 2800)
       return function () { clearTimeout(timer) }
