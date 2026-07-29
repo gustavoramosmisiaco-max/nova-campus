@@ -100,7 +100,7 @@ export default function DocentesList() {
           <tr style={{ borderBottom: '1px solid #E5E9F0' }}>
             <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Nombre</th>
             <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Cursos a cargo</th>
-            <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>WhatsApp</th>
+            <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Grupo de WhatsApp (padres)</th>
             <th className="text-right py-2 font-semibold" style={{ color: NAVY_DARK }}></th>
           </tr>
         </thead>
@@ -116,8 +116,8 @@ export default function DocentesList() {
                   <input
                     type="text"
                     defaultValue={d.whatsapp || ''}
-                    placeholder="51987654321"
-                    className="w-32 rounded-lg px-2 py-1 text-xs outline-none"
+                    placeholder="https://chat.whatsapp.com/..."
+                    className="w-56 rounded-lg px-2 py-1 text-xs outline-none"
                     style={{ backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }}
                     onBlur={function (e) { if (e.target.value !== (d.whatsapp || '')) guardarWhatsapp(d.id, e.target.value) }}
                   />

@@ -157,13 +157,13 @@ export default function BloqueoPanel({ children }) {
                   <p style={{ color: NAVY_DARK }}><strong>{t.titulo}</strong> — {t.asignatura}</p>
                   {t.docenteWhatsapp && (
                     <a
-                      href={`https://wa.me/${t.docenteWhatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Hola ${t.docenteNombre}, soy el padre/apoderado de ${profile?.full_name}, quisiera consultar sobre la tarea "${t.titulo}".`)}`}
+                      href={t.docenteWhatsapp}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 mt-1 text-xs font-semibold px-2 py-1 rounded-lg text-white transition hover:opacity-90"
                       style={{ backgroundColor: '#25D366' }}
                     >
-                      💬 Escribir por WhatsApp a {t.docenteNombre}
+                      💬 Grupo de padres — {t.docenteNombre}
                     </a>
                   )}
                 </li>

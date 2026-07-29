@@ -194,19 +194,19 @@ export default function PortalPadres({ onBack }) {
 
             {datos.docentes.filter(function (d) { return d.whatsapp }).length > 0 && (
               <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
-                <p className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>Escribir a un docente</p>
+                <p className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>Grupos de WhatsApp de padres</p>
                 <div className="space-y-2">
                   {datos.docentes.filter(function (d) { return d.whatsapp }).map(function (d, i) {
                     return (
                       <a
                         key={i}
-                        href={`https://wa.me/${d.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Hola ${d.nombre}, soy el padre/apoderado de ${datos.nombre}, quisiera hacer una consulta.`)}`}
+                        href={d.whatsapp}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-2 text-sm font-semibold px-3 py-2 rounded-lg text-white transition hover:opacity-90"
                         style={{ backgroundColor: '#25D366' }}
                       >
-                        💬 Escribir a {d.nombre}
+                        💬 Grupo de {d.nombre}
                       </a>
                     )
                   })}
