@@ -230,6 +230,15 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
     if (result.error) {
       alert('Error al enviar la justificación: ' + result.error.message)
     } else {
+      const courseResult = await supabase.from('courses').select('docente_id').eq('id', assignment.course_id).single()
+      if (courseResult.data?.docente_id) {
+        await supabase.from('notificaciones').insert({
+          user_id: courseResult.data.docente_id,
+          tipo: 'justificacion',
+          titulo: 'Nueva justificación recibida',
+          mensaje: `${profile?.full_name || 'Un estudiante'} justificó: ${assignment.titulo}`,
+        })
+      }
       setJustificandoId(null)
       loadAssignments()
     }

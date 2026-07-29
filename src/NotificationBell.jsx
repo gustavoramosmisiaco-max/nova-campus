@@ -44,9 +44,16 @@ export default function NotificationBell({ onNavigate }) {
 
   useEffect(function () {
     cargar()
-    const interval = setInterval(cargar, 30000)
-    return function () { clearInterval(interval) }
-  }, [])
+
+    const channel = supabase
+      .channel(`notificaciones-${session.user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notificaciones', filter: `user_id=eq.${session.user.id}` }, function (payload) {
+        setNotificaciones(function (prev) { return [payload.new, ...prev] })
+      })
+      .subscribe()
+
+    return function () { supabase.removeChannel(channel) }
+  }, [session.user.id])
 
   useEffect(function () {
     function handleClickOutside(e) {
