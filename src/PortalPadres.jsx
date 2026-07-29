@@ -3,6 +3,7 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { getLetterGrade } from './gradeUtils'
 import WelcomeAnimation from './WelcomeAnimation'
+import FarewellAnimation from './FarewellAnimation'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -65,6 +66,11 @@ export default function PortalPadres({ onBack }) {
   const [error, setError] = useState('')
   const [datos, setDatos] = useState(null)
   const [areaSeleccionada, setAreaSeleccionada] = useState(null)
+  const [despidiendo, setDespidiendo] = useState(false)
+
+  function handleVolverConDespedida() {
+    setDespidiendo(true)
+  }
 
   async function handleBuscar(e) {
     e.preventDefault()
@@ -97,6 +103,7 @@ export default function PortalPadres({ onBack }) {
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#F4F6F9' }}>
       {datos && <WelcomeAnimation role="padre" nombre="" />}
+      <FarewellAnimation visible={despidiendo} role="padre" nombre="" onComplete={onBack} />
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
           <img src="/logo.png" alt="Nova Campus" className="w-14 h-14 object-contain rounded-full bg-white p-1 mx-auto mb-3" style={{ boxShadow: '0 2px 8px rgba(15,42,74,0.15)' }} />
@@ -283,7 +290,7 @@ export default function PortalPadres({ onBack }) {
         )}
 
         <button
-          onClick={onBack}
+          onClick={handleVolverConDespedida}
           className="w-full mt-4 text-xs font-semibold text-center hover:underline"
           style={{ color: NAVY }}
         >

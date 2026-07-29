@@ -11,6 +11,7 @@ import DocentesList from './DocentesList'
 import ReportesManager from './ReportesManager'
 import InstitucionesManager from './InstitucionesManager'
 import WelcomeAnimation from './WelcomeAnimation'
+import FarewellAnimation from './FarewellAnimation'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -19,6 +20,11 @@ const GREEN_DARK = '#2f7a1f'
 
 export default function AdminDashboard() {
   const { profile, logout } = useAuth()
+  const [despidiendo, setDespidiendo] = useState(false)
+
+  function handleLogoutConDespedida() {
+    setDespidiendo(true)
+  }
   const [tab, setTab] = useState('cursos')
 
   const menuItems = [
@@ -44,6 +50,7 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: '#F4F6F9' }}>
       <WelcomeAnimation role="admin" nombre={profile?.full_name} />
+      <FarewellAnimation visible={despidiendo} role="admin" nombre={profile?.full_name} onComplete={logout} />
 
       {/* Sidebar */}
       <aside
@@ -86,7 +93,7 @@ export default function AdminDashboard() {
 
         <div className="px-4 py-5 border-t border-white/10">
           <button
-            onClick={logout}
+            onClick={handleLogoutConDespedida}
             className="w-full flex items-center justify-center gap-2 text-sm font-semibold rounded-xl py-2.5 transition hover:opacity-90"
             style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: 'white' }}
           >
@@ -127,7 +134,7 @@ export default function AdminDashboard() {
               {initials}
             </div>
             <button
-              onClick={logout}
+              onClick={handleLogoutConDespedida}
               className="md:hidden text-xs font-semibold px-3 py-2 rounded-lg"
               style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK }}
             >
