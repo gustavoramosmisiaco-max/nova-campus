@@ -10,7 +10,7 @@ const GREEN = '#5DAA47'
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 
 export default function TareasPendientes() {
-  const { session } = useAuth()
+  const { session, profile } = useAuth()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [pendientes, setPendientes] = useState([])
@@ -102,12 +102,12 @@ export default function TareasPendientes() {
 
     assignResult.data.forEach(function (a) {
       const submission = submissionsMap[a.id]
-      if (submission) return // ya lo entregó, no aparece aquí
+      if (submission && submission.file_url != null) return // ya lo entregó de verdad, no aparece aquí
 
       const isPastDue = new Date(a.fecha_entrega) < now
       const justificacion = justMap[a.id]
       const course = courseMap[a.course_id]
-      const item = { ...a, course: course }
+      const item = { ...a, course: course, submission: submission || null }
 
       if (!isPastDue) {
         pend.push(item)
@@ -145,16 +145,36 @@ export default function TareasPendientes() {
       return
     }
 
-    const dbResult = await supabase.from('submissions').insert({
-      assignment_id: assignment.id,
-      student_id: session.user.id,
-      file_url: path,
-      submitted_at: new Date().toISOString(),
-    })
+    const existing = assignment.submission || null
+    let dbResult
+    if (existing) {
+      dbResult = await supabase
+        .from('submissions')
+        .update({ file_url: path, submitted_at: new Date().toISOString() })
+        .eq('id', existing.id)
+    } else {
+      dbResult = await supabase.from('submissions').insert({
+        assignment_id: assignment.id,
+        student_id: session.user.id,
+        file_url: path,
+        submitted_at: new Date().toISOString(),
+      })
+    }
 
     if (dbResult.error) {
       setError('Error al registrar la entrega: ' + dbResult.error.message)
     } else {
+      if (existing) {
+        const courseResult = await supabase.from('courses').select('docente_id').eq('id', assignment.course_id).single()
+        if (courseResult.data?.docente_id) {
+          await supabase.from('notificaciones').insert({
+            user_id: courseResult.data.docente_id,
+            tipo: 'tarea_nueva',
+            titulo: 'Un estudiante volvió a subir una tarea',
+            mensaje: `${profile?.full_name || 'Un estudiante'} resubió: ${assignment.titulo}. Revisa y vuelve a calificarla.`,
+          })
+        }
+      }
       if (assignment.tipo_entrega === 'grupal') {
         await cascadearEntregaAGrupo(assignment, path)
       }

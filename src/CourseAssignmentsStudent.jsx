@@ -11,7 +11,7 @@ const GREEN = '#5DAA47'
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 
 export default function CourseAssignmentsStudent({ courseId, actividadId }) {
-  const { session } = useAuth()
+  const { session, profile } = useAuth()
   const [assignments, setAssignments] = useState([])
   const [submissionsMap, setSubmissionsMap] = useState({})
   const [justificacionesMap, setJustificacionesMap] = useState({})
@@ -124,6 +124,17 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
     } else {
       if (assignment.tipo_entrega === 'grupal') {
         await cascadearEntregaAGrupo(assignment, path)
+      }
+      if (existing) {
+        const courseResult = await supabase.from('courses').select('docente_id').eq('id', assignment.course_id).single()
+        if (courseResult.data?.docente_id) {
+          await supabase.from('notificaciones').insert({
+            user_id: courseResult.data.docente_id,
+            tipo: 'tarea_nueva',
+            titulo: 'Un estudiante volvió a subir una tarea',
+            mensaje: `${profile?.full_name || 'Un estudiante'} resubió: ${assignment.titulo}. Revisa y vuelve a calificarla.`,
+          })
+        }
       }
       loadAssignments()
     }
