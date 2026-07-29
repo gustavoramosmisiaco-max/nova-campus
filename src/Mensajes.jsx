@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 import { compararPorApellido } from './gradeUtils'
 import PreviewModal from './PreviewModal'
+import { estaEnLinea } from './PresenceHeartbeat'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -79,6 +80,17 @@ export default function Mensajes() {
       }
     }
     listaContactos.sort(function (a, b) { return compararPorApellido(a.personaNombre, b.personaNombre) })
+
+    const idsUnicos = [...new Set(listaContactos.map(function (c) { return c.personaId }))]
+    if (idsUnicos.length > 0) {
+      const presenciaResult = await supabase.from('profiles').select('id, last_active_at').in('id', idsUnicos)
+      const mapaPresencia = {}
+      if (!presenciaResult.error) {
+        presenciaResult.data.forEach(function (p) { mapaPresencia[p.id] = estaEnLinea(p.last_active_at) })
+      }
+      listaContactos = listaContactos.map(function (c) { return { ...c, enLinea: mapaPresencia[c.personaId] || false } })
+    }
+
     setContactos(listaContactos)
 
     const mensajesResult = await supabase
@@ -149,8 +161,11 @@ export default function Mensajes() {
                       className="w-full text-left rounded-lg px-3 py-2 transition hover:opacity-80"
                       style={{ backgroundColor: '#F4F6F9' }}
                     >
-                      <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{c.personaNombre}</p>
-                      <p className="text-xs text-slate-400">{c.courseNombre}</p>
+                      <p className="text-sm font-semibold flex items-center gap-1.5" style={{ color: NAVY_DARK }}>
+                        {c.personaNombre}
+                        {c.enLinea && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#5DAA47' }} title="En línea" />}
+                      </p>
+                      <p className="text-xs text-slate-400">{c.courseNombre}{c.enLinea ? ' · En línea' : ''}</p>
                     </button>
                   </li>
                 )
@@ -181,6 +196,7 @@ export default function Mensajes() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold truncate" style={{ color: NAVY_DARK }}>{nombre}</p>
+                      {contacto?.enLinea && <span className="w-2 h-2 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: '#5DAA47' }} title="En línea" />}
                       {conv.noLeidos > 0 && (
                         <span className="text-xs font-bold px-1.5 rounded-full text-white" style={{ backgroundColor: '#B91C1C' }}>{conv.noLeidos}</span>
                       )}
@@ -294,7 +310,15 @@ function HiloConversacion({ contacto, onBack }) {
         ← Volver a Mensajes
       </button>
       <div className="flex-shrink-0 mb-3">
-        <p className="text-base font-bold" style={{ color: NAVY_DARK }}>{contacto.personaNombre}</p>
+        <p className="text-base font-bold flex items-center gap-2" style={{ color: NAVY_DARK }}>
+          {contacto.personaNombre}
+          {contacto.enLinea && (
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex items-center gap-1" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#5DAA47' }} />
+              En línea
+            </span>
+          )}
+        </p>
         {contacto.courseNombre && <p className="text-xs text-slate-400">{contacto.courseNombre}</p>}
       </div>
 

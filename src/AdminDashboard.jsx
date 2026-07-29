@@ -12,6 +12,7 @@ import ReportesManager from './ReportesManager'
 import InstitucionesManager from './InstitucionesManager'
 import WelcomeAnimation from './WelcomeAnimation'
 import FarewellAnimation from './FarewellAnimation'
+import PresenceHeartbeat from './PresenceHeartbeat'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -51,6 +52,7 @@ export default function AdminDashboard() {
     <div className="min-h-screen flex" style={{ backgroundColor: '#F4F6F9' }}>
       <WelcomeAnimation role="admin" nombre={profile?.full_name} />
       <FarewellAnimation visible={despidiendo} role="admin" nombre={profile?.full_name} onComplete={logout} />
+      <PresenceHeartbeat />
 
       {/* Sidebar */}
       <aside

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { compararPorApellido } from './gradeUtils'
+import { estaEnLinea } from './PresenceHeartbeat'
 
 const NAVY_DARK = '#0F2A4A'
 const GREEN_DARK = '#2f7a1f'
@@ -21,7 +22,7 @@ export default function DocentesList() {
 
     const profilesResult = await supabase
       .from('profiles')
-      .select('id, full_name, whatsapp')
+      .select('id, full_name, whatsapp, last_active_at')
       .eq('role', 'docente')
       .order('full_name', { ascending: true })
 
@@ -108,7 +109,12 @@ export default function DocentesList() {
           {items.map(function (d) {
             return (
               <tr key={d.id} style={{ borderBottom: '1px solid #F4F6F9' }}>
-                <td className="py-2 pr-3" style={{ color: NAVY_DARK }}>{d.full_name}</td>
+                <td className="py-2 pr-3" style={{ color: NAVY_DARK }}>
+                  <span className="flex items-center gap-1.5">
+                    {estaEnLinea(d.last_active_at) && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#5DAA47' }} title="En línea" />}
+                    {d.full_name}
+                  </span>
+                </td>
                 <td className="py-2 pr-3 text-slate-500 text-xs">
                   {d.cursos.length > 0 ? d.cursos.join(' · ') : '—'}
                 </td>

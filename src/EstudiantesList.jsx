@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { compararPorApellido } from './gradeUtils'
+import { estaEnLinea } from './PresenceHeartbeat'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -37,7 +38,7 @@ export default function EstudiantesList() {
 
     const profilesResult = await supabase
       .from('profiles')
-      .select('id, full_name, codigo_padre')
+      .select('id, full_name, codigo_padre, last_active_at')
       .eq('role', 'estudiante')
       .order('full_name', { ascending: true })
 
@@ -120,7 +121,12 @@ export default function EstudiantesList() {
               {items.map(function (s) {
                 return (
                   <tr key={s.id} style={{ borderBottom: '1px solid #F4F6F9' }}>
-                    <td className="py-2 pr-3" style={{ color: NAVY_DARK }}>{s.full_name}</td>
+                    <td className="py-2 pr-3" style={{ color: NAVY_DARK }}>
+                      <span className="flex items-center gap-1.5">
+                        {estaEnLinea(s.last_active_at) && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#5DAA47' }} title="En línea" />}
+                        {s.full_name}
+                      </span>
+                    </td>
                     <td className="py-2 pr-3">
                       <span className="text-xs font-mono font-semibold px-2 py-1 rounded-lg" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
                         {s.codigo_padre || '—'}
