@@ -163,18 +163,18 @@ export default function MyTeachingCourses() {
                 <button
                   key={id}
                   onClick={function () { setInstitucionSel(id) }}
-                  className="text-left bg-white rounded-2xl p-5 transition hover:-translate-y-0.5"
+                  className="text-left bg-white rounded-2xl p-5 space-y-2 transition hover:-translate-y-0.5"
                   style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}>
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}>
                       🏫
                     </div>
-                    <div>
-                      <p className="text-base font-bold" style={{ color: NAVY_DARK }}>{nombre}</p>
-                      <p className="text-xs text-slate-400">{cantidad} curso(s)</p>
-                    </div>
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
+                      {cantidad} curso(s)
+                    </span>
                   </div>
+                  <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>{nombre}</h3>
                 </button>
               )
             })}
@@ -196,11 +196,19 @@ export default function MyTeachingCourses() {
                     <button
                       key={`${a.grado}-${a.grupo}`}
                       onClick={function () { setAulaSel(`${a.grado}__${a.grupo}`) }}
-                      className="text-left bg-white rounded-2xl p-5 transition hover:-translate-y-0.5"
+                      className="text-left bg-white rounded-2xl p-5 space-y-2 transition hover:-translate-y-0.5"
                       style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
                     >
-                      <p className="text-base font-bold" style={{ color: NAVY_DARK }}>{gradoLabel(a.grado)} — Sección {a.grupo}</p>
-                      <p className="text-xs text-slate-400 mt-1">{cantidad} asignatura(s)</p>
+                      <div className="flex items-center justify-between">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}>
+                          🎓
+                        </div>
+                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
+                          {cantidad} asignatura(s)
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>{gradoLabel(a.grado)}</h3>
+                      <p className="text-sm text-slate-500">Sección {a.grupo}</p>
                     </button>
                   )
                 })}
@@ -224,14 +232,18 @@ export default function MyTeachingCourses() {
                     <button
                       key={areaNombre}
                       onClick={function () { setAreaSel(areaNombre) }}
-                      className="text-left bg-white rounded-2xl p-5 transition hover:-translate-y-0.5"
+                      className="text-left bg-white rounded-2xl p-5 space-y-2 transition hover:-translate-y-0.5"
                       style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
                     >
-                      <div className="flex items-center gap-2 mb-1">
-                        <span style={{ color: GREEN }}>📁</span>
-                        <p className="text-base font-bold" style={{ color: NAVY_DARK }}>{areaNombre}</p>
+                      <div className="flex items-center justify-between">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}>
+                          📁
+                        </div>
+                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
+                          {cantidad} asignatura(s)
+                        </span>
                       </div>
-                      <p className="text-xs text-slate-400">{cantidad} asignatura(s)</p>
+                      <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>{areaNombre}</h3>
                     </button>
                   )
                 })}
