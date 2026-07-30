@@ -16,6 +16,7 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
   const [competencias, setCompetencias] = useState([])
   const [students, setStudents] = useState([])
   const [notasMap, setNotasMap] = useState({})
+  const [estadoMap, setEstadoMap] = useState({})
   const [finalizada, setFinalizada] = useState(unidad.finalizada || false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -28,6 +29,8 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
   const [evalDuracion, setEvalDuracion] = useState(45)
   const [guardandoEval, setGuardandoEval] = useState(false)
   const [verPreguntas, setVerPreguntas] = useState(false)
+  const [competenciasSeleccionadas, setCompetenciasSeleccionadas] = useState(new Set())
+  const [guardandoCompetencias, setGuardandoCompetencias] = useState(false)
 
   useEffect(function () {
     cargarTodo()
@@ -77,12 +80,16 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
       .select('*')
       .eq('unidad_id', unidad.id)
     const map = {}
+    const estados = {}
     if (!notasResult.error) {
       notasResult.data.forEach(function (n) {
-        map[`${n.student_id}__${n.competencia_id}`] = n.nota_numerica
+        const key = `${n.student_id}__${n.competencia_id}`
+        map[key] = n.nota_numerica
+        estados[key] = n.estado
       })
     }
     setNotasMap(map)
+    setEstadoMap(estados)
 
     const evalResult = await supabase
       .from('evaluaciones_unidad')
@@ -101,12 +108,14 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
         setEvalHoraInicio('')
       }
       setEvalDuracion(evalResult.data.duracion_minutos || 45)
+      setCompetenciasSeleccionadas(new Set(evalResult.data.competencias_ids || []))
     } else {
       setEvaluacionId(null)
       setEvalNombre('')
       setEvalFecha('')
       setEvalHoraInicio('')
       setEvalDuracion(45)
+      setCompetenciasSeleccionadas(new Set())
     }
 
     const unidResult = await supabase.from('unidades').select('finalizada').eq('id', unidad.id).single()
@@ -142,6 +151,20 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
     setGuardandoEval(false)
   }
 
+  async function handleGuardarCompetencias() {
+    if (competenciasSeleccionadas.size === 0) {
+      alert('Marca al menos una competencia a evaluar.')
+      return
+    }
+    setGuardandoCompetencias(true)
+    const result = await supabase
+      .from('evaluaciones_unidad')
+      .update({ competencias_ids: [...competenciasSeleccionadas] })
+      .eq('id', evaluacionId)
+    if (result.error) alert('Error: ' + result.error.message)
+    setGuardandoCompetencias(false)
+  }
+
   async function handleGuardarNota(studentId, competenciaId, valor) {
     if (!evaluacionId) {
       alert('Primero ponle un nombre a la evaluación y guárdala.')
@@ -167,6 +190,7 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
         bimestre: bimestre,
         nota_numerica: numScore,
         nota_letra: getLetterGrade(numScore),
+        estado: 'confirmada',
         graded_by: session.user.id,
         graded_at: new Date().toISOString(),
       },
@@ -177,8 +201,38 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
       alert('Error al guardar: ' + result.error.message)
     } else {
       setNotasMap(function (prev) { return { ...prev, [key]: numScore } })
+      setEstadoMap(function (prev) { return { ...prev, [key]: 'confirmada' } })
     }
     setSavingKey(null)
+  }
+
+  async function handleConfirmarNota(studentId, competenciaId) {
+    const key = `${studentId}__${competenciaId}`
+    const result = await supabase
+      .from('evaluacion_cierre')
+      .update({ estado: 'confirmada' })
+      .eq('student_id', studentId)
+      .eq('unidad_id', unidad.id)
+      .eq('competencia_id', competenciaId)
+    if (result.error) alert('Error: ' + result.error.message)
+    else setEstadoMap(function (prev) { return { ...prev, [key]: 'confirmada' } })
+  }
+
+  async function handleConfirmarTodasPendientes() {
+    const pendientes = Object.keys(estadoMap).filter(function (k) { return estadoMap[k] === 'pendiente_revision' })
+    if (pendientes.length === 0) return
+    if (!confirm(`¿Confirmar las ${pendientes.length} notas pendientes de revisión? Contarán en el Registro Auxiliar.`)) return
+
+    const result = await supabase
+      .from('evaluacion_cierre')
+      .update({ estado: 'confirmada' })
+      .eq('unidad_id', unidad.id)
+      .eq('estado', 'pendiente_revision')
+    if (result.error) { alert('Error: ' + result.error.message); return }
+
+    const nuevos = { ...estadoMap }
+    pendientes.forEach(function (k) { nuevos[k] = 'confirmada' })
+    setEstadoMap(nuevos)
   }
 
   async function handleFinalizarUnidad() {
@@ -316,16 +370,6 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
             {guardandoEval ? 'Guardando...' : evaluacionId ? 'Actualizar datos' : 'Guardar y habilitar notas'}
           </button>
         )}
-        {evaluacionId && (
-          <button
-            type="button"
-            onClick={function () { setVerPreguntas(true) }}
-            className="mt-3 ml-2 text-xs font-semibold px-4 py-2 rounded-lg transition"
-            style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
-          >
-            📝 Crear examen (preguntas y PDF)
-          </button>
-        )}
         {!evaluacionId && !finalizada && (
           <p className="text-xs mt-2" style={{ color: '#B45309' }}>
             Guarda el nombre de la evaluación antes de poder poner notas abajo.
@@ -333,7 +377,39 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
         )}
       </form>
 
+      {evaluacionId && !finalizada && (
+        <div className="mb-5">
+          <button
+            type="button"
+            onClick={function () { setVerPreguntas(true) }}
+            className="text-xs font-semibold px-4 py-2 rounded-lg transition"
+            style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #D6DCE5' }}
+          >
+            📝 Diseñar examen virtual (competencias, preguntas y PDF)
+          </button>
+        </div>
+      )}
+
       {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+
+      {(function () {
+        const pendientesCount = Object.values(estadoMap).filter(function (e) { return e === 'pendiente_revision' }).length
+        if (pendientesCount === 0) return null
+        return (
+          <div className="flex justify-between items-center flex-wrap gap-2 rounded-xl p-3 mb-4" style={{ backgroundColor: '#FFF7E6', border: '1px solid #F5D98A' }}>
+            <p className="text-xs font-semibold" style={{ color: '#B45309' }}>
+              ⏳ {pendientesCount} nota(s) generadas automáticamente por un examen virtual están pendientes de tu revisión — no cuentan todavía en el Registro Auxiliar.
+            </p>
+            <button
+              onClick={handleConfirmarTodasPendientes}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 flex-shrink-0"
+              style={{ backgroundColor: '#B45309' }}
+            >
+              Confirmar todas
+            </button>
+          </div>
+        )
+      })()}
 
       {!error && competencias.length === 0 ? (
         <p className="text-slate-400 text-sm">No se encontraron competencias para esta área.</p>
@@ -365,8 +441,9 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
                       const key = `${s.id}__${c.id}`
                       const valor = notasMap[key]
                       const isSaving = savingKey === key
+                      const pendiente = estadoMap[key] === 'pendiente_revision'
                       return (
-                        <td key={c.id} className="p-2 text-center" style={{ border: '1px solid #E5E9F0' }}>
+                        <td key={c.id} className="p-2 text-center" style={{ border: '1px solid #E5E9F0', backgroundColor: pendiente ? '#FFF7E6' : 'transparent' }}>
                           <div className="flex items-center justify-center gap-2">
                             <input
                               type="number"
@@ -384,6 +461,15 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
                               <span className={'text-xs font-bold ' + getLetterColor(valor)}>{getLetterGrade(valor)}</span>
                             )}
                           </div>
+                          {pendiente && (
+                            <button
+                              onClick={function () { handleConfirmarNota(s.id, c.id) }}
+                              className="text-xs font-semibold px-2 py-0.5 rounded-full mt-1 transition hover:opacity-90"
+                              style={{ backgroundColor: '#B45309', color: 'white' }}
+                            >
+                              Confirmar
+                            </button>
+                          )}
                         </td>
                       )
                     })}

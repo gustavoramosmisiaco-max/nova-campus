@@ -204,8 +204,9 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
     if (unidadIdsFinalizadas.length > 0) {
       const cierreResult = await supabase
         .from('evaluacion_cierre')
-        .select('student_id, competencia_id, nota_numerica')
+        .select('student_id, competencia_id, nota_numerica, estado')
         .in('unidad_id', unidadIdsFinalizadas)
+        .eq('estado', 'confirmada')
       if (!cierreResult.error) {
         cierreResult.data.forEach(function (row) {
           const key = `${row.student_id}__${row.competencia_id}`
