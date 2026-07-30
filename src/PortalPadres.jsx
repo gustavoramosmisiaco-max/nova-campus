@@ -213,17 +213,17 @@ export default function PortalPadres({ onBack }) {
                         const letraComp = comp.promedio != null ? getLetterGrade(comp.promedio) : null
                         return (
                           <div key={ci} className="rounded-lg p-3" style={{ backgroundColor: '#F4F6F9' }}>
-                            <div className="flex justify-between items-center">
-                              <p className="text-xs font-semibold" style={{ color: '#2f7a1f' }}>{comp.nombre}</p>
-                              <p className="text-xs font-bold" style={{ color: NAVY_DARK }}>{letraComp || '—'}</p>
+                            <div className="flex justify-between items-start gap-2">
+                              <p className="text-xs font-semibold flex-1 min-w-0" style={{ color: '#2f7a1f' }}>{comp.nombre}</p>
+                              <p className="text-xs font-bold flex-shrink-0" style={{ color: NAVY_DARK }}>{letraComp || '—'}</p>
                             </div>
                             <ul className="mt-1.5 space-y-1">
                               {comp.capacidades.map(function (cap, capi) {
                                 const letraCap = cap.promedio != null ? getLetterGrade(cap.promedio) : null
                                 return (
-                                  <li key={capi} className="text-xs flex justify-between" style={{ color: '#5F5E5A' }}>
-                                    <span>{cap.nombre}</span>
-                                    <span className="font-semibold">{letraCap || '—'}</span>
+                                  <li key={capi} className="text-xs flex justify-between items-start gap-2" style={{ color: '#5F5E5A' }}>
+                                    <span className="flex-1 min-w-0">{cap.nombre}</span>
+                                    <span className="font-semibold flex-shrink-0">{letraCap || '—'}</span>
                                   </li>
                                 )
                               })}
