@@ -27,6 +27,7 @@ export default function EnrollmentsManager() {
   const [error, setError] = useState('')
   const [sincronizando, setSincronizando] = useState(false)
   const [mensajeSync, setMensajeSync] = useState('')
+  const [seleccionadosSinGrado, setSeleccionadosSinGrado] = useState(new Set())
 
   useEffect(function () {
     loadAllStudents()
@@ -199,24 +200,31 @@ export default function EnrollmentsManager() {
     }
   }
 
-  async function handleAsignarYMatricular(studentId) {
+  async function handleAsignarYMatricular(studentIds) {
     setError('')
+    const ids = Array.isArray(studentIds) ? studentIds : [studentIds]
+    if (ids.length === 0) return
+
     const perfilResult = await supabase
       .from('profiles')
       .update({ grado: selectedGrado, grupo: selectedSeccion })
-      .eq('id', studentId)
+      .in('id', ids)
     if (perfilResult.error) {
       setError('Error al asignar grado/sección: ' + perfilResult.error.message)
       return
     }
 
-    const payload = aulaCourses.map(function (c) {
-      return { course_id: c.id, student_id: studentId, status: 'activo' }
+    const payload = []
+    ids.forEach(function (studentId) {
+      aulaCourses.forEach(function (c) {
+        payload.push({ course_id: c.id, student_id: studentId, status: 'activo' })
+      })
     })
     const result = await supabase.from('enrollments').insert(payload)
     if (result.error) {
       setError('Error al matricular: ' + result.error.message)
     } else {
+      setSeleccionadosSinGrado(new Set())
       loadAllStudents()
       loadAula()
     }
@@ -413,30 +421,55 @@ export default function EnrollmentsManager() {
 
               {estudiantesSinGrado.length > 0 && (
                 <div className="bg-white rounded-2xl p-5 mt-6" style={{ border: '1px solid #F5C6C6' }}>
-                  <h3 className="font-bold mb-1" style={{ color: '#B91C1C' }}>
-                    Sin Grado/Sección asignado ({estudiantesSinGrado.length})
-                  </h3>
+                  <div className="flex justify-between items-center flex-wrap gap-2 mb-1">
+                    <h3 className="font-bold" style={{ color: '#B91C1C' }}>
+                      Sin Grado/Sección asignado ({estudiantesSinGrado.length})
+                    </h3>
+                    {seleccionadosSinGrado.size > 0 && (
+                      <button
+                        onClick={function () { handleAsignarYMatricular([...seleccionadosSinGrado]) }}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90"
+                        style={{ backgroundColor: GREEN }}
+                      >
+                        Asignar {seleccionadosSinGrado.size} seleccionado(s) a {gradoLabel(selectedGrado)} Sección {selectedSeccion}
+                      </button>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-400 mb-3">
-                    Estudiantes creados antes de que existiera su curso — revisa cuáles son de {gradoLabel(selectedGrado)} Sección {selectedSeccion} y asígnalos aquí.
+                    Estudiantes creados antes de que existiera su curso. Marca los que correspondan a {gradoLabel(selectedGrado)} Sección {selectedSeccion} y asígnalos de una vez, o uno por uno.
                   </p>
                   <ul className="space-y-2">
                     {estudiantesSinGrado.map(function (s) {
+                      const marcado = seleccionadosSinGrado.has(s.id)
                       return (
                         <li
                           key={s.id}
                           className="flex justify-between items-center rounded-lg px-3 py-2"
                           style={{ backgroundColor: '#FDECEC' }}
                         >
-                          <div>
-                            <p className="text-sm font-medium" style={{ color: NAVY_DARK }}>{s.full_name}</p>
-                            <p className="text-xs text-slate-500">{s.email}</p>
-                          </div>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={marcado}
+                              onChange={function () {
+                                setSeleccionadosSinGrado(function (prev) {
+                                  const next = new Set(prev)
+                                  if (next.has(s.id)) next.delete(s.id); else next.add(s.id)
+                                  return next
+                                })
+                              }}
+                            />
+                            <div>
+                              <p className="text-sm font-medium" style={{ color: NAVY_DARK }}>{s.full_name}</p>
+                              <p className="text-xs text-slate-500">{s.email}</p>
+                            </div>
+                          </label>
                           <button
                             onClick={function () { handleAsignarYMatricular(s.id) }}
                             className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90"
                             style={{ backgroundColor: '#B45309' }}
                           >
-                            Asignar a esta aula y matricular
+                            Asignar
                           </button>
                         </li>
                       )
