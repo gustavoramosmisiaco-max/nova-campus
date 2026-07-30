@@ -24,6 +24,8 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
   const [evaluacionId, setEvaluacionId] = useState(null)
   const [evalNombre, setEvalNombre] = useState('')
   const [evalFecha, setEvalFecha] = useState('')
+  const [evalHoraInicio, setEvalHoraInicio] = useState('')
+  const [evalDuracion, setEvalDuracion] = useState(45)
   const [guardandoEval, setGuardandoEval] = useState(false)
   const [verPreguntas, setVerPreguntas] = useState(false)
 
@@ -92,10 +94,20 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
       setEvaluacionId(evalResult.data.id)
       setEvalNombre(evalResult.data.nombre)
       setEvalFecha(evalResult.data.fecha || '')
+      if (evalResult.data.fecha_hora_inicio) {
+        const d = new Date(evalResult.data.fecha_hora_inicio)
+        const pad = function (n) { return String(n).padStart(2, '0') }
+        setEvalHoraInicio(d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()))
+      } else {
+        setEvalHoraInicio('')
+      }
+      setEvalDuracion(evalResult.data.duracion_minutos || 45)
     } else {
       setEvaluacionId(null)
       setEvalNombre('')
       setEvalFecha('')
+      setEvalHoraInicio('')
+      setEvalDuracion(45)
     }
 
     const unidResult = await supabase.from('unidades').select('finalizada').eq('id', unidad.id).single()
@@ -114,6 +126,8 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
       course_id: unidad.course_id,
       nombre: evalNombre.trim(),
       fecha: evalFecha || null,
+      fecha_hora_inicio: evalHoraInicio ? `${evalHoraInicio}:00-05:00` : null,
+      duracion_minutos: evalDuracion || null,
       created_by: session.user.id,
     }
 
@@ -249,7 +263,7 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Fecha</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Fecha (referencial)</label>
             <input
               type="date"
               value={evalFecha}
@@ -259,6 +273,39 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
               style={inputStyle}
             />
           </div>
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-3 mt-3 p-3 rounded-lg" style={{ backgroundColor: '#F4F6F9' }}>
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>
+              Fecha y hora en que se habilita el examen virtual
+            </label>
+            <input
+              type="datetime-local"
+              value={evalHoraInicio}
+              onChange={function (e) { setEvalHoraInicio(e.target.value) }}
+              disabled={finalizada}
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>
+              Duración del examen (minutos)
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={evalDuracion}
+              onChange={function (e) { setEvalDuracion(Number(e.target.value)) }}
+              disabled={finalizada}
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+              style={inputStyle}
+            />
+          </div>
+          <p className="text-xs sm:col-span-2" style={{ color: '#B45309' }}>
+            Déjalo en blanco si el examen no será virtual (solo en papel) — así, "Evaluación de Cierre" seguirá aceptando notas manuales normalmente.
+          </p>
         </div>
         {!finalizada && (
           <button

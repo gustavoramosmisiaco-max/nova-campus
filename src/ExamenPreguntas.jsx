@@ -25,6 +25,7 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
   const [tipo, setTipo] = useState('alternativa')
   const [enunciado, setEnunciado] = useState('')
   const [opciones, setOpciones] = useState(['', '', '', ''])
+  const [respuestaCorrecta, setRespuestaCorrecta] = useState('')
   const [puntaje, setPuntaje] = useState(1)
   const [capacidadId, setCapacidadId] = useState('')
 
@@ -65,6 +66,7 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
     setTipo('alternativa')
     setEnunciado('')
     setOpciones(['', '', '', ''])
+    setRespuestaCorrecta('')
     setPuntaje(1)
     setCapacidadId('')
   }
@@ -79,6 +81,7 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
     setTipo(p.tipo)
     setEnunciado(p.enunciado)
     setOpciones(p.opciones && p.opciones.length > 0 ? p.opciones.map(function (o) { return o.texto }) : ['', '', '', ''])
+    setRespuestaCorrecta(p.respuesta_correcta || '')
     setPuntaje(p.puntaje)
     setCapacidadId(p.capacidad_id || '')
     setShowForm(true)
@@ -96,8 +99,10 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
         .map(function (texto, i) { return { letra: letras[i], texto: texto.trim() } })
         .filter(function (o) { return o.texto })
       if (opcionesPayload.length < 2) { setError('Agrega al menos 2 alternativas.'); return }
+      if (!respuestaCorrecta) { setError('Marca cuál alternativa es la correcta.'); return }
     } else if (tipo === 'verdadero_falso') {
       opcionesPayload = [{ letra: 'V', texto: 'Verdadero' }, { letra: 'F', texto: 'Falso' }]
+      if (!respuestaCorrecta) { setError('Marca si la respuesta correcta es Verdadero o Falso.'); return }
     }
 
     const payload = {
@@ -105,6 +110,7 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
       tipo: tipo,
       enunciado: enunciado.trim(),
       opciones: opcionesPayload,
+      respuesta_correcta: tipo === 'abierta' ? null : respuestaCorrecta,
       puntaje: puntaje,
       capacidad_id: capacidadId || null,
     }
@@ -272,11 +278,17 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
 
           {tipo === 'alternativa' && (
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Alternativas</label>
+              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Alternativas (marca la correcta con el círculo)</label>
               <div className="space-y-2">
                 {['A', 'B', 'C', 'D'].map(function (letra, i) {
                   return (
                     <div key={letra} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="respuestaCorrecta"
+                        checked={respuestaCorrecta === letra}
+                        onChange={function () { setRespuestaCorrecta(letra) }}
+                      />
                       <span className="text-xs font-bold w-5" style={{ color: NAVY_DARK }}>{letra})</span>
                       <input
                         type="text"
@@ -291,6 +303,29 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
                         placeholder={`Alternativa ${letra}`}
                       />
                     </div>
+                  )
+                })}
+              </div>
+              <p className="text-xs mt-1 text-slate-400">La verde ✓ es la que el sistema calificará como correcta automáticamente.</p>
+            </div>
+          )}
+
+          {tipo === 'verdadero_falso' && (
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Respuesta correcta</label>
+              <div className="flex gap-2">
+                {[{ v: 'V', label: 'Verdadero' }, { v: 'F', label: 'Falso' }].map(function (op) {
+                  const active = respuestaCorrecta === op.v
+                  return (
+                    <button
+                      key={op.v}
+                      type="button"
+                      onClick={function () { setRespuestaCorrecta(op.v) }}
+                      className="text-xs font-semibold px-4 py-2 rounded-lg transition"
+                      style={active ? { backgroundColor: GREEN, color: 'white' } : { backgroundColor: '#F4F6F9', color: NAVY_DARK }}
+                    >
+                      {op.label}
+                    </button>
                   )
                 })}
               </div>
