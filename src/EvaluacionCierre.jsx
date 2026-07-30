@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 import { getLetterGrade, getLetterColor, compararPorApellido } from './gradeUtils'
+import ExamenPreguntas from './ExamenPreguntas'
 
 const NAVY_DARK = '#0F2A4A'
 const GREEN = '#5DAA47'
@@ -23,6 +24,7 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
   const [evalNombre, setEvalNombre] = useState('')
   const [evalFecha, setEvalFecha] = useState('')
   const [guardandoEval, setGuardandoEval] = useState(false)
+  const [verPreguntas, setVerPreguntas] = useState(false)
 
   useEffect(function () {
     cargarTodo()
@@ -186,6 +188,19 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
 
   if (loading) return <p className="text-slate-400 text-sm">Cargando...</p>
 
+  if (verPreguntas) {
+    return (
+      <ExamenPreguntas
+        evaluacionId={evaluacionId}
+        evaluacionNombre={evalNombre}
+        evaluacionFecha={evalFecha}
+        courseId={unidad.course_id}
+        unidad={unidad}
+        onCerrar={function () { setVerPreguntas(false) }}
+      />
+    )
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center flex-wrap gap-3 mb-1">
@@ -252,6 +267,16 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
             style={{ backgroundColor: GREEN }}
           >
             {guardandoEval ? 'Guardando...' : evaluacionId ? 'Actualizar datos' : 'Guardar y habilitar notas'}
+          </button>
+        )}
+        {evaluacionId && (
+          <button
+            type="button"
+            onClick={function () { setVerPreguntas(true) }}
+            className="mt-3 ml-2 text-xs font-semibold px-4 py-2 rounded-lg transition"
+            style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+          >
+            📝 Crear examen (preguntas y PDF)
           </button>
         )}
         {!evaluacionId && !finalizada && (
