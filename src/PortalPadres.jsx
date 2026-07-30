@@ -257,6 +257,36 @@ export default function PortalPadres({ onBack }) {
               )}
             </div>
 
+            {datos.conductas && datos.conductas.length > 0 && (
+              <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
+                <p className="text-sm font-bold mb-3" style={{ color: '#B45309' }}>
+                  Registro de Conducta ({datos.conductas.length})
+                </p>
+                <ul className="space-y-2">
+                  {datos.conductas.map(function (c, i) {
+                    return (
+                      <li key={i} className="text-xs rounded-lg px-3 py-2" style={{ backgroundColor: '#FFF7E6' }}>
+                        <div className="flex justify-between items-start gap-2">
+                          <div>
+                            <p className="font-semibold" style={{ color: '#B45309' }}>{c.tipo}</p>
+                            <p className="text-slate-600 mt-0.5">{c.descripcion}</p>
+                            <p className="text-slate-400 mt-1">
+                              {new Date(c.fecha + 'T00:00:00').toLocaleDateString('es-PE')} · Registrado por {c.docente}
+                            </p>
+                          </div>
+                          {c.adjuntoUrl && (
+                            <a href={c.adjuntoUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold px-2 py-1 rounded-lg flex-shrink-0" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>
+                              Ver adjunto
+                            </a>
+                          )}
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )}
+
             {datos.docentes.filter(function (d) { return d.whatsapp }).length > 0 && (
               <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
                 <p className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>Grupos de WhatsApp de padres</p>
