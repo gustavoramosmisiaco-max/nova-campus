@@ -331,6 +331,8 @@ export default function MyCourses() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedCourse, setSelectedCourse] = useState(null)
+  const [institucionSel, setInstitucionSel] = useState(null)
+  const [areaSel, setAreaSel] = useState(null)
 
   useEffect(function () {
     loadMyCourses()
@@ -340,7 +342,7 @@ export default function MyCourses() {
     setLoading(true)
     const result = await supabase
       .from('enrollments')
-      .select('id, status, course:courses!inner(id, nombre, grupo, grado, course_schedules(*), docente:profiles(full_name), asignaturas!inner(activo, areas_curriculares(nombre)))')
+      .select('id, status, course:courses!inner(id, nombre, grupo, grado, institucion_id, course_schedules(*), docente:profiles(full_name), asignaturas!inner(activo, areas_curriculares(nombre)), instituciones_educativas(nombre))')
       .eq('student_id', session.user.id)
       .eq('status', 'activo')
       .eq('course.asignaturas.activo', true)
@@ -349,6 +351,8 @@ export default function MyCourses() {
       setError(result.error.message)
     } else {
       setCourses(result.data)
+      const institucionesIds = [...new Set(result.data.map(function (e) { return e.course.institucion_id || 'sin-institucion' }))]
+      if (institucionesIds.length === 1) setInstitucionSel(institucionesIds[0])
     }
     setLoading(false)
   }
@@ -364,15 +368,16 @@ export default function MyCourses() {
   const miGrado = miCurso?.course.grado
   const miSeccion = miCurso?.course.grupo
 
+  const institucionesUnicas = [...new Map(
+    courses.map(function (e) { return [e.course.institucion_id || 'sin-institucion', e.course.instituciones_educativas?.nombre || 'Sin institución asignada'] })
+  ).entries()]
+
   return (
     <div>
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         <h2 className="text-2xl font-bold" style={{ color: NAVY_DARK }}>Mis Asignaturas</h2>
         {miGrado && (
-          <span
-            className="text-xs font-semibold px-3 py-1.5 rounded-full"
-            style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}
-          >
+          <span className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
             {gradoLabel(miGrado)} · Sección {miSeccion}
           </span>
         )}
@@ -380,71 +385,108 @@ export default function MyCourses() {
 
       {courses.length === 0 ? (
         <div className="bg-white rounded-2xl p-10 text-center" style={{ border: '1px dashed #D6DCE5' }}>
-          <p className="text-slate-400 text-sm">
-            Aún no estás matriculado en ningún curso. Contacta al administrador de la academia.
-          </p>
+          <p className="text-slate-400 text-sm">Aún no estás matriculado en ningún curso. Contacta al administrador de la academia.</p>
         </div>
-      ) : (
-        <div className="space-y-8">
-          {(function () {
-            const areasUnicas = [...new Set(courses.map(function (e) { return e.course.asignaturas?.areas_curriculares?.nombre || 'Otras' }))]
-            return areasUnicas.map(function (areaNombre) {
-              const cursosDelArea = courses.filter(function (e) {
-                return (e.course.asignaturas?.areas_curriculares?.nombre || 'Otras') === areaNombre
-              })
+      ) : institucionSel == null ? (
+        <>
+          <p className="text-sm text-slate-400 mb-5">Elige la institución educativa</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {institucionesUnicas.map(function ([id, nombre]) {
+              const cantidad = courses.filter(function (e) { return (e.course.institucion_id || 'sin-institucion') === id }).length
               return (
-                <div key={areaNombre}>
-                  <h3 className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>{areaNombre}</h3>
-                  <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-                    {cursosDelArea.map(function (e) {
-                      return (
-                        <button
-                          key={e.id}
-                          onClick={function () { setSelectedCourse(e.course) }}
-                          className="text-left bg-white rounded-2xl p-5 space-y-2 transition hover:-translate-y-0.5"
-                          style={{
-                            border: '1px solid #E5E9F0',
-                            boxShadow: '0 1px 3px rgba(15,42,74,0.06)',
-                          }}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div
-                              className="w-10 h-10 rounded-xl flex items-center justify-center"
-                              style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}
-                            >
-                              <BookIcon />
-                            </div>
-                            {e.course.grado && (
-                              <span
-                                className="text-xs font-semibold px-2.5 py-1 rounded-full"
-                                style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}
-                              >
-                                {gradoLabel(e.course.grado)}
-                              </span>
-                            )}
-                          </div>
-
-                          <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>
-                            {e.course.nombre}{' '}
-                            <span className="text-slate-400 text-sm font-medium">(Sección {e.course.grupo})</span>
-                          </h3>
-
-                          <p className="text-sm text-slate-500">
-                            Docente: {e.course.docente?.full_name || 'Sin asignar'}
-                          </p>
-
-                          <p className="text-sm font-medium" style={{ color: GREEN_DARK }}>
-                            {scheduleText(e.course.course_schedules)}
-                          </p>
-                        </button>
-                      )
-                    })}
+                <button
+                  key={id}
+                  onClick={function () { setInstitucionSel(id) }}
+                  className="text-left bg-white rounded-2xl p-5 transition hover:-translate-y-0.5"
+                  style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}>
+                      🏫
+                    </div>
+                    <div>
+                      <p className="text-base font-bold" style={{ color: NAVY_DARK }}>{nombre}</p>
+                      <p className="text-xs text-slate-400">{cantidad} asignatura(s)</p>
+                    </div>
                   </div>
-                </div>
+                </button>
               )
-            })
+            })}
+          </div>
+        </>
+      ) : areaSel == null ? (
+        <>
+          {institucionesUnicas.length > 1 && (
+            <button onClick={function () { setInstitucionSel(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Instituciones</button>
+          )}
+          <p className="text-sm text-slate-400 mb-5">Elige el Área</p>
+          {(function () {
+            const cursosInst = courses.filter(function (e) { return (e.course.institucion_id || 'sin-institucion') === institucionSel })
+            const areasUnicas = [...new Set(cursosInst.map(function (e) { return e.course.asignaturas?.areas_curriculares?.nombre || 'Otras' }))]
+            return (
+              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+                {areasUnicas.map(function (areaNombre) {
+                  const cantidad = cursosInst.filter(function (e) { return (e.course.asignaturas?.areas_curriculares?.nombre || 'Otras') === areaNombre }).length
+                  return (
+                    <button
+                      key={areaNombre}
+                      onClick={function () { setAreaSel(areaNombre) }}
+                      className="text-left bg-white rounded-2xl p-5 transition hover:-translate-y-0.5"
+                      style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span style={{ color: GREEN }}>📁</span>
+                        <p className="text-base font-bold" style={{ color: NAVY_DARK }}>{areaNombre}</p>
+                      </div>
+                      <p className="text-xs text-slate-400">{cantidad} asignatura(s)</p>
+                    </button>
+                  )
+                })}
+              </div>
+            )
           })()}
-        </div>
+        </>
+      ) : (
+        <>
+          <button onClick={function () { setAreaSel(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Áreas</button>
+          <p className="text-sm text-slate-400 mb-5">{areaSel}</p>
+          {(function () {
+            const cursosFinal = courses.filter(function (e) {
+              return (e.course.institucion_id || 'sin-institucion') === institucionSel
+                && (e.course.asignaturas?.areas_curriculares?.nombre || 'Otras') === areaSel
+            })
+            return (
+              <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                {cursosFinal.map(function (e) {
+                  return (
+                    <button
+                      key={e.id}
+                      onClick={function () { setSelectedCourse(e.course) }}
+                      className="text-left bg-white rounded-2xl p-5 space-y-2 transition hover:-translate-y-0.5"
+                      style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}>
+                          <BookIcon />
+                        </div>
+                        {e.course.grado && (
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
+                            {gradoLabel(e.course.grado)}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>
+                        {e.course.nombre} <span className="text-slate-400 text-sm font-medium">(Sección {e.course.grupo})</span>
+                      </h3>
+                      <p className="text-sm text-slate-500">Docente: {e.course.docente?.full_name || 'Sin asignar'}</p>
+                      <p className="text-sm font-medium" style={{ color: GREEN_DARK }}>{scheduleText(e.course.course_schedules)}</p>
+                    </button>
+                  )
+                })}
+              </div>
+            )
+          })()}
+        </>
       )}
     </div>
   )

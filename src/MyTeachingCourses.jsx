@@ -107,7 +107,9 @@ export default function MyTeachingCourses() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedCourse, setSelectedCourse] = useState(null)
-  const [selectedGrado, setSelectedGrado] = useState('todos')
+  const [institucionSel, setInstitucionSel] = useState(null)
+  const [aulaSel, setAulaSel] = useState(null)
+  const [areaSel, setAreaSel] = useState(null)
 
   useEffect(function () {
     loadMyCourses()
@@ -117,7 +119,7 @@ export default function MyTeachingCourses() {
     setLoading(true)
     const result = await supabase
       .from('courses')
-      .select('id, nombre, grupo, grado, course_schedules(*), enrollments(count), asignaturas!inner(activo, areas_curriculares(nombre))')
+      .select('id, nombre, grupo, grado, institucion_id, course_schedules(*), enrollments(count), asignaturas!inner(activo, areas_curriculares(nombre)), instituciones_educativas(nombre)')
       .eq('docente_id', session.user.id)
       .eq('asignaturas.activo', true)
       .order('grado', { ascending: true })
@@ -139,121 +141,147 @@ export default function MyTeachingCourses() {
     return <CourseDetailTeacher course={selectedCourse} onBack={function () { setSelectedCourse(null) }} />
   }
 
-  const gradosConCursos = GRADOS.filter(function (g) {
-    return courses.some(function (c) { return c.grado === g })
-  })
-
-  const filteredCourses = selectedGrado === 'todos'
-    ? courses
-    : courses.filter(function (c) { return c.grado === Number(selectedGrado) })
+  const institucionesUnicas = [...new Map(
+    courses.map(function (c) { return [c.institucion_id || 'sin-institucion', c.instituciones_educativas?.nombre || 'Sin institución asignada'] })
+  ).entries()]
 
   return (
     <div>
       <h2 className="text-2xl font-bold mb-2" style={{ color: NAVY_DARK }}>Mis Asignaturas</h2>
-      <p className="text-sm text-slate-400 mb-5">Elige el aula (grado) a la que quieres ingresar</p>
-
-      {gradosConCursos.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-6">
-          <button
-            onClick={function () { setSelectedGrado('todos') }}
-            className="text-sm font-semibold px-4 py-2 rounded-xl transition"
-            style={
-              selectedGrado === 'todos'
-                ? { background: `linear-gradient(90deg, ${NAVY}, ${GREEN})`, color: 'white' }
-                : { backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }
-            }
-          >
-            Todas las aulas
-          </button>
-          {gradosConCursos.map(function (g) {
-            const active = selectedGrado === String(g)
-            return (
-              <button
-                key={g}
-                onClick={function () { setSelectedGrado(String(g)) }}
-                className="text-sm font-semibold px-4 py-2 rounded-xl transition"
-                style={
-                  active
-                    ? { background: `linear-gradient(90deg, ${NAVY}, ${GREEN})`, color: 'white' }
-                    : { backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }
-                }
-              >
-                {gradoLabel(g)}
-              </button>
-            )
-          })}
-        </div>
-      )}
 
       {courses.length === 0 ? (
         <div className="bg-white rounded-2xl p-10 text-center" style={{ border: '1px dashed #D6DCE5' }}>
-          <p className="text-slate-400 text-sm">
-            Aún no tienes cursos asignados. Contacta al administrador.
-          </p>
+          <p className="text-slate-400 text-sm">Aún no tienes cursos asignados. Contacta al administrador.</p>
         </div>
-      ) : filteredCourses.length === 0 ? (
-        <div className="bg-white rounded-2xl p-10 text-center" style={{ border: '1px dashed #D6DCE5' }}>
-          <p className="text-slate-400 text-sm">No tienes cursos en esta aula.</p>
-        </div>
-      ) : (
-        <div className="space-y-8">
-          {(function () {
-            const areasUnicas = [...new Set(filteredCourses.map(function (c) { return c.asignaturas?.areas_curriculares?.nombre || 'Otras' }))]
-            return areasUnicas.map(function (areaNombre) {
-              const cursosDelArea = filteredCourses.filter(function (c) {
-                return (c.asignaturas?.areas_curriculares?.nombre || 'Otras') === areaNombre
-              })
+      ) : institucionSel == null ? (
+        <>
+          <p className="text-sm text-slate-400 mb-5">Elige la institución educativa</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {institucionesUnicas.map(function ([id, nombre]) {
+              const cantidad = courses.filter(function (c) { return (c.institucion_id || 'sin-institucion') === id }).length
               return (
-                <div key={areaNombre}>
-                  <h3 className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>{areaNombre}</h3>
-                  <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-                    {cursosDelArea.map(function (c) {
-                      return (
-                        <button
-                          key={c.id}
-                          onClick={function () { setSelectedCourse(c) }}
-                          className="text-left bg-white rounded-2xl p-5 space-y-2 transition hover:-translate-y-0.5"
-                          style={{
-                            border: '1px solid #E5E9F0',
-                            boxShadow: '0 1px 3px rgba(15,42,74,0.06)',
-                          }}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div
-                              className="w-10 h-10 rounded-xl flex items-center justify-center"
-                              style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}
-                            >
-                              <BookIcon />
-                            </div>
-                            <span
-                              className="text-xs font-semibold px-2.5 py-1 rounded-full"
-                              style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}
-                            >
-                              {gradoLabel(c.grado)}
-                            </span>
-                          </div>
-
-                          <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>
-                            {c.nombre}{' '}
-                            <span className="text-slate-400 text-sm font-medium">(Sección {c.grupo})</span>
-                          </h3>
-
-                          <p className="text-sm text-slate-500">
-                            {scheduleText(c.course_schedules)}
-                          </p>
-
-                          <p className="text-sm font-medium" style={{ color: GREEN_DARK }}>
-                            {c.enrollments?.[0]?.count ?? 0} alumno(s) matriculado(s)
-                          </p>
-                        </button>
-                      )
-                    })}
+                <button
+                  key={id}
+                  onClick={function () { setInstitucionSel(id) }}
+                  className="text-left bg-white rounded-2xl p-5 transition hover:-translate-y-0.5"
+                  style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}>
+                      🏫
+                    </div>
+                    <div>
+                      <p className="text-base font-bold" style={{ color: NAVY_DARK }}>{nombre}</p>
+                      <p className="text-xs text-slate-400">{cantidad} curso(s)</p>
+                    </div>
                   </div>
-                </div>
+                </button>
               )
-            })
+            })}
+          </div>
+        </>
+      ) : aulaSel == null ? (
+        <>
+          <button onClick={function () { setInstitucionSel(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Instituciones</button>
+          <p className="text-sm text-slate-400 mb-5">Elige el Grado y Sección</p>
+          {(function () {
+            const cursosInst = courses.filter(function (c) { return (c.institucion_id || 'sin-institucion') === institucionSel })
+            const aulasUnicas = [...new Map(cursosInst.map(function (c) { return [`${c.grado}__${c.grupo}`, { grado: c.grado, grupo: c.grupo }] })).values()]
+            aulasUnicas.sort(function (a, b) { return a.grado - b.grado || a.grupo.localeCompare(b.grupo) })
+            return (
+              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+                {aulasUnicas.map(function (a) {
+                  const cantidad = cursosInst.filter(function (c) { return c.grado === a.grado && c.grupo === a.grupo }).length
+                  return (
+                    <button
+                      key={`${a.grado}-${a.grupo}`}
+                      onClick={function () { setAulaSel(`${a.grado}__${a.grupo}`) }}
+                      className="text-left bg-white rounded-2xl p-5 transition hover:-translate-y-0.5"
+                      style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
+                    >
+                      <p className="text-base font-bold" style={{ color: NAVY_DARK }}>{gradoLabel(a.grado)} — Sección {a.grupo}</p>
+                      <p className="text-xs text-slate-400 mt-1">{cantidad} asignatura(s)</p>
+                    </button>
+                  )
+                })}
+              </div>
+            )
           })()}
-        </div>
+        </>
+      ) : areaSel == null ? (
+        <>
+          <button onClick={function () { setAulaSel(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Grados y Secciones</button>
+          <p className="text-sm text-slate-400 mb-5">Elige el Área</p>
+          {(function () {
+            const [grado, grupo] = aulaSel.split('__')
+            const cursosAula = courses.filter(function (c) { return String(c.grado) === grado && c.grupo === grupo && (c.institucion_id || 'sin-institucion') === institucionSel })
+            const areasUnicas = [...new Set(cursosAula.map(function (c) { return c.asignaturas?.areas_curriculares?.nombre || 'Otras' }))]
+            return (
+              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+                {areasUnicas.map(function (areaNombre) {
+                  const cantidad = cursosAula.filter(function (c) { return (c.asignaturas?.areas_curriculares?.nombre || 'Otras') === areaNombre }).length
+                  return (
+                    <button
+                      key={areaNombre}
+                      onClick={function () { setAreaSel(areaNombre) }}
+                      className="text-left bg-white rounded-2xl p-5 transition hover:-translate-y-0.5"
+                      style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span style={{ color: GREEN }}>📁</span>
+                        <p className="text-base font-bold" style={{ color: NAVY_DARK }}>{areaNombre}</p>
+                      </div>
+                      <p className="text-xs text-slate-400">{cantidad} asignatura(s)</p>
+                    </button>
+                  )
+                })}
+              </div>
+            )
+          })()}
+        </>
+      ) : (
+        <>
+          <button onClick={function () { setAreaSel(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Áreas</button>
+          <p className="text-sm text-slate-400 mb-5">{areaSel}</p>
+          {(function () {
+            const [grado, grupo] = aulaSel.split('__')
+            const cursosFinal = courses.filter(function (c) {
+              return String(c.grado) === grado && c.grupo === grupo
+                && (c.institucion_id || 'sin-institucion') === institucionSel
+                && (c.asignaturas?.areas_curriculares?.nombre || 'Otras') === areaSel
+            })
+            return (
+              <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                {cursosFinal.map(function (c) {
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={function () { setSelectedCourse(c) }}
+                      className="text-left bg-white rounded-2xl p-5 space-y-2 transition hover:-translate-y-0.5"
+                      style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}>
+                          <BookIcon />
+                        </div>
+                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
+                          {gradoLabel(c.grado)}
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>
+                        {c.nombre} <span className="text-slate-400 text-sm font-medium">(Sección {c.grupo})</span>
+                      </h3>
+                      <p className="text-sm text-slate-500">{scheduleText(c.course_schedules)}</p>
+                      <p className="text-sm font-medium" style={{ color: GREEN_DARK }}>
+                        {c.enrollments?.[0]?.count ?? 0} alumno(s) matriculado(s)
+                      </p>
+                    </button>
+                  )
+                })}
+              </div>
+            )
+          })()}
+        </>
       )}
     </div>
   )
