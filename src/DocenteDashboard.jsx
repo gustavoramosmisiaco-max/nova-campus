@@ -6,6 +6,7 @@ import NotificationBell from './NotificationBell'
 import Mensajes from './Mensajes'
 import WelcomeAnimation from './WelcomeAnimation'
 import FarewellAnimation from './FarewellAnimation'
+import RegistroConducta from './RegistroConducta'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -56,6 +57,7 @@ export default function DocenteDashboard() {
   const menuItems = [
     { id: 'cursos', label: 'Mis Asignaturas', icon: BookIcon },
     { id: 'tareas', label: 'Mis Tareas', icon: TaskIcon },
+    { id: 'conducta', label: 'Registro de Conducta', icon: TaskIcon },
     { id: 'mensajes', label: 'Mensajes', icon: TaskIcon },
   ]
 
@@ -222,6 +224,7 @@ export default function DocenteDashboard() {
               onTareaDestacadaAtendida={function () { setTareaDestacadaId(null) }}
             />
           )}
+          {activeSection === 'conducta' && <RegistroConducta />}
           {activeSection === 'mensajes' && <Mensajes />}
         </main>
       </div>
