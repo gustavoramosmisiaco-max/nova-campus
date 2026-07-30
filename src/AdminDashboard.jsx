@@ -10,6 +10,7 @@ import EstudiantesList from './EstudiantesList'
 import DocentesList from './DocentesList'
 import ReportesManager from './ReportesManager'
 import InstitucionesManager from './InstitucionesManager'
+import HabilitarCursos from './HabilitarCursos'
 import WelcomeAnimation from './WelcomeAnimation'
 import FarewellAnimation from './FarewellAnimation'
 
@@ -38,6 +39,7 @@ export default function AdminDashboard() {
     { id: 'importar-docentes', label: 'Importar Docentes', icon: UsersIcon },
     { id: 'reportes', label: 'Reportes', icon: BookIcon },
     { id: 'instituciones', label: 'Instituciones', icon: BookIcon },
+    { id: 'habilitar-cursos', label: 'Habilitar Cursos', icon: BookIcon },
     { id: 'periodo', label: 'Cierre de Periodo', icon: BookIcon },
   ]
 
@@ -205,6 +207,7 @@ export default function AdminDashboard() {
           {tab === 'importar-docentes' && <ImportarDocentes />}
           {tab === 'reportes' && <ReportesManager />}
           {tab === 'instituciones' && <InstitucionesManager />}
+          {tab === 'habilitar-cursos' && <HabilitarCursos />}
           {tab === 'periodo' && <CierrePeriodo />}
         </main>
       </div>

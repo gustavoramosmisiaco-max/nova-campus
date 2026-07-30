@@ -123,6 +123,7 @@ export default function MyTeachingCourses() {
       .select('id, nombre, grupo, grado, institucion_id, course_schedules(*), enrollments(count), asignaturas!inner(activo, areas_curriculares(nombre)), instituciones_educativas(nombre)')
       .eq('docente_id', session.user.id)
       .eq('asignaturas.activo', true)
+      .eq('activo', true)
       .order('grado', { ascending: true })
       .order('grupo', { ascending: true })
       .order('nombre', { ascending: true })

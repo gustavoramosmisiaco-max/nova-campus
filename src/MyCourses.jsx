@@ -346,6 +346,7 @@ export default function MyCourses() {
       .eq('student_id', session.user.id)
       .eq('status', 'activo')
       .eq('course.asignaturas.activo', true)
+      .eq('course.activo', true)
 
     if (result.error) {
       setError(result.error.message)
