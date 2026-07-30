@@ -88,7 +88,6 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
       .from('evaluaciones_unidad')
       .select('*')
       .eq('unidad_id', unidad.id)
-      .eq('course_id', unidad.course_id)
       .maybeSingle()
     if (!evalResult.error && evalResult.data) {
       setEvaluacionId(evalResult.data.id)
@@ -241,7 +240,7 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
         )}
       </div>
       <p className="text-sm text-slate-400 mb-4">
-        Nota de cierre por competencia del área <strong>{areaNombre}</strong>, correspondiente a {unidad.tipo} {unidad.numero} (Bimestre {Math.ceil(unidad.numero / 2)}).
+        Nota de cierre por competencia del área <strong>{areaNombre}</strong>, correspondiente a {unidad.tipo} {unidad.numero} (Bimestre {Math.ceil(unidad.numero / 2)}). Esta evaluación es <strong>una sola, compartida</strong> entre todas las asignaturas de esta área (Biología, Química, Física) — cualquiera de los docentes puede editarla.
       </p>
 
       <form onSubmit={handleGuardarEvaluacion} className="bg-white rounded-2xl p-4 mb-5" style={{ border: '1px solid #E5E9F0' }}>
