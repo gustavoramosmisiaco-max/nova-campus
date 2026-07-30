@@ -241,6 +241,7 @@ export default function ExamenVirtual({ unidad, courseId, onCerrar }) {
   if (ventana === 'antes') {
     return (
       <div className="text-center py-10">
+        {onCerrar && <button onClick={onCerrar} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver</button>}
         <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: '#F4F6F9' }}>
           <span style={{ fontSize: 32 }}>🕐</span>
         </div>
@@ -255,6 +256,7 @@ export default function ExamenVirtual({ unidad, courseId, onCerrar }) {
   if (ventana === 'cerrado' && !intento) {
     return (
       <div className="text-center py-10">
+        {onCerrar && <button onClick={onCerrar} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver</button>}
         <p className="text-lg font-bold mb-1" style={{ color: '#B91C1C' }}>Examen cerrado</p>
         <p className="text-sm text-slate-500">El plazo para rendir "{evaluacion.nombre}" ya venció.</p>
       </div>
@@ -264,6 +266,7 @@ export default function ExamenVirtual({ unidad, courseId, onCerrar }) {
   if (!intento) {
     return (
       <div className="text-center py-10">
+        {onCerrar && <button onClick={onCerrar} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver</button>}
         <h2 className="text-xl font-bold mb-1" style={{ color: NAVY_DARK }}>{evaluacion.nombre}</h2>
         <p className="text-sm text-slate-500 mb-1">{preguntas.length} preguntas · {evaluacion.duracion_minutos} minutos</p>
         <p className="text-xs text-slate-400 mb-6">Una vez que empieces, el tiempo corre sin pausa hasta que se acabe la ventana del examen.</p>

@@ -8,6 +8,7 @@ import Mensajes from './Mensajes'
 import BloqueoPanel from './BloqueoPanel'
 import WelcomeAnimation from './WelcomeAnimation'
 import FarewellAnimation from './FarewellAnimation'
+import ExamenesEstudiante from './ExamenesEstudiante'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -27,6 +28,7 @@ export default function EstudianteDashboard() {
   const menuItems = [
     { id: 'cursos', label: 'Mis Asignaturas', icon: BookIcon },
     { id: 'pendientes', label: 'Tareas Pendientes', icon: ChartIcon },
+    { id: 'examenes', label: 'Exámenes', icon: ChartIcon },
     { id: 'notas', label: 'Notas', icon: ChartIcon },
     { id: 'mensajes', label: 'Mensajes', icon: VideoIcon },
     { id: 'zoom', label: 'Clases en vivo', icon: VideoIcon },
@@ -192,6 +194,7 @@ export default function EstudianteDashboard() {
         <main className="flex-1 p-6 md:p-10">
           {activeSection === 'cursos' && <MyCourses />}
           {activeSection === 'pendientes' && <TareasPendientes />}
+          {activeSection === 'examenes' && <ExamenesEstudiante />}
           {activeSection === 'notas' && <StudentGrades />}
           {activeSection === 'mensajes' && <Mensajes />}
           {activeSection === 'zoom' && (
