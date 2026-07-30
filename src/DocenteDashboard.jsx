@@ -7,6 +7,7 @@ import Mensajes from './Mensajes'
 import WelcomeAnimation from './WelcomeAnimation'
 import FarewellAnimation from './FarewellAnimation'
 import RegistroConducta from './RegistroConducta'
+import ComunicadoDocente from './ComunicadoDocente'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -58,6 +59,7 @@ export default function DocenteDashboard() {
     { id: 'cursos', label: 'Mis Asignaturas', icon: BookIcon },
     { id: 'tareas', label: 'Mis Tareas', icon: TaskIcon },
     { id: 'conducta', label: 'Registro de Conducta', icon: TaskIcon },
+    { id: 'comunicados', label: 'Comunicados', icon: TaskIcon },
     { id: 'mensajes', label: 'Mensajes', icon: TaskIcon },
   ]
 
@@ -225,6 +227,7 @@ export default function DocenteDashboard() {
             />
           )}
           {activeSection === 'conducta' && <RegistroConducta />}
+          {activeSection === 'comunicados' && <ComunicadoDocente />}
           {activeSection === 'mensajes' && <Mensajes />}
         </main>
       </div>

@@ -9,6 +9,7 @@ import BloqueoPanel from './BloqueoPanel'
 import WelcomeAnimation from './WelcomeAnimation'
 import FarewellAnimation from './FarewellAnimation'
 import ExamenesEstudiante from './ExamenesEstudiante'
+import ComunicadoPopup from './ComunicadoPopup'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -44,6 +45,7 @@ export default function EstudianteDashboard() {
   return (
     <>
     <WelcomeAnimation role="estudiante" nombre={profile?.full_name} />
+    <ComunicadoPopup />
     <FarewellAnimation visible={despidiendo} role="estudiante" nombre={profile?.full_name} onComplete={logout} />
     <BloqueoPanel>
     <div className="min-h-screen flex" style={{ backgroundColor: '#F4F6F9' }}>
