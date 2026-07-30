@@ -16,18 +16,20 @@ const TIPOS = [
 
 export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evaluacionFecha, courseId, unidad, onCerrar }) {
   const [preguntas, setPreguntas] = useState([])
-  const [capacidades, setCapacidades] = useState([])
+  const [competencias, setCompetencias] = useState([])
+  const [competenciasSeleccionadas, setCompetenciasSeleccionadas] = useState(new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
+  const [guardandoCompetencias, setGuardandoCompetencias] = useState(false)
 
   const [tipo, setTipo] = useState('alternativa')
   const [enunciado, setEnunciado] = useState('')
   const [opciones, setOpciones] = useState(['', '', '', ''])
   const [respuestaCorrecta, setRespuestaCorrecta] = useState('')
   const [puntaje, setPuntaje] = useState(1)
-  const [capacidadId, setCapacidadId] = useState('')
+  const [competenciaId, setCompetenciaId] = useState('')
 
   useEffect(function () {
     cargarTodo()
@@ -36,9 +38,12 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
   async function cargarTodo() {
     setLoading(true)
 
+    const evalActualResult = await supabase.from('evaluaciones_unidad').select('competencias_ids').eq('id', evaluacionId).single()
+    const idsGuardados = evalActualResult.data?.competencias_ids || []
+
     const preguntasResult = await supabase
       .from('examen_preguntas')
-      .select('*, capacidad:capacidades(nombre)')
+      .select('*, competencia:competencias(nombre)')
       .eq('evaluacion_id', evaluacionId)
       .order('numero')
     if (!preguntasResult.error) setPreguntas(preguntasResult.data)
@@ -50,15 +55,30 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
       .single()
     const areaNombre = courseResult.data?.asignaturas?.areas_curriculares?.nombre
     if (areaNombre) {
-      const compResult = await supabase.from('competencias').select('id').eq('area', areaNombre)
-      const competenciaIds = (compResult.data || []).map(function (c) { return c.id })
-      if (competenciaIds.length > 0) {
-        const capResult = await supabase.from('capacidades').select('id, nombre').in('competencia_id', competenciaIds).order('orden')
-        if (!capResult.error) setCapacidades(capResult.data)
-      }
+      const compResult = await supabase.from('competencias').select('*').eq('area', areaNombre).order('codigo')
+      if (!compResult.error) setCompetencias(compResult.data)
     }
 
+    setCompetenciasSeleccionadas(new Set(idsGuardados))
     setLoading(false)
+  }
+
+  async function handleGuardarCompetencias() {
+    setGuardandoCompetencias(true)
+    const result = await supabase
+      .from('evaluaciones_unidad')
+      .update({ competencias_ids: [...competenciasSeleccionadas] })
+      .eq('id', evaluacionId)
+    if (result.error) alert('Error: ' + result.error.message)
+    setGuardandoCompetencias(false)
+  }
+
+  function toggleCompetencia(id) {
+    setCompetenciasSeleccionadas(function (prev) {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
   }
 
   function resetForm() {
@@ -68,7 +88,7 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
     setOpciones(['', '', '', ''])
     setRespuestaCorrecta('')
     setPuntaje(1)
-    setCapacidadId('')
+    setCompetenciaId(competenciasSeleccionadas.size === 1 ? [...competenciasSeleccionadas][0] : '')
   }
 
   function openNew() {
@@ -83,7 +103,7 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
     setOpciones(p.opciones && p.opciones.length > 0 ? p.opciones.map(function (o) { return o.texto }) : ['', '', '', ''])
     setRespuestaCorrecta(p.respuesta_correcta || '')
     setPuntaje(p.puntaje)
-    setCapacidadId(p.capacidad_id || '')
+    setCompetenciaId(p.competencia_id || '')
     setShowForm(true)
   }
 
@@ -91,6 +111,7 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
     e.preventDefault()
     setError('')
     if (!enunciado.trim()) { setError('Escribe el enunciado de la pregunta.'); return }
+    if (!competenciaId) { setError('Elige a qué competencia pertenece esta pregunta.'); return }
 
     let opcionesPayload = null
     if (tipo === 'alternativa') {
@@ -112,7 +133,7 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
       opciones: opcionesPayload,
       respuesta_correcta: tipo === 'abierta' ? null : respuestaCorrecta,
       puntaje: puntaje,
-      capacidad_id: capacidadId || null,
+      competencia_id: competenciaId,
     }
 
     let result
@@ -135,20 +156,6 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
   async function handleDelete(id) {
     if (!confirm('¿Eliminar esta pregunta?')) return
     await supabase.from('examen_preguntas').delete().eq('id', id)
-    const restantes = preguntas.filter(function (p) { return p.id !== id })
-    for (let i = 0; i < restantes.length; i++) {
-      await supabase.from('examen_preguntas').update({ numero: i + 1 }).eq('id', restantes[i].id)
-    }
-    cargarTodo()
-  }
-
-  async function moverPregunta(index, direccion) {
-    const otras = index + direccion
-    if (otras < 0 || otras >= preguntas.length) return
-    const a = preguntas[index]
-    const b = preguntas[otras]
-    await supabase.from('examen_preguntas').update({ numero: b.numero }).eq('id', a.id)
-    await supabase.from('examen_preguntas').update({ numero: a.numero }).eq('id', b.id)
     cargarTodo()
   }
 
@@ -182,31 +189,47 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
     doc.setFont(undefined, 'normal')
     y += 10
 
-    preguntas.forEach(function (p) {
-      if (y > 265) { doc.addPage(); y = 15 }
+    let numeroGlobal = 1
+    competencias.filter(function (c) { return competenciasSeleccionadas.has(c.id) }).forEach(function (comp) {
+      const preguntasDeComp = preguntas.filter(function (p) { return p.competencia_id === comp.id })
+      if (preguntasDeComp.length === 0) return
 
+      if (y > 260) { doc.addPage(); y = 15 }
       doc.setFontSize(10)
       doc.setFont(undefined, 'bold')
-      const enunciadoLines = doc.splitTextToSize(`${p.numero}. ${p.enunciado}  (${p.puntaje} pts)`, pageWidth - 28)
-      doc.text(enunciadoLines, 14, y)
-      y += enunciadoLines.length * 5 + 2
-      doc.setFont(undefined, 'normal')
+      doc.setTextColor(93, 170, 71)
+      doc.text(comp.nombre, 14, y)
+      doc.setTextColor(0, 0, 0)
+      y += 7
 
-      if (p.tipo === 'alternativa' || p.tipo === 'verdadero_falso') {
-        ;(p.opciones || []).forEach(function (op) {
-          const opLines = doc.splitTextToSize(`${op.letra}) ${op.texto}`, pageWidth - 40)
-          doc.text(opLines, 22, y)
-          y += opLines.length * 5
-        })
-        y += 4
-      } else {
-        for (let i = 0; i < 3; i++) {
-          doc.setDrawColor(220, 220, 220)
-          doc.line(20, y, pageWidth - 14, y)
-          y += 7
+      preguntasDeComp.forEach(function (p) {
+        if (y > 265) { doc.addPage(); y = 15 }
+
+        doc.setFontSize(10)
+        doc.setFont(undefined, 'bold')
+        const enunciadoLines = doc.splitTextToSize(`${numeroGlobal}. ${p.enunciado}  (${p.puntaje} pts)`, pageWidth - 28)
+        doc.text(enunciadoLines, 14, y)
+        y += enunciadoLines.length * 5 + 2
+        doc.setFont(undefined, 'normal')
+        numeroGlobal++
+
+        if (p.tipo === 'alternativa' || p.tipo === 'verdadero_falso') {
+          ;(p.opciones || []).forEach(function (op) {
+            const opLines = doc.splitTextToSize(`${op.letra}) ${op.texto}`, pageWidth - 40)
+            doc.text(opLines, 22, y)
+            y += opLines.length * 5
+          })
+          y += 4
+        } else {
+          for (let i = 0; i < 3; i++) {
+            doc.setDrawColor(220, 220, 220)
+            doc.line(20, y, pageWidth - 14, y)
+            y += 7
+          }
+          y += 2
         }
-        y += 2
-      }
+      })
+      y += 3
     })
 
     doc.save(`${evaluacionNombre.replace(/[^a-zA-Z0-9]+/g, '_')}.pdf`)
@@ -214,194 +237,237 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
 
   if (loading) return <p className="text-slate-400 text-sm">Cargando...</p>
 
+  const competenciasElegidas = competencias.filter(function (c) { return competenciasSeleccionadas.has(c.id) })
+  const totalPreguntas = preguntas.length
+
   return (
     <div>
       <button onClick={onCerrar} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>
         ← Volver a Evaluación de Cierre
       </button>
 
-      <div className="flex justify-between items-start flex-wrap gap-3 mb-1">
+      <div className="flex justify-between items-start flex-wrap gap-3 mb-4">
         <div>
           <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>{evaluacionNombre}</h3>
-          <p className="text-xs text-slate-400">Preguntas del examen — {preguntas.length} pregunta(s)</p>
+          <p className="text-xs text-slate-400">{totalPreguntas} pregunta(s) en total</p>
         </div>
-        <div className="flex gap-2">
-          {preguntas.length > 0 && (
-            <button onClick={generarPDF} className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: NAVY }}>
-              📄 Generar PDF del examen
-            </button>
-          )}
-          <button
-            onClick={function () { if (showForm) setShowForm(false); else openNew() }}
-            className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
-            style={{ backgroundColor: GREEN }}
-          >
-            {showForm ? 'Cancelar' : '+ Nueva pregunta'}
+        {totalPreguntas > 0 && (
+          <button onClick={generarPDF} className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: NAVY }}>
+            📄 Generar PDF del examen
           </button>
-        </div>
+        )}
       </div>
 
-      {showForm && (
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-4 my-4 space-y-3" style={{ border: '1px solid #E5E9F0' }}>
-          <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Tipo de pregunta</label>
-            <div className="flex gap-2 flex-wrap">
-              {TIPOS.map(function (t) {
-                const active = tipo === t.id
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={function () { setTipo(t.id) }}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
-                    style={active ? { backgroundColor: GREEN, color: 'white' } : { backgroundColor: '#F4F6F9', color: NAVY_DARK }}
-                  >
-                    {t.label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Enunciado</label>
-            <textarea
-              value={enunciado}
-              onChange={function (e) { setEnunciado(e.target.value) }}
-              rows={3}
-              required
-              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-              style={inputStyle}
-              placeholder="Escribe la pregunta..."
-            />
-          </div>
-
-          {tipo === 'alternativa' && (
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Alternativas (marca la correcta con el círculo)</label>
-              <div className="space-y-2">
-                {['A', 'B', 'C', 'D'].map(function (letra, i) {
-                  return (
-                    <div key={letra} className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="respuestaCorrecta"
-                        checked={respuestaCorrecta === letra}
-                        onChange={function () { setRespuestaCorrecta(letra) }}
-                      />
-                      <span className="text-xs font-bold w-5" style={{ color: NAVY_DARK }}>{letra})</span>
-                      <input
-                        type="text"
-                        value={opciones[i]}
-                        onChange={function (e) {
-                          const nuevas = [...opciones]
-                          nuevas[i] = e.target.value
-                          setOpciones(nuevas)
-                        }}
-                        className="flex-1 rounded-lg px-3 py-1.5 text-sm outline-none"
-                        style={inputStyle}
-                        placeholder={`Alternativa ${letra}`}
-                      />
-                    </div>
-                  )
-                })}
-              </div>
-              <p className="text-xs mt-1 text-slate-400">La verde ✓ es la que el sistema calificará como correcta automáticamente.</p>
-            </div>
-          )}
-
-          {tipo === 'verdadero_falso' && (
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Respuesta correcta</label>
-              <div className="flex gap-2">
-                {[{ v: 'V', label: 'Verdadero' }, { v: 'F', label: 'Falso' }].map(function (op) {
-                  const active = respuestaCorrecta === op.v
-                  return (
-                    <button
-                      key={op.v}
-                      type="button"
-                      onClick={function () { setRespuestaCorrecta(op.v) }}
-                      className="text-xs font-semibold px-4 py-2 rounded-lg transition"
-                      style={active ? { backgroundColor: GREEN, color: 'white' } : { backgroundColor: '#F4F6F9', color: NAVY_DARK }}
-                    >
-                      {op.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          <div className="grid sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Puntaje</label>
-              <input
-                type="number"
-                min="0.5"
-                step="0.5"
-                value={puntaje}
-                onChange={function (e) { setPuntaje(Number(e.target.value)) }}
-                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Capacidad que evalúa (opcional)</label>
-              <select
-                value={capacidadId}
-                onChange={function (e) { setCapacidadId(e.target.value) }}
-                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-                style={inputStyle}
-              >
-                <option value="">-- Sin especificar --</option>
-                {capacidades.map(function (c) { return <option key={c.id} value={c.id}>{c.nombre}</option> })}
-              </select>
-            </div>
-          </div>
-
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-          <button type="submit" className="text-sm font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: GREEN }}>
-            {editingId ? 'Guardar cambios' : 'Agregar pregunta'}
-          </button>
-        </form>
-      )}
-
-      {preguntas.length === 0 ? (
-        <p className="text-slate-400 text-sm">Aún no hay preguntas en este examen.</p>
-      ) : (
-        <ul className="space-y-3">
-          {preguntas.map(function (p, index) {
+      <div className="bg-white rounded-2xl p-4 mb-5" style={{ border: '1px solid #E5E9F0' }}>
+        <p className="text-sm font-bold mb-1" style={{ color: NAVY_DARK }}>Paso 1 — ¿Qué competencias vas a evaluar en este examen?</p>
+        <p className="text-xs text-slate-400 mb-3">Marca todas las que correspondan. Después podrás agregar preguntas para cada una.</p>
+        <div className="grid sm:grid-cols-2 gap-2 mb-3">
+          {competencias.map(function (c) {
+            const marcado = competenciasSeleccionadas.has(c.id)
             return (
-              <li key={p.id} className="bg-white rounded-xl p-4" style={{ border: '1px solid #E5E9F0' }}>
-                <div className="flex justify-between items-start gap-3">
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{p.numero}. {p.enunciado}</p>
-                    {p.opciones && (
-                      <ul className="mt-1 space-y-0.5">
-                        {p.opciones.map(function (o) {
-                          return <li key={o.letra} className="text-xs text-slate-500">{o.letra}) {o.texto}</li>
-                        })}
-                      </ul>
-                    )}
-                    <p className="text-xs text-slate-400 mt-1">
-                      {p.puntaje} pts{p.capacidad ? ' · ' + p.capacidad.nombre : ''}
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-1 items-end flex-shrink-0">
-                    <div className="flex gap-1">
-                      <button onClick={function () { moverPregunta(index, -1) }} disabled={index === 0} className="text-xs px-2 py-1 rounded-lg transition disabled:opacity-30" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK }}>↑</button>
-                      <button onClick={function () { moverPregunta(index, 1) }} disabled={index === preguntas.length - 1} className="text-xs px-2 py-1 rounded-lg transition disabled:opacity-30" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK }}>↓</button>
-                    </div>
-                    <div className="flex gap-1">
-                      <button onClick={function () { openEdit(p) }} className="text-xs font-semibold px-2 py-1 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>Editar</button>
-                      <button onClick={function () { handleDelete(p.id) }} className="text-xs font-semibold px-2 py-1 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: '#B91C1C' }}>Eliminar</button>
-                    </div>
-                  </div>
-                </div>
-              </li>
+              <label key={c.id} className="flex items-center gap-2 text-sm rounded-lg px-3 py-2 cursor-pointer" style={{ backgroundColor: marcado ? '#E7F3E4' : '#F4F6F9' }}>
+                <input type="checkbox" checked={marcado} onChange={function () { toggleCompetencia(c.id) }} />
+                <span style={{ color: marcado ? '#2f7a1f' : NAVY_DARK }}>{c.nombre}</span>
+              </label>
             )
           })}
-        </ul>
+        </div>
+        <button
+          onClick={handleGuardarCompetencias}
+          disabled={guardandoCompetencias}
+          className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+          style={{ backgroundColor: GREEN }}
+        >
+          {guardandoCompetencias ? 'Guardando...' : 'Guardar competencias'}
+        </button>
+      </div>
+
+      {competenciasElegidas.length === 0 ? (
+        <p className="text-slate-400 text-sm">Elige y guarda al menos una competencia arriba para empezar a agregar preguntas.</p>
+      ) : (
+        <>
+          <div className="flex justify-between items-center mb-3">
+            <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>Paso 2 — Preguntas por competencia</p>
+            <button
+              onClick={function () { if (showForm) setShowForm(false); else openNew() }}
+              className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+              style={{ backgroundColor: GREEN }}
+            >
+              {showForm ? 'Cancelar' : '+ Nueva pregunta'}
+            </button>
+          </div>
+
+          {showForm && (
+            <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-4 mb-5 space-y-3" style={{ border: '1px solid #E5E9F0' }}>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Competencia que evalúa esta pregunta</label>
+                <select value={competenciaId} onChange={function (e) { setCompetenciaId(e.target.value) }} required className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+                  <option value="">-- Elige --</option>
+                  {competenciasElegidas.map(function (c) { return <option key={c.id} value={c.id}>{c.nombre}</option> })}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Tipo de pregunta</label>
+                <div className="flex gap-2 flex-wrap">
+                  {TIPOS.map(function (t) {
+                    const active = tipo === t.id
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={function () { setTipo(t.id) }}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+                        style={active ? { backgroundColor: GREEN, color: 'white' } : { backgroundColor: '#F4F6F9', color: NAVY_DARK }}
+                      >
+                        {t.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Enunciado</label>
+                <textarea
+                  value={enunciado}
+                  onChange={function (e) { setEnunciado(e.target.value) }}
+                  rows={3}
+                  required
+                  className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                  style={inputStyle}
+                  placeholder="Escribe la pregunta..."
+                />
+              </div>
+
+              {tipo === 'alternativa' && (
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Alternativas (marca la correcta con el círculo)</label>
+                  <div className="space-y-2">
+                    {['A', 'B', 'C', 'D'].map(function (letra, i) {
+                      return (
+                        <div key={letra} className="flex items-center gap-2">
+                          <input type="radio" name="respuestaCorrecta" checked={respuestaCorrecta === letra} onChange={function () { setRespuestaCorrecta(letra) }} />
+                          <span className="text-xs font-bold w-5" style={{ color: NAVY_DARK }}>{letra})</span>
+                          <input
+                            type="text"
+                            value={opciones[i]}
+                            onChange={function (e) {
+                              const nuevas = [...opciones]
+                              nuevas[i] = e.target.value
+                              setOpciones(nuevas)
+                            }}
+                            className="flex-1 rounded-lg px-3 py-1.5 text-sm outline-none"
+                            style={inputStyle}
+                            placeholder={`Alternativa ${letra}`}
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <p className="text-xs mt-1 text-slate-400">El círculo marcado es la que el sistema calificará como correcta automáticamente.</p>
+                </div>
+              )}
+
+              {tipo === 'verdadero_falso' && (
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Respuesta correcta</label>
+                  <div className="flex gap-2">
+                    {[{ v: 'V', label: 'Verdadero' }, { v: 'F', label: 'Falso' }].map(function (op) {
+                      const active = respuestaCorrecta === op.v
+                      return (
+                        <button
+                          key={op.v}
+                          type="button"
+                          onClick={function () { setRespuestaCorrecta(op.v) }}
+                          className="text-xs font-semibold px-4 py-2 rounded-lg transition"
+                          style={active ? { backgroundColor: GREEN, color: 'white' } : { backgroundColor: '#F4F6F9', color: NAVY_DARK }}
+                        >
+                          {op.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {tipo === 'abierta' && (
+                <p className="text-xs rounded-lg p-2" style={{ backgroundColor: '#F4F6F9', color: '#5F5E5A' }}>
+                  El estudiante podrá escribir su respuesta y/o adjuntar una imagen o PDF. Esta pregunta no se corrige sola — la revisarás tú manualmente.
+                </p>
+              )}
+
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Puntaje</label>
+                <input
+                  type="number"
+                  min="0.5"
+                  step="0.5"
+                  value={puntaje}
+                  onChange={function (e) { setPuntaje(Number(e.target.value)) }}
+                  className="w-32 rounded-lg px-3 py-2 text-sm outline-none"
+                  style={inputStyle}
+                />
+              </div>
+
+              {error && <p className="text-red-500 text-sm">{error}</p>}
+              <button type="submit" className="text-sm font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: GREEN }}>
+                {editingId ? 'Guardar cambios' : 'Agregar pregunta'}
+              </button>
+            </form>
+          )}
+
+          <div className="space-y-6">
+            {competenciasElegidas.map(function (comp) {
+              const preguntasDeComp = preguntas.filter(function (p) { return p.competencia_id === comp.id })
+              const puntosComp = preguntasDeComp.reduce(function (a, p) { return a + Number(p.puntaje) }, 0)
+              return (
+                <div key={comp.id}>
+                  <div className="flex justify-between items-center mb-2">
+                    <p className="text-sm font-bold" style={{ color: '#2f7a1f' }}>{comp.nombre}</p>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
+                      {preguntasDeComp.length} pregunta(s) · {puntosComp} pts
+                    </span>
+                  </div>
+                  {preguntasDeComp.length === 0 ? (
+                    <p className="text-xs text-slate-400 mb-2">Sin preguntas todavía para esta competencia.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {preguntasDeComp.map(function (p, index) {
+                        return (
+                          <li key={p.id} className="bg-white rounded-xl p-3" style={{ border: '1px solid #E5E9F0' }}>
+                            <div className="flex justify-between items-start gap-3">
+                              <div className="flex-1">
+                                <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{index + 1}. {p.enunciado}</p>
+                                {p.opciones && (
+                                  <ul className="mt-1 space-y-0.5">
+                                    {p.opciones.map(function (o) {
+                                      const esCorrecta = o.letra === p.respuesta_correcta
+                                      return (
+                                        <li key={o.letra} className="text-xs" style={{ color: esCorrecta ? '#2f7a1f' : '#5F5E5A', fontWeight: esCorrecta ? 600 : 400 }}>
+                                          {o.letra}) {o.texto} {esCorrecta ? '✓' : ''}
+                                        </li>
+                                      )
+                                    })}
+                                  </ul>
+                                )}
+                                <p className="text-xs text-slate-400 mt-1">{p.puntaje} pts</p>
+                              </div>
+                              <div className="flex gap-1 flex-shrink-0">
+                                <button onClick={function () { openEdit(p) }} className="text-xs font-semibold px-2 py-1 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>Editar</button>
+                                <button onClick={function () { handleDelete(p.id) }} className="text-xs font-semibold px-2 py-1 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: '#B91C1C' }}>Eliminar</button>
+                              </div>
+                            </div>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </>
       )}
     </div>
   )
