@@ -262,28 +262,45 @@ export default function PortalPadres({ onBack }) {
                 <p className="text-sm font-bold mb-3" style={{ color: '#B45309' }}>
                   Registro de Conducta ({datos.conductas.length})
                 </p>
-                <ul className="space-y-2">
-                  {datos.conductas.map(function (c, i) {
+                {(function () {
+                  const porArea = {}
+                  datos.conductas.forEach(function (c) {
+                    const key = c.areaNombre || 'Sin área'
+                    if (!porArea[key]) porArea[key] = []
+                    porArea[key].push(c)
+                  })
+                  return Object.keys(porArea).map(function (areaNombre) {
                     return (
-                      <li key={i} className="text-xs rounded-lg px-3 py-2" style={{ backgroundColor: '#FFF7E6' }}>
-                        <div className="flex justify-between items-start gap-2">
-                          <div>
-                            <p className="font-semibold" style={{ color: '#B45309' }}>{c.tipo}</p>
-                            <p className="text-slate-600 mt-0.5">{c.descripcion}</p>
-                            <p className="text-slate-400 mt-1">
-                              {new Date(c.fecha + 'T00:00:00').toLocaleDateString('es-PE')} · Registrado por {c.docente}
-                            </p>
-                          </div>
-                          {c.adjuntoUrl && (
-                            <a href={c.adjuntoUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold px-2 py-1 rounded-lg flex-shrink-0" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>
-                              Ver adjunto
-                            </a>
-                          )}
-                        </div>
-                      </li>
+                      <div key={areaNombre} className="mb-4 last:mb-0">
+                        <p className="text-xs font-bold mb-2" style={{ color: NAVY_DARK }}>{areaNombre}</p>
+                        <ul className="space-y-2">
+                          {porArea[areaNombre].map(function (c, i) {
+                            return (
+                              <li key={i} className="text-xs rounded-lg px-3 py-2" style={{ backgroundColor: '#FFF7E6' }}>
+                                <div className="flex justify-between items-start gap-2">
+                                  <div>
+                                    <p className="font-semibold" style={{ color: '#B45309' }}>{c.tipo}</p>
+                                    <p className="text-slate-600 mt-0.5">{c.descripcion}</p>
+                                    <p className="text-slate-400 mt-1">
+                                      {new Date(c.fecha + 'T00:00:00').toLocaleDateString('es-PE')}
+                                      {c.unidadTexto && ` · ${c.unidadTexto}${c.bimestre ? ' (Bim. ' + c.bimestre + ')' : ''}`}
+                                      {' · Registrado por ' + c.docente}
+                                    </p>
+                                  </div>
+                                  {c.adjuntoUrl && (
+                                    <a href={c.adjuntoUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold px-2 py-1 rounded-lg flex-shrink-0" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>
+                                      Ver adjunto
+                                    </a>
+                                  )}
+                                </div>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      </div>
                     )
-                  })}
-                </ul>
+                  })
+                })()}
               </div>
             )}
 
