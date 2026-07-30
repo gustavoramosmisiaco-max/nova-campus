@@ -23,6 +23,9 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [guardandoCompetencias, setGuardandoCompetencias] = useState(false)
+  const [publicado, setPublicado] = useState(false)
+  const [publicando, setPublicando] = useState(false)
+  const [fechaHoraInicio, setFechaHoraInicio] = useState(null)
 
   const [tipo, setTipo] = useState('alternativa')
   const [enunciado, setEnunciado] = useState('')
@@ -38,8 +41,10 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
   async function cargarTodo() {
     setLoading(true)
 
-    const evalActualResult = await supabase.from('evaluaciones_unidad').select('competencias_ids').eq('id', evaluacionId).single()
+    const evalActualResult = await supabase.from('evaluaciones_unidad').select('competencias_ids, publicado, fecha_hora_inicio').eq('id', evaluacionId).single()
     const idsGuardados = evalActualResult.data?.competencias_ids || []
+    setPublicado(evalActualResult.data?.publicado || false)
+    setFechaHoraInicio(evalActualResult.data?.fecha_hora_inicio || null)
 
     const preguntasResult = await supabase
       .from('examen_preguntas')
@@ -153,6 +158,39 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
     cargarTodo()
   }
 
+  async function handlePublicar() {
+    if (!fechaHoraInicio) { alert('Primero ponle fecha/hora de inicio a la evaluación (vuelve a "Evaluación de Cierre").'); return }
+    if (preguntas.length === 0) { alert('Agrega al menos una pregunta antes de publicar.'); return }
+    if (!confirm('¿Publicar este examen? Se notificará a todos los estudiantes matriculados.')) return
+
+    setPublicando(true)
+
+    const enrollResult = await supabase
+      .from('enrollments')
+      .select('student_id')
+      .eq('course_id', courseId)
+      .eq('status', 'activo')
+
+    if (!enrollResult.error && enrollResult.data.length > 0) {
+      const fechaTexto = new Date(fechaHoraInicio).toLocaleString('es-PE', { dateStyle: 'medium', timeStyle: 'short' })
+      const notifs = enrollResult.data.map(function (e) {
+        return {
+          user_id: e.student_id,
+          tipo: 'tarea_nueva',
+          titulo: 'Nuevo examen programado',
+          mensaje: `${evaluacionNombre} — disponible el ${fechaTexto}`,
+        }
+      })
+      await supabase.from('notificaciones').insert(notifs)
+    }
+
+    const result = await supabase.from('evaluaciones_unidad').update({ publicado: true }).eq('id', evaluacionId)
+    if (result.error) alert('Error: ' + result.error.message)
+    else setPublicado(true)
+
+    setPublicando(false)
+  }
+
   async function handleDelete(id) {
     if (!confirm('¿Eliminar esta pregunta?')) return
     await supabase.from('examen_preguntas').delete().eq('id', id)
@@ -252,9 +290,25 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
           <p className="text-xs text-slate-400">{totalPreguntas} pregunta(s) en total</p>
         </div>
         {totalPreguntas > 0 && (
-          <button onClick={generarPDF} className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: NAVY }}>
-            📄 Generar PDF del examen
-          </button>
+          <div className="flex gap-2">
+            <button onClick={generarPDF} className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: NAVY }}>
+              📄 Generar PDF del examen
+            </button>
+            {publicado ? (
+              <span className="text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
+                ✓ Publicado
+              </span>
+            ) : (
+              <button
+                onClick={handlePublicar}
+                disabled={publicando}
+                className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: GREEN }}
+              >
+                {publicando ? 'Publicando...' : '🚀 Publicar examen'}
+              </button>
+            )}
+          </div>
         )}
       </div>
 
