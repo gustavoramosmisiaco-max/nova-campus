@@ -77,6 +77,16 @@ export default function EstudiantesList() {
     setLoading(false)
   }
 
+  async function handleGenerarCodigo(studentId) {
+    const codigo = crypto.randomUUID().replace(/-/g, '').slice(0, 6).toUpperCase()
+    const result = await supabase.from('profiles').update({ codigo_padre: codigo }).eq('id', studentId)
+    if (result.error) {
+      alert('Error al generar el código: ' + result.error.message)
+    } else {
+      loadStudents()
+    }
+  }
+
   async function handleDelete(id, nombre) {
     if (!confirm(`¿Eliminar la cuenta de "${nombre}"? Esta acción no se puede deshacer.`)) return
     setDeletingId(id)
@@ -130,9 +140,19 @@ export default function EstudiantesList() {
                       </span>
                     </td>
                     <td className="py-2 pr-3">
-                      <span className="text-xs font-mono font-semibold px-2 py-1 rounded-lg" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
-                        {s.codigo_padre || '—'}
-                      </span>
+                      {s.codigo_padre ? (
+                        <span className="text-xs font-mono font-semibold px-2 py-1 rounded-lg" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
+                          {s.codigo_padre}
+                        </span>
+                      ) : (
+                        <button
+                          onClick={function () { handleGenerarCodigo(s.id) }}
+                          className="text-xs font-semibold px-2 py-1 rounded-lg text-white transition hover:opacity-90"
+                          style={{ backgroundColor: '#B45309' }}
+                        >
+                          Generar código
+                        </button>
+                      )}
                     </td>
                     <td className="py-2 text-right">
                       <button
