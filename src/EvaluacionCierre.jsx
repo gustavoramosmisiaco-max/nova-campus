@@ -19,6 +19,10 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
   const [error, setError] = useState('')
   const [savingKey, setSavingKey] = useState(null)
   const [marcandoFinal, setMarcandoFinal] = useState(false)
+  const [evaluacionId, setEvaluacionId] = useState(null)
+  const [evalNombre, setEvalNombre] = useState('')
+  const [evalFecha, setEvalFecha] = useState('')
+  const [guardandoEval, setGuardandoEval] = useState(false)
 
   useEffect(function () {
     cargarTodo()
@@ -75,13 +79,58 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
     }
     setNotasMap(map)
 
+    const evalResult = await supabase
+      .from('evaluaciones_unidad')
+      .select('*')
+      .eq('unidad_id', unidad.id)
+      .eq('course_id', unidad.course_id)
+      .maybeSingle()
+    if (!evalResult.error && evalResult.data) {
+      setEvaluacionId(evalResult.data.id)
+      setEvalNombre(evalResult.data.nombre)
+      setEvalFecha(evalResult.data.fecha || '')
+    } else {
+      setEvaluacionId(null)
+      setEvalNombre('')
+      setEvalFecha('')
+    }
+
     const unidResult = await supabase.from('unidades').select('finalizada').eq('id', unidad.id).single()
     if (!unidResult.error) setFinalizada(unidResult.data.finalizada)
 
     setLoading(false)
   }
 
+  async function handleGuardarEvaluacion(e) {
+    e.preventDefault()
+    if (!evalNombre.trim()) { alert('Ponle un nombre a la evaluación.'); return }
+    setGuardandoEval(true)
+
+    const payload = {
+      unidad_id: unidad.id,
+      course_id: unidad.course_id,
+      nombre: evalNombre.trim(),
+      fecha: evalFecha || null,
+      created_by: session.user.id,
+    }
+
+    let result
+    if (evaluacionId) {
+      result = await supabase.from('evaluaciones_unidad').update(payload).eq('id', evaluacionId)
+    } else {
+      result = await supabase.from('evaluaciones_unidad').insert(payload).select('id').single()
+      if (!result.error) setEvaluacionId(result.data.id)
+    }
+
+    if (result.error) alert('Error al guardar: ' + result.error.message)
+    setGuardandoEval(false)
+  }
+
   async function handleGuardarNota(studentId, competenciaId, valor) {
+    if (!evaluacionId) {
+      alert('Primero ponle un nombre a la evaluación y guárdala.')
+      return
+    }
     const numScore = Number(valor)
     if (isNaN(numScore) || numScore < 0 || numScore > 20) {
       alert('La nota debe ser un número entre 0 y 20.')
@@ -98,6 +147,7 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
         course_id: unidad.course_id,
         unidad_id: unidad.id,
         competencia_id: competenciaId,
+        evaluacion_id: evaluacionId,
         bimestre: bimestre,
         nota_numerica: numScore,
         nota_letra: getLetterGrade(numScore),
@@ -164,6 +214,53 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
         Nota de cierre por competencia del área <strong>{areaNombre}</strong>, correspondiente a {unidad.tipo} {unidad.numero} (Bimestre {Math.ceil(unidad.numero / 2)}).
       </p>
 
+      <form onSubmit={handleGuardarEvaluacion} className="bg-white rounded-2xl p-4 mb-5" style={{ border: '1px solid #E5E9F0' }}>
+        <p className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>
+          Datos de la evaluación {evaluacionId && <span style={{ color: GREEN }}>✓ Guardada</span>}
+        </p>
+        <div className="grid sm:grid-cols-3 gap-3 items-end">
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Nombre de la evaluación</label>
+            <input
+              type="text"
+              value={evalNombre}
+              onChange={function (e) { setEvalNombre(e.target.value) }}
+              placeholder='Ej: "Examen Bimestral I — Ecosistemas"'
+              required
+              disabled={finalizada}
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Fecha</label>
+            <input
+              type="date"
+              value={evalFecha}
+              onChange={function (e) { setEvalFecha(e.target.value) }}
+              disabled={finalizada}
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+              style={inputStyle}
+            />
+          </div>
+        </div>
+        {!finalizada && (
+          <button
+            type="submit"
+            disabled={guardandoEval}
+            className="mt-3 text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+            style={{ backgroundColor: GREEN }}
+          >
+            {guardandoEval ? 'Guardando...' : evaluacionId ? 'Actualizar datos' : 'Guardar y habilitar notas'}
+          </button>
+        )}
+        {!evaluacionId && !finalizada && (
+          <p className="text-xs mt-2" style={{ color: '#B45309' }}>
+            Guarda el nombre de la evaluación antes de poder poner notas abajo.
+          </p>
+        )}
+      </form>
+
       {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
       {!error && competencias.length === 0 ? (
@@ -206,7 +303,7 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
                               step="0.5"
                               defaultValue={valor != null ? valor : ''}
                               placeholder="Nota"
-                              disabled={isSaving || finalizada}
+                              disabled={isSaving || finalizada || !evaluacionId}
                               className="w-16 rounded-lg text-sm px-2 py-1 outline-none text-center"
                               style={inputStyle}
                               onBlur={function (e) { if (e.target.value) handleGuardarNota(s.id, c.id, e.target.value) }}
