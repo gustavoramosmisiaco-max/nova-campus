@@ -5,6 +5,7 @@ import { getLetterGrade, getLetterColor, compararPorApellido } from './gradeUtil
 import ExamenPreguntas from './ExamenPreguntas'
 
 const NAVY_DARK = '#0F2A4A'
+const NAVY = '#1d5c8f'
 const GREEN = '#5DAA47'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
