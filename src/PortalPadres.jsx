@@ -65,6 +65,7 @@ export default function PortalPadres({ onBack }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [datos, setDatos] = useState(null)
+  const [comunicadoIndice, setComunicadoIndice] = useState(0)
   const [areaSeleccionada, setAreaSeleccionada] = useState(null)
   const [despidiendo, setDespidiendo] = useState(false)
 
@@ -93,6 +94,7 @@ export default function PortalPadres({ onBack }) {
         setError(json.error || 'No se pudo verificar el código.')
       } else {
         setDatos(json)
+        setComunicadoIndice(0)
       }
     } catch (err) {
       setError('Error de conexión. Intenta de nuevo.')
@@ -104,6 +106,30 @@ export default function PortalPadres({ onBack }) {
     <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#F4F6F9' }}>
       {datos && <WelcomeAnimation role="padre" nombre="" />}
       <FarewellAnimation visible={despidiendo} role="padre" nombre="" onComplete={onBack} />
+
+      {datos && datos.comunicados && comunicadoIndice < datos.comunicados.length && (function () {
+        const comunicado = datos.comunicados[comunicadoIndice]
+        return (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(15,42,74,0.75)' }}>
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full text-center">
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: '#FFF7E6' }}>
+                <span style={{ fontSize: 28 }}>📢</span>
+              </div>
+              <h2 className="text-lg font-bold mb-2" style={{ color: NAVY_DARK }}>{comunicado.titulo}</h2>
+              <p className="text-sm text-slate-600 whitespace-pre-wrap">{comunicado.mensaje}</p>
+              <p className="text-xs text-slate-400 mt-3">{new Date(comunicado.fecha).toLocaleDateString('es-PE')}</p>
+              <button
+                onClick={function () { setComunicadoIndice(comunicadoIndice + 1) }}
+                className="mt-5 text-sm font-semibold px-6 py-2.5 rounded-xl text-white transition hover:opacity-90"
+                style={{ backgroundColor: GREEN }}
+              >
+                Entendido{datos.comunicados.length - comunicadoIndice - 1 > 0 ? ` (${datos.comunicados.length - comunicadoIndice - 1} más)` : ''}
+              </button>
+            </div>
+          </div>
+        )
+      })()}
+
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
           <img src="/logo.png" alt="Nova Campus" className="w-14 h-14 object-contain rounded-full bg-white p-1 mx-auto mb-3" style={{ boxShadow: '0 2px 8px rgba(15,42,74,0.15)' }} />
