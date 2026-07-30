@@ -110,6 +110,7 @@ export default function MyTeachingCourses() {
   const [institucionSel, setInstitucionSel] = useState(null)
   const [aulaSel, setAulaSel] = useState(null)
   const [areaSel, setAreaSel] = useState(null)
+  const [verRegistroDirecto, setVerRegistroDirecto] = useState(false)
 
   useEffect(function () {
     loadMyCourses()
@@ -139,6 +140,27 @@ export default function MyTeachingCourses() {
 
   if (selectedCourse) {
     return <CourseDetailTeacher course={selectedCourse} onBack={function () { setSelectedCourse(null) }} />
+  }
+
+  if (verRegistroDirecto && aulaSel && areaSel) {
+    const [gradoReg, grupoReg] = aulaSel.split('__')
+    const cursoDeReferencia = courses.find(function (c) {
+      return String(c.grado) === gradoReg && c.grupo === grupoReg
+        && (c.institucion_id || 'sin-institucion') === institucionSel
+        && (c.asignaturas?.areas_curriculares?.nombre || 'Otras') === areaSel
+    })
+    return (
+      <div>
+        <button onClick={function () { setVerRegistroDirecto(false) }} className="text-sm font-semibold mb-4 hover:underline flex items-center gap-1" style={{ color: NAVY }}>
+          ← Volver a {areaSel}
+        </button>
+        {cursoDeReferencia ? (
+          <RegistroAuxiliarPorArea courseId={cursoDeReferencia.id} />
+        ) : (
+          <p className="text-slate-400 text-sm">No se encontró ningún curso para generar el Registro.</p>
+        )}
+      </div>
+    )
   }
 
   const institucionesUnicas = [...new Map(
@@ -254,7 +276,16 @@ export default function MyTeachingCourses() {
       ) : (
         <>
           <button onClick={function () { setAreaSel(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Áreas</button>
-          <p className="text-sm text-slate-400 mb-5">{areaSel}</p>
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
+            <p className="text-sm text-slate-400">{areaSel}</p>
+            <button
+              onClick={function () { setVerRegistroDirecto(true) }}
+              className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+              style={{ backgroundColor: NAVY }}
+            >
+              📋 Ver Registro Auxiliar de esta Área
+            </button>
+          </div>
           {(function () {
             const [grado, grupo] = aulaSel.split('__')
             const cursosFinal = courses.filter(function (c) {
