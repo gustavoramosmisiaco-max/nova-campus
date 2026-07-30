@@ -19,7 +19,7 @@ export function PresenceProvider({ children }) {
         const t = new Date(p.online_at).getTime()
         return t > max ? t : max
       }, 0)
-      if (ahora - masReciente < 40000) idsVigentes.add(id)
+      if (ahora - masReciente < 30000) idsVigentes.add(id)
     })
     return idsVigentes
   }
@@ -48,15 +48,24 @@ export function PresenceProvider({ children }) {
     window.addEventListener('beforeunload', anunciarSalida)
     window.addEventListener('pagehide', anunciarSalida)
 
+    function alVolverActiva() {
+      if (document.visibilityState === 'visible') {
+        channel.track({ online_at: new Date().toISOString() })
+        setOnlineIds(calcularOnlineIds(channel))
+      }
+    }
+    document.addEventListener('visibilitychange', alVolverActiva)
+
     const heartbeat = setInterval(function () {
       channel.track({ online_at: new Date().toISOString() })
       setOnlineIds(calcularOnlineIds(channel))
-    }, 20000)
+    }, 15000)
 
     return function () {
       clearInterval(heartbeat)
       window.removeEventListener('beforeunload', anunciarSalida)
       window.removeEventListener('pagehide', anunciarSalida)
+      document.removeEventListener('visibilitychange', alVolverActiva)
       channel.untrack()
       supabase.removeChannel(channel)
     }
