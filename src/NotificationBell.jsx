@@ -118,8 +118,13 @@ export default function NotificationBell({ onNavigate }) {
 
       {open && (
         <div
-          className="absolute rounded-2xl overflow-hidden"
-          style={{ top: 48, right: 0, width: 340, maxHeight: 420, backgroundColor: 'white', border: '1px solid #E5E9F0', boxShadow: '0 8px 24px rgba(15,42,74,0.15)', zIndex: 50 }}
+          className="fixed sm:absolute rounded-2xl overflow-hidden top-16 sm:top-12 left-3 right-3 sm:left-auto sm:right-0 w-auto sm:w-[340px] max-h-[70vh] sm:max-h-[420px]"
+          style={{
+            backgroundColor: 'white',
+            border: '1px solid #E5E9F0',
+            boxShadow: '0 8px 24px rgba(15,42,74,0.15)',
+            zIndex: 50,
+          }}
         >
           <div className="flex justify-between items-center px-4 py-3" style={{ borderBottom: '1px solid #E5E9F0' }}>
             <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>Notificaciones</p>
@@ -129,7 +134,7 @@ export default function NotificationBell({ onNavigate }) {
               </button>
             )}
           </div>
-          <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+          <div className="max-h-[calc(70vh-52px)] sm:max-h-[360px]" style={{ overflowY: 'auto' }}>
             {loading ? (
               <p className="text-xs text-slate-400 p-4">Cargando...</p>
             ) : notificaciones.length === 0 ? (
