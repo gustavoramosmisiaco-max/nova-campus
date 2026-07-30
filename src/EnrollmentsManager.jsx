@@ -44,7 +44,7 @@ export default function EnrollmentsManager() {
   async function loadAllStudents() {
     const result = await supabase
       .from('profiles')
-      .select('id, full_name, email')
+      .select('id, full_name, email, grado, grupo')
       .eq('role', 'estudiante')
       .order('full_name')
     if (!result.error) setAllStudents(result.data)
@@ -199,9 +199,35 @@ export default function EnrollmentsManager() {
     }
   }
 
+  async function handleAsignarYMatricular(studentId) {
+    setError('')
+    const perfilResult = await supabase
+      .from('profiles')
+      .update({ grado: selectedGrado, grupo: selectedSeccion })
+      .eq('id', studentId)
+    if (perfilResult.error) {
+      setError('Error al asignar grado/sección: ' + perfilResult.error.message)
+      return
+    }
+
+    const payload = aulaCourses.map(function (c) {
+      return { course_id: c.id, student_id: studentId, status: 'activo' }
+    })
+    const result = await supabase.from('enrollments').insert(payload)
+    if (result.error) {
+      setError('Error al matricular: ' + result.error.message)
+    } else {
+      loadAllStudents()
+      loadAula()
+    }
+  }
+
   const enrolledStudentIds = new Set(enrollments.map(function (e) { return e.student?.id }).filter(Boolean))
   const studentsInAula = allStudents.filter(function (s) { return enrolledStudentIds.has(s.id) })
-  const availableStudents = allStudents.filter(function (s) { return !enrolledStudentIds.has(s.id) })
+  const availableStudents = allStudents.filter(function (s) {
+    return !enrolledStudentIds.has(s.id) && s.grado === selectedGrado && s.grupo === selectedSeccion
+  })
+  const estudiantesSinGrado = allStudents.filter(function (s) { return !s.grado || !s.grupo })
 
   function coursesForStudent(studentId) {
     return enrollments.filter(function (e) { return e.student?.id === studentId })
@@ -384,6 +410,40 @@ export default function EnrollmentsManager() {
                   )}
                 </div>
               </div>
+
+              {estudiantesSinGrado.length > 0 && (
+                <div className="bg-white rounded-2xl p-5 mt-6" style={{ border: '1px solid #F5C6C6' }}>
+                  <h3 className="font-bold mb-1" style={{ color: '#B91C1C' }}>
+                    Sin Grado/Sección asignado ({estudiantesSinGrado.length})
+                  </h3>
+                  <p className="text-xs text-slate-400 mb-3">
+                    Estudiantes creados antes de que existiera su curso — revisa cuáles son de {gradoLabel(selectedGrado)} Sección {selectedSeccion} y asígnalos aquí.
+                  </p>
+                  <ul className="space-y-2">
+                    {estudiantesSinGrado.map(function (s) {
+                      return (
+                        <li
+                          key={s.id}
+                          className="flex justify-between items-center rounded-lg px-3 py-2"
+                          style={{ backgroundColor: '#FDECEC' }}
+                        >
+                          <div>
+                            <p className="text-sm font-medium" style={{ color: NAVY_DARK }}>{s.full_name}</p>
+                            <p className="text-xs text-slate-500">{s.email}</p>
+                          </div>
+                          <button
+                            onClick={function () { handleAsignarYMatricular(s.id) }}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90"
+                            style={{ backgroundColor: '#B45309' }}
+                          >
+                            Asignar a esta aula y matricular
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              )}
             </>
           )}
         </>
