@@ -21,6 +21,7 @@ const GREEN_DARK = '#2f7a1f'
 export default function AdminDashboard() {
   const { profile, logout } = useAuth()
   const [despidiendo, setDespidiendo] = useState(false)
+  const [menuMovilAbierto, setMenuMovilAbierto] = useState(false)
 
   function handleLogoutConDespedida() {
     setDespidiendo(true)
@@ -53,9 +54,20 @@ export default function AdminDashboard() {
       <FarewellAnimation visible={despidiendo} role="admin" nombre={profile?.full_name} onComplete={logout} />
 
       {/* Sidebar */}
+      {menuMovilAbierto && (
+        <div
+          className="fixed inset-0 z-40 md:hidden"
+          style={{ backgroundColor: 'rgba(15,42,74,0.6)' }}
+          onClick={function () { setMenuMovilAbierto(false) }}
+        />
+      )}
+
       <aside
-        className="w-64 flex-shrink-0 flex-col hidden md:flex"
-        style={{ background: `linear-gradient(180deg, ${NAVY_DARK}, #08182c)` }}
+        className="w-64 flex-shrink-0 flex-col fixed md:static inset-y-0 left-0 z-50 flex transition-transform md:translate-x-0"
+        style={{
+          background: `linear-gradient(180deg, ${NAVY_DARK}, #08182c)`,
+          transform: menuMovilAbierto ? 'translateX(0)' : 'translateX(-100%)',
+        }}
       >
         <div className="flex items-center gap-3 px-6 py-6 border-b border-white/10">
           <img
@@ -76,7 +88,7 @@ export default function AdminDashboard() {
             return (
               <button
                 key={item.id}
-                onClick={function () { setTab(item.id) }}
+                onClick={function () { setTab(item.id); setMenuMovilAbierto(false) }}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition"
                 style={
                   active
@@ -111,6 +123,17 @@ export default function AdminDashboard() {
           style={{ borderBottom: '1px solid #E5E9F0' }}
         >
           <div className="flex items-center gap-3 md:hidden">
+            <button
+              onClick={function () { setMenuMovilAbierto(true) }}
+              className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+              style={{ backgroundColor: '#F4F6F9' }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={NAVY_DARK} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </button>
             <img src="/logo.png" alt="Nova Campus" className="w-8 h-8 object-contain rounded-full" />
             <span className="font-bold" style={{ color: NAVY_DARK }}>Nova Campus</span>
           </div>
