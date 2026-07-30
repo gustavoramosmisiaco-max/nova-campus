@@ -53,31 +53,18 @@ export default function AdminDashboard() {
       <WelcomeAnimation role="admin" nombre={profile?.full_name} />
       <FarewellAnimation visible={despidiendo} role="admin" nombre={profile?.full_name} onComplete={logout} />
 
-      {/* Sidebar */}
-      {menuMovilAbierto && (
-        <div
-          className="fixed inset-0 z-40 md:hidden"
-          style={{ backgroundColor: 'rgba(15,42,74,0.6)' }}
-          onClick={function () { setMenuMovilAbierto(false) }}
-        />
-      )}
-
+      {/* Sidebar de escritorio — siempre visible, sin ninguna condición */}
       <aside
-        className={`w-64 flex-shrink-0 flex-col fixed md:static inset-y-0 left-0 z-50 flex transition-transform md:translate-x-0 ${menuMovilAbierto ? 'translate-x-0' : '-translate-x-full'}`}
+        className="w-64 flex-shrink-0 flex-col hidden md:flex"
         style={{ background: `linear-gradient(180deg, ${NAVY_DARK}, #08182c)` }}
       >
         <div className="flex items-center gap-3 px-6 py-6 border-b border-white/10">
-          <img
-            src="/logo.png"
-            alt="Nova Campus"
-            className="w-10 h-10 object-contain rounded-full bg-white p-1"
-          />
+          <img src="/logo.png" alt="Nova Campus" className="w-10 h-10 object-contain rounded-full bg-white p-1" />
           <div>
             <p className="text-white font-bold leading-tight">Nova Campus</p>
             <p className="text-xs" style={{ color: GREEN }}>Panel Admin</p>
           </div>
         </div>
-
         <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
           {menuItems.map(function (item) {
             const Icon = item.icon
@@ -85,13 +72,9 @@ export default function AdminDashboard() {
             return (
               <button
                 key={item.id}
-                onClick={function () { setTab(item.id); setMenuMovilAbierto(false) }}
+                onClick={function () { setTab(item.id) }}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition"
-                style={
-                  active
-                    ? { background: `linear-gradient(90deg, ${NAVY}, ${GREEN})`, color: 'white' }
-                    : { color: '#B9C4D3' }
-                }
+                style={active ? { background: `linear-gradient(90deg, ${NAVY}, ${GREEN})`, color: 'white' } : { color: '#B9C4D3' }}
               >
                 <Icon />
                 {item.label}
@@ -99,7 +82,6 @@ export default function AdminDashboard() {
             )
           })}
         </nav>
-
         <div className="px-4 py-5 border-t border-white/10">
           <button
             onClick={handleLogoutConDespedida}
@@ -110,6 +92,55 @@ export default function AdminDashboard() {
           </button>
         </div>
       </aside>
+
+      {/* Fondo oscuro + Sidebar de celular — solo existen si el menú móvil está abierto */}
+      {menuMovilAbierto && (
+        <>
+          <div
+            className="fixed inset-0 z-40 md:hidden"
+            style={{ backgroundColor: 'rgba(15,42,74,0.6)' }}
+            onClick={function () { setMenuMovilAbierto(false) }}
+          />
+          <aside
+            className="w-64 flex-shrink-0 flex flex-col fixed inset-y-0 left-0 z-50 md:hidden"
+            style={{ background: `linear-gradient(180deg, ${NAVY_DARK}, #08182c)` }}
+          >
+            <div className="flex items-center gap-3 px-6 py-6 border-b border-white/10">
+              <img src="/logo.png" alt="Nova Campus" className="w-10 h-10 object-contain rounded-full bg-white p-1" />
+              <div>
+                <p className="text-white font-bold leading-tight">Nova Campus</p>
+                <p className="text-xs" style={{ color: GREEN }}>Panel Admin</p>
+              </div>
+            </div>
+            <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
+              {menuItems.map(function (item) {
+                const Icon = item.icon
+                const active = tab === item.id
+                return (
+                  <button
+                    key={item.id}
+                    onClick={function () { setTab(item.id); setMenuMovilAbierto(false) }}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition"
+                    style={active ? { background: `linear-gradient(90deg, ${NAVY}, ${GREEN})`, color: 'white' } : { color: '#B9C4D3' }}
+                  >
+                    <Icon />
+                    {item.label}
+                  </button>
+                )
+              })}
+            </nav>
+            <div className="px-4 py-5 border-t border-white/10">
+              <button
+                onClick={handleLogoutConDespedida}
+                className="w-full flex items-center justify-center gap-2 text-sm font-semibold rounded-xl py-2.5 transition hover:opacity-90"
+                style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: 'white' }}
+              >
+                Cerrar sesión
+              </button>
+            </div>
+          </aside>
+        </>
+      )}
 
       {/* Contenido principal */}
       <div className="flex-1 flex flex-col min-w-0">
