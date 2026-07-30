@@ -9,6 +9,21 @@ export function PresenceProvider({ children }) {
   const [onlineIds, setOnlineIds] = useState(new Set())
   const channelRef = useRef(null)
 
+  function calcularOnlineIds(channel) {
+    const state = channel.presenceState()
+    const ahora = Date.now()
+    const idsVigentes = new Set()
+    Object.keys(state).forEach(function (id) {
+      const presencias = state[id]
+      const masReciente = presencias.reduce(function (max, p) {
+        const t = new Date(p.online_at).getTime()
+        return t > max ? t : max
+      }, 0)
+      if (ahora - masReciente < 40000) idsVigentes.add(id)
+    })
+    return idsVigentes
+  }
+
   useEffect(function () {
     if (!session?.user?.id) return
 
@@ -19,8 +34,7 @@ export function PresenceProvider({ children }) {
 
     channel
       .on('presence', { event: 'sync' }, function () {
-        const state = channel.presenceState()
-        setOnlineIds(new Set(Object.keys(state)))
+        setOnlineIds(calcularOnlineIds(channel))
       })
       .subscribe(async function (status) {
         if (status === 'SUBSCRIBED') {
@@ -28,7 +42,21 @@ export function PresenceProvider({ children }) {
         }
       })
 
+    function anunciarSalida() {
+      channel.untrack()
+    }
+    window.addEventListener('beforeunload', anunciarSalida)
+    window.addEventListener('pagehide', anunciarSalida)
+
+    const heartbeat = setInterval(function () {
+      channel.track({ online_at: new Date().toISOString() })
+      setOnlineIds(calcularOnlineIds(channel))
+    }, 20000)
+
     return function () {
+      clearInterval(heartbeat)
+      window.removeEventListener('beforeunload', anunciarSalida)
+      window.removeEventListener('pagehide', anunciarSalida)
       channel.untrack()
       supabase.removeChannel(channel)
     }
