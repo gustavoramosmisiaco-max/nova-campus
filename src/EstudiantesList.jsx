@@ -87,6 +87,18 @@ export default function EstudiantesList() {
     }
   }
 
+  async function handleGenerarTodosLosCodigos(items) {
+    const sinCodigo = items.filter(function (s) { return !s.codigo_padre })
+    if (sinCodigo.length === 0) return
+    if (!confirm(`¿Generar código para los ${sinCodigo.length} estudiante(s) que aún no tienen?`)) return
+
+    for (const s of sinCodigo) {
+      const codigo = crypto.randomUUID().replace(/-/g, '').slice(0, 6).toUpperCase()
+      await supabase.from('profiles').update({ codigo_padre: codigo }).eq('id', s.id)
+    }
+    loadStudents()
+  }
+
   async function handleDelete(id, nombre) {
     if (!confirm(`¿Eliminar la cuenta de "${nombre}"? Esta acción no se puede deshacer.`)) return
     setDeletingId(id)
@@ -117,9 +129,20 @@ export default function EstudiantesList() {
         <button onClick={function () { setSelectedAula(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>
           ← Volver a {selectedInst}
         </button>
-        <h2 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>
-          {selectedAula.grado}° Secundaria — Sección {selectedAula.grupo} ({items.length})
-        </h2>
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+          <h2 className="text-lg font-bold" style={{ color: NAVY_DARK }}>
+            {selectedAula.grado}° Secundaria — Sección {selectedAula.grupo} ({items.length})
+          </h2>
+          {items.some(function (s) { return !s.codigo_padre }) && (
+            <button
+              onClick={function () { handleGenerarTodosLosCodigos(items) }}
+              className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+              style={{ backgroundColor: '#B45309' }}
+            >
+              Generar código para todos los que falten
+            </button>
+          )}
+        </div>
         <div className="bg-white rounded-2xl p-4" style={{ border: '1px solid #E5E9F0' }}>
           <table className="w-full text-sm">
             <thead>
