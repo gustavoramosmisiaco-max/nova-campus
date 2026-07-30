@@ -63,11 +63,8 @@ export default function AdminDashboard() {
       )}
 
       <aside
-        className="w-64 flex-shrink-0 flex-col fixed md:static inset-y-0 left-0 z-50 flex transition-transform md:translate-x-0"
-        style={{
-          background: `linear-gradient(180deg, ${NAVY_DARK}, #08182c)`,
-          transform: menuMovilAbierto ? 'translateX(0)' : 'translateX(-100%)',
-        }}
+        className={`w-64 flex-shrink-0 flex-col fixed md:static inset-y-0 left-0 z-50 flex transition-transform md:translate-x-0 ${menuMovilAbierto ? 'translate-x-0' : '-translate-x-full'}`}
+        style={{ background: `linear-gradient(180deg, ${NAVY_DARK}, #08182c)` }}
       >
         <div className="flex items-center gap-3 px-6 py-6 border-b border-white/10">
           <img
