@@ -40,7 +40,7 @@ export default function RevisarExamen({ evaluacionId, evaluacionNombre, unidad, 
 
     const intentosResult = await supabase
       .from('examen_intentos')
-      .select('*, student:profiles(full_name)')
+      .select('*, student:profiles!examen_intentos_student_id_fkey(full_name)')
       .eq('evaluacion_id', evaluacionId)
       .eq('estado', 'finalizado')
       .order('finalizado_at', { ascending: false })
