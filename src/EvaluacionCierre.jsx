@@ -264,7 +264,7 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
         evaluacionFecha={evalFecha}
         courseId={unidad.course_id}
         unidad={unidad}
-        onCerrar={function () { setVerPreguntas(false) }}
+        onCerrar={function () { setVerPreguntas(false); cargarTodo() }}
       />
     )
   }
