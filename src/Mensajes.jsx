@@ -59,6 +59,8 @@ export default function Mensajes() {
               personaNombre: e.student.full_name,
               courseId: c.id,
               courseNombre: `${c.nombre} — ${c.grado}° "${c.grupo}"`,
+              grado: c.grado,
+              grupo: c.grupo,
             })
           })
         })
@@ -77,6 +79,8 @@ export default function Mensajes() {
             personaNombre: e.course.docente.full_name,
             courseId: e.course.id,
             courseNombre: `${e.course.nombre} — ${e.course.grado}° "${e.course.grupo}"`,
+            grado: e.course.grado,
+            grupo: e.course.grupo,
           })
         })
       }
@@ -143,25 +147,47 @@ export default function Mensajes() {
           {contactos.length === 0 ? (
             <p className="text-xs text-slate-400">No hay contactos disponibles todavía.</p>
           ) : (
-            <ul className="space-y-2 max-h-72 overflow-y-auto">
-              {contactos.map(function (c) {
-                return (
-                  <li key={c.personaId + c.courseId}>
-                    <button
-                      onClick={function () { setSeleccionado(c); setMostrarNueva(false) }}
-                      className="w-full text-left rounded-lg px-3 py-2 transition hover:opacity-80"
-                      style={{ backgroundColor: '#F4F6F9' }}
-                    >
-                      <p className="text-sm font-semibold flex items-center gap-1.5" style={{ color: NAVY_DARK }}>
-                        {c.personaNombre}
-                        {isOnline(c.personaId) && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#5DAA47' }} title="En línea" />}
-                      </p>
-                      <p className="text-xs text-slate-400">{c.courseNombre}{isOnline(c.personaId) ? ' · En línea' : ''}</p>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
+            <div className="space-y-4 max-h-72 overflow-y-auto">
+              {(function () {
+                const porAula = {}
+                contactos.forEach(function (c) {
+                  const key = `${c.grado}__${c.grupo}`
+                  if (!porAula[key]) porAula[key] = { grado: c.grado, grupo: c.grupo, items: [] }
+                  porAula[key].items.push(c)
+                })
+                const aulas = Object.values(porAula).sort(function (a, b) {
+                  return (a.grado || 0) - (b.grado || 0) || String(a.grupo || '').localeCompare(String(b.grupo || ''))
+                })
+                return aulas.map(function (aula) {
+                  return (
+                    <div key={`${aula.grado}-${aula.grupo}`}>
+                      {aula.grado != null && (
+                        <p className="text-xs font-bold mb-1.5" style={{ color: NAVY }}>{aula.grado}° Sección {aula.grupo}</p>
+                      )}
+                      <ul className="space-y-2">
+                        {aula.items.map(function (c) {
+                          return (
+                            <li key={c.personaId + c.courseId}>
+                              <button
+                                onClick={function () { setSeleccionado(c); setMostrarNueva(false) }}
+                                className="w-full text-left rounded-lg px-3 py-2 transition hover:opacity-80"
+                                style={{ backgroundColor: '#F4F6F9' }}
+                              >
+                                <p className="text-sm font-semibold flex items-center gap-1.5" style={{ color: NAVY_DARK }}>
+                                  {c.personaNombre}
+                                  {isOnline(c.personaId) && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#5DAA47' }} title="En línea" />}
+                                </p>
+                                <p className="text-xs text-slate-400">{c.courseNombre}{isOnline(c.personaId) ? ' · En línea' : ''}</p>
+                              </button>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </div>
+                  )
+                })
+              })()}
+            </div>
           )}
         </div>
       )}
@@ -169,38 +195,62 @@ export default function Mensajes() {
       {conListaKeys.length === 0 ? (
         <p className="text-slate-400 text-sm">Aún no tienes conversaciones.</p>
       ) : (
-        <ul className="space-y-2">
-          {conListaKeys.map(function (key) {
-            const [personaId, courseId] = key.split('__')
-            const conv = conversaciones[key]
-            const contacto = contactos.find(function (c) { return c.personaId === personaId && c.courseId === courseId })
-            const nombre = contacto?.personaNombre || 'Usuario'
-            const courseNombre = contacto?.courseNombre || ''
-            const esMio = conv.ultimoMensaje.remitente_id === session.user.id
-            return (
-              <li key={key}>
-                <button
-                  onClick={function () { setSeleccionado(contacto || { personaId: personaId, personaNombre: nombre, courseId: courseId === 'null' ? null : courseId, courseNombre: courseNombre }) }}
-                  className="w-full text-left bg-white rounded-xl p-4 transition hover:opacity-90 flex justify-between items-start gap-3"
-                  style={{ border: '1px solid #E5E9F0' }}
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold truncate" style={{ color: NAVY_DARK }}>{nombre}</p>
-                      {contacto && isOnline(contacto.personaId) && <span className="w-2 h-2 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: '#5DAA47' }} title="En línea" />}
-                      {conv.noLeidos > 0 && (
-                        <span className="text-xs font-bold px-1.5 rounded-full text-white" style={{ backgroundColor: '#B91C1C' }}>{conv.noLeidos}</span>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-400">{courseNombre}</p>
-                    <p className="text-xs text-slate-500 mt-1 truncate">{esMio ? 'Tú: ' : ''}{conv.ultimoMensaje.contenido}</p>
-                  </div>
-                  <span className="text-xs text-slate-400 flex-shrink-0">{tiempoRelativo(conv.ultimoMensaje.created_at)}</span>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
+        <div className="space-y-6">
+          {(function () {
+            const porAula = {}
+            conListaKeys.forEach(function (key) {
+              const [personaId, courseId] = key.split('__')
+              const contacto = contactos.find(function (c) { return c.personaId === personaId && c.courseId === courseId })
+              const aulaKey = `${contacto?.grado ?? 'x'}__${contacto?.grupo ?? 'x'}`
+              if (!porAula[aulaKey]) porAula[aulaKey] = { grado: contacto?.grado, grupo: contacto?.grupo, keys: [] }
+              porAula[aulaKey].keys.push(key)
+            })
+            const aulas = Object.values(porAula).sort(function (a, b) {
+              return (a.grado || 0) - (b.grado || 0) || String(a.grupo || '').localeCompare(String(b.grupo || ''))
+            })
+            return aulas.map(function (aula) {
+              return (
+                <div key={`${aula.grado}-${aula.grupo}`}>
+                  {aula.grado != null && (
+                    <p className="text-xs font-bold mb-2" style={{ color: NAVY }}>{aula.grado}° Sección {aula.grupo}</p>
+                  )}
+                  <ul className="space-y-2">
+                    {aula.keys.map(function (key) {
+                      const [personaId, courseId] = key.split('__')
+                      const conv = conversaciones[key]
+                      const contacto = contactos.find(function (c) { return c.personaId === personaId && c.courseId === courseId })
+                      const nombre = contacto?.personaNombre || 'Usuario'
+                      const courseNombre = contacto?.courseNombre || ''
+                      const esMio = conv.ultimoMensaje.remitente_id === session.user.id
+                      return (
+                        <li key={key}>
+                          <button
+                            onClick={function () { setSeleccionado(contacto || { personaId: personaId, personaNombre: nombre, courseId: courseId === 'null' ? null : courseId, courseNombre: courseNombre }) }}
+                            className="w-full text-left bg-white rounded-xl p-4 transition hover:opacity-90 flex justify-between items-start gap-3"
+                            style={{ border: '1px solid #E5E9F0' }}
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-semibold truncate" style={{ color: NAVY_DARK }}>{nombre}</p>
+                                {contacto && isOnline(contacto.personaId) && <span className="w-2 h-2 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: '#5DAA47' }} title="En línea" />}
+                                {conv.noLeidos > 0 && (
+                                  <span className="text-xs font-bold px-1.5 rounded-full text-white" style={{ backgroundColor: '#B91C1C' }}>{conv.noLeidos}</span>
+                                )}
+                              </div>
+                              <p className="text-xs text-slate-400">{courseNombre}</p>
+                              <p className="text-xs text-slate-500 mt-1 truncate">{esMio ? 'Tú: ' : ''}{conv.ultimoMensaje.contenido}</p>
+                            </div>
+                            <span className="text-xs text-slate-400 flex-shrink-0">{tiempoRelativo(conv.ultimoMensaje.created_at)}</span>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              )
+            })
+          })()}
+        </div>
       )}
     </div>
   )
