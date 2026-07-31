@@ -6,6 +6,7 @@ import CourseZoomTeacher from './CourseZoomTeacher'
 import RegistroAuxiliarPorArea from './RegistroAuxiliarPorArea'
 import InstrumentoEvaluacion from './InstrumentoEvaluacion'
 import GruposTrabajo from './GruposTrabajo'
+import EvaluacionCierre from './EvaluacionCierre'
 
 const DIAS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 const GRADOS = [1, 2, 3, 4, 5]
@@ -33,7 +34,6 @@ function CourseDetailTeacher({ course, onBack }) {
   const tabs = [
     { id: 'actividades', label: 'Actividades' },
     { id: 'instrumento', label: 'Instrumento de Evaluación' },
-    { id: 'registro', label: 'Registro Auxiliar' },
     { id: 'zoom', label: 'Videoclases' },
     { id: 'grupos', label: 'Grupos de Trabajo' },
   ]
@@ -93,7 +93,6 @@ function CourseDetailTeacher({ course, onBack }) {
             courseGrupo={course.grupo}
           />
         )}
-        {tab === 'registro' && <RegistroAuxiliarPorArea courseId={course.id} />}
         {tab === 'zoom' && <CourseZoomTeacher courseId={course.id} />}
         {tab === 'grupos' && <GruposTrabajo courseId={course.id} />}
       </div>
@@ -111,6 +110,9 @@ export default function MyTeachingCourses() {
   const [aulaSel, setAulaSel] = useState(null)
   const [areaSel, setAreaSel] = useState(null)
   const [verRegistroDirecto, setVerRegistroDirecto] = useState(false)
+  const [verUnidadesArea, setVerUnidadesArea] = useState(false)
+  const [unidadesArea, setUnidadesArea] = useState([])
+  const [unidadEvaluacionSel, setUnidadEvaluacionSel] = useState(null)
 
   useEffect(function () {
     loadMyCourses()
@@ -120,7 +122,7 @@ export default function MyTeachingCourses() {
     setLoading(true)
     const result = await supabase
       .from('courses')
-      .select('id, nombre, grupo, grado, institucion_id, course_schedules(*), enrollments(count), asignaturas!inner(activo, areas_curriculares(nombre)), instituciones_educativas(nombre)')
+      .select('id, nombre, grupo, grado, institucion_id, course_schedules(*), enrollments(count), asignaturas!inner(activo, area_id, areas_curriculares(nombre)), instituciones_educativas(nombre)')
       .eq('docente_id', session.user.id)
       .eq('asignaturas.activo', true)
       .eq('activo', true)
@@ -134,6 +136,27 @@ export default function MyTeachingCourses() {
       setCourses(result.data)
     }
     setLoading(false)
+  }
+
+  async function handleAbrirUnidadesArea() {
+    const [grado, grupo] = aulaSel.split('__')
+    const cursoRef = courses.find(function (c) {
+      return String(c.grado) === grado && c.grupo === grupo
+        && (c.institucion_id || 'sin-institucion') === institucionSel
+        && (c.asignaturas?.areas_curriculares?.nombre || 'Otras') === areaSel
+    })
+    if (!cursoRef) return
+
+    const result = await supabase
+      .from('unidades')
+      .select('id, tipo, numero, nombre, finalizada')
+      .eq('area_id', cursoRef.asignaturas.area_id)
+      .eq('grado', grado)
+      .eq('grupo', grupo)
+      .order('numero')
+    if (!result.error) setUnidadesArea(result.data)
+    setUnidadEvaluacionSel(null)
+    setVerUnidadesArea(true)
   }
 
   if (loading) return <p className="text-slate-400">Cargando tus cursos...</p>
@@ -159,6 +182,58 @@ export default function MyTeachingCourses() {
           <RegistroAuxiliarPorArea courseId={cursoDeReferencia.id} />
         ) : (
           <p className="text-slate-400 text-sm">No se encontró ningún curso para generar el Registro.</p>
+        )}
+      </div>
+    )
+  }
+
+  if (verUnidadesArea && aulaSel && areaSel) {
+    const [gradoU, grupoU] = aulaSel.split('__')
+    const cursoDeReferencia = courses.find(function (c) {
+      return String(c.grado) === gradoU && c.grupo === grupoU
+        && (c.institucion_id || 'sin-institucion') === institucionSel
+        && (c.asignaturas?.areas_curriculares?.nombre || 'Otras') === areaSel
+    })
+
+    if (unidadEvaluacionSel) {
+      return (
+        <div>
+          <EvaluacionCierre
+            unidad={{ ...unidadEvaluacionSel, course_id: cursoDeReferencia?.id }}
+            onFinalizada={function () { setUnidadEvaluacionSel(null) }}
+          />
+          <button onClick={function () { setUnidadEvaluacionSel(null) }} className="text-sm font-semibold mt-4 hover:underline block" style={{ color: NAVY }}>
+            ← Volver a la lista de Unidades
+          </button>
+        </div>
+      )
+    }
+
+    return (
+      <div>
+        <button onClick={function () { setVerUnidadesArea(false); setUnidadesArea([]) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>
+          ← Volver a {areaSel}
+        </button>
+        <h3 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>Evaluación de Cierre por Unidad — {areaSel}</h3>
+        {unidadesArea.length === 0 ? (
+          <p className="text-slate-400 text-sm">No hay Unidades/Experiencias creadas todavía para esta aula.</p>
+        ) : (
+          <ul className="space-y-2">
+            {unidadesArea.map(function (u) {
+              return (
+                <li key={u.id}>
+                  <button
+                    onClick={function () { setUnidadEvaluacionSel(u) }}
+                    className="w-full text-left bg-white rounded-xl p-4 transition hover:-translate-y-0.5"
+                    style={{ border: '1px solid #E5E9F0' }}
+                  >
+                    <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{u.tipo} {u.numero}{u.nombre ? ' — ' + u.nombre : ''}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Bimestre {Math.ceil(u.numero / 2)}{u.finalizada ? ' · ✓ Finalizada' : ''}</p>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
         )}
       </div>
     )
@@ -279,13 +354,22 @@ export default function MyTeachingCourses() {
           <button onClick={function () { setAreaSel(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Áreas</button>
           <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
             <p className="text-sm text-slate-400">{areaSel}</p>
-            <button
-              onClick={function () { setVerRegistroDirecto(true) }}
-              className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
-              style={{ backgroundColor: NAVY }}
-            >
-              📋 Ver Registro Auxiliar de esta Área
-            </button>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={function () { handleAbrirUnidadesArea() }}
+                className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+                style={{ backgroundColor: '#B45309' }}
+              >
+                📝 Evaluación de Cierre / Examen por Unidad
+              </button>
+              <button
+                onClick={function () { setVerRegistroDirecto(true) }}
+                className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+                style={{ backgroundColor: NAVY }}
+              >
+                📋 Ver Registro Auxiliar de esta Área
+              </button>
+            </div>
           </div>
           {(function () {
             const [grado, grupo] = aulaSel.split('__')
