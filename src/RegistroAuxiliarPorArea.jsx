@@ -103,6 +103,10 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
     }
     const courseIds = coursesResult.data.map(function (c) { return c.id })
     const docentesUnicos = [...new Set(coursesResult.data.map(function (c) { return c.docente?.full_name }).filter(Boolean))]
+    const mapaAbreviaturas = {}
+    coursesResult.data.forEach(function (c) {
+      mapaAbreviaturas[c.id] = (c.nombre || '').slice(0, 3)
+    })
 
     // Competencias y capacidades del área
     const compResult = await supabase.from('competencias').select('*').eq('area', areaNombre).order('codigo')
@@ -135,7 +139,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
     if (unidadIds.length > 0) {
       const actResult = await supabase
         .from('actividades')
-        .select('id, nombre, numero_actividad, unidad_id, actividad_capacidades(capacidad_id, criterio, desempeno)')
+        .select('id, nombre, numero_actividad, unidad_id, course_id, actividad_capacidades(capacidad_id, criterio, desempeno)')
         .in('unidad_id', unidadIds)
       actividades = actResult.error ? [] : actResult.data
 
@@ -232,6 +236,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
               tituloTarea: a.titulo,
               actividadNombre: actividad?.nombre,
               actividadNumero: actividad?.numero_actividad,
+              asignaturaAbrev: mapaAbreviaturas[actividad?.course_id] || '',
               criterio: detalleCap?.criterio || '',
               desempeno: detalleCap?.desempeno || '',
             })
@@ -388,7 +393,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
         } else {
           cap.instancias.forEach(function (inst, i) {
             const cellAct = ws.getCell(rowAct, colCapCursor + i)
-            cellAct.value = `Act.${inst.actividadNumero}`
+            cellAct.value = `${inst.asignaturaAbrev ? inst.asignaturaAbrev + '.' : ''}Act.${inst.actividadNumero}`
             cellAct.font = { size: 8 }
             cellAct.alignment = { horizontal: 'center', vertical: 'middle', textRotation: 90 }
             cellAct.note = `Tarea: ${inst.tituloTarea}\n\nCriterio: ${inst.criterio || '—'}\n\nDesempeño: ${inst.desempeno || '—'}`
@@ -770,7 +775,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
                     return cap.instancias.map(function (inst) {
                       return (
                         <td key={inst.assignmentId} className="p-1 text-center" style={{ backgroundColor: '#FAFAF8', border: '1px solid #E5E9F0', fontSize: 10, color: '#5F5E5A', minWidth: 28, verticalAlign: 'middle' }}>
-                          <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>Act.{inst.actividadNumero}</span>
+                          <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>{inst.asignaturaAbrev ? inst.asignaturaAbrev + '. ' : ''}Act.{inst.actividadNumero}</span>
                         </td>
                       )
                     })
@@ -899,7 +904,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
                 {abierto === 'c_' + inst.assignmentId && (
                   <div className="mt-4 p-4 rounded-xl" style={{ backgroundColor: '#DEEBF7' }}>
                     <p className="text-xs font-semibold mb-1" style={{ color: NAVY_DARK }}>
-                      Criterio — {inst.tituloTarea} (Act. {inst.actividadNumero})
+                      Criterio — {inst.tituloTarea} ({inst.asignaturaAbrev ? inst.asignaturaAbrev + '. ' : ''}Act. {inst.actividadNumero})
                     </p>
                     <p className="text-sm" style={{ color: NAVY_DARK }}>{inst.criterio || 'Sin criterio registrado.'}</p>
                   </div>
@@ -907,7 +912,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
                 {abierto === 'd_' + inst.assignmentId && (
                   <div className="mt-4 p-4 rounded-xl" style={{ backgroundColor: '#f0e7f7' }}>
                     <p className="text-xs font-semibold mb-1" style={{ color: '#4a2e63' }}>
-                      Desempeño — {inst.tituloTarea} (Act. {inst.actividadNumero})
+                      Desempeño — {inst.tituloTarea} ({inst.asignaturaAbrev ? inst.asignaturaAbrev + '. ' : ''}Act. {inst.actividadNumero})
                     </p>
                     <p className="text-sm" style={{ color: '#4a2e63' }}>{inst.desempeno || 'Sin desempeño registrado.'}</p>
                   </div>
