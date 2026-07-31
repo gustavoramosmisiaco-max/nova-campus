@@ -157,15 +157,31 @@ export default function MisTareas({ tareaDestacadaId, onTareaDestacadaAtendida }
           <p className="text-slate-400 text-sm">Aún no tienes tareas creadas.</p>
         </div>
       ) : (
-        <div className="space-y-8">
-          {tareasPorCurso.map(function (g) {
-            return (
-              <div key={g.course.id}>
-                <h3 className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>
-                  {g.course.nombre} <span className="text-slate-400 font-medium">({g.course.grado}° Sección {g.course.grupo})</span>
-                </h3>
-                <ul className="space-y-3">
-                  {g.tareas.map(function (t) {
+        <div className="space-y-10">
+          {(function () {
+            const porAula = {}
+            tareasPorCurso.forEach(function (g) {
+              const key = `${g.course.grado}__${g.course.grupo}`
+              if (!porAula[key]) porAula[key] = { grado: g.course.grado, grupo: g.course.grupo, grupos: [] }
+              porAula[key].grupos.push(g)
+            })
+            const aulasOrdenadas = Object.values(porAula).sort(function (a, b) { return a.grado - b.grado || a.grupo.localeCompare(b.grupo) })
+
+            return aulasOrdenadas.map(function (aula) {
+              return (
+                <div key={`${aula.grado}-${aula.grupo}`}>
+                  <div className="flex items-center gap-2 mb-4 pb-2" style={{ borderBottom: '2px solid #E5E9F0' }}>
+                    <span className="text-base font-bold px-3 py-1 rounded-lg text-white" style={{ backgroundColor: NAVY }}>
+                      {aula.grado}° Sección {aula.grupo}
+                    </span>
+                  </div>
+                  <div className="space-y-8 pl-1">
+                    {aula.grupos.map(function (g) {
+                      return (
+                        <div key={g.course.id}>
+                          <h3 className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>{g.course.nombre}</h3>
+                          <ul className="space-y-3">
+                            {g.tareas.map(function (t) {
                     const pct = t.totalMatriculados > 0 ? Math.round((t.totalEntregados / t.totalMatriculados) * 100) : 0
                     const yaVencio = new Date(t.fecha_entrega) < new Date()
                     return (
@@ -204,10 +220,15 @@ export default function MisTareas({ tareaDestacadaId, onTareaDestacadaAtendida }
                       </li>
                     )
                   })}
-                </ul>
-              </div>
-            )
-          })}
+                          </ul>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })
+          })()}
         </div>
       )}
     </div>
