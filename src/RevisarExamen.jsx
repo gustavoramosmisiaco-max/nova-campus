@@ -65,32 +65,37 @@ export default function RevisarExamen({ evaluacionId, evaluacionNombre, unidad, 
     setLoading(false)
   }
 
-  async function handleMarcarAusente(estudiante) {
-    if (!confirm(`¿Registrar C (0) a ${estudiante.full_name} por no presentar el examen?`)) return
-    setMarcandoAusente(estudiante.id)
+  async function handleMarcarAusente(estudiantes) {
+    const lista = Array.isArray(estudiantes) ? estudiantes : [estudiantes]
+    if (lista.length === 0) return
+    const nombres = lista.length === 1 ? lista[0].full_name : `${lista.length} estudiantes`
+    if (!confirm(`¿Registrar C (0) a ${nombres} por no presentar el examen?`)) return
+    setMarcandoAusente('todos')
 
     const competenciasUnicas = [...new Map(preguntas.map(function (p) { return [p.competencia_id, p.competencia] })).values()]
     const bimestre = Math.ceil(unidad.numero / 2)
 
-    for (const comp of competenciasUnicas) {
-      if (!comp) continue
-      await supabase.from('evaluacion_cierre').upsert({
-        student_id: estudiante.id,
-        course_id: unidad.course_id,
-        unidad_id: unidad.id,
-        competencia_id: comp.id,
-        evaluacion_id: evaluacionId,
-        bimestre: bimestre,
-        nota_numerica: 0,
-        nota_letra: 'C',
-        estado: 'confirmada',
-        graded_by: session.user.id,
-        graded_at: new Date().toISOString(),
-      }, { onConflict: 'student_id,unidad_id,competencia_id' })
+    for (const estudiante of lista) {
+      for (const comp of competenciasUnicas) {
+        if (!comp) continue
+        await supabase.from('evaluacion_cierre').upsert({
+          student_id: estudiante.id,
+          course_id: unidad.course_id,
+          unidad_id: unidad.id,
+          competencia_id: comp.id,
+          evaluacion_id: evaluacionId,
+          bimestre: bimestre,
+          nota_numerica: 0,
+          nota_letra: 'C',
+          estado: 'confirmada',
+          graded_by: session.user.id,
+          graded_at: new Date().toISOString(),
+        }, { onConflict: 'student_id,unidad_id,competencia_id' })
+      }
     }
 
     setMarcandoAusente(null)
-    alert('Registrado. La nota C ya cuenta en el Registro.')
+    alert('Registrado. La(s) nota(s) C ya cuentan en el Registro.')
     cargar()
   }
 
@@ -298,7 +303,17 @@ export default function RevisarExamen({ evaluacionId, evaluacionNombre, unidad, 
         if (noRindieron.length === 0) return null
         return (
           <div className="mt-8">
-            <p className="text-sm font-bold mb-3" style={{ color: '#B91C1C' }}>No han rendido ({noRindieron.length})</p>
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+              <p className="text-sm font-bold" style={{ color: '#B91C1C' }}>No han rendido ({noRindieron.length})</p>
+              <button
+                onClick={function () { handleMarcarAusente(noRindieron) }}
+                disabled={marcandoAusente === 'todos'}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: '#B91C1C' }}
+              >
+                {marcandoAusente === 'todos' ? 'Guardando...' : `Registrar C a los ${noRindieron.length} que faltan`}
+              </button>
+            </div>
             <ul className="space-y-2">
               {noRindieron.map(function (m) {
                 return (
@@ -306,11 +321,11 @@ export default function RevisarExamen({ evaluacionId, evaluacionNombre, unidad, 
                     <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{m.full_name}</p>
                     <button
                       onClick={function () { handleMarcarAusente(m) }}
-                      disabled={marcandoAusente === m.id}
+                      disabled={marcandoAusente === 'todos'}
                       className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
                       style={{ backgroundColor: '#B91C1C' }}
                     >
-                      {marcandoAusente === m.id ? 'Guardando...' : 'Registrar C (no presentó)'}
+                      Registrar C (no presentó)
                     </button>
                   </li>
                 )
