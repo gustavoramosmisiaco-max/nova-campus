@@ -14,7 +14,7 @@ const TIPOS = [
   { id: 'abierta', label: 'Desarrollo / Respuesta abierta' },
 ]
 
-export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evaluacionFecha, courseId, unidad, onCerrar }) {
+export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evaluacionFecha, courseId, unidad, onCerrar, onEliminado }) {
   const [preguntas, setPreguntas] = useState([])
   const [competencias, setCompetencias] = useState([])
   const [competenciasSeleccionadas, setCompetenciasSeleccionadas] = useState(new Set())
@@ -158,6 +158,17 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
     cargarTodo()
   }
 
+  async function handleEliminarExamenCompleto() {
+    if (!confirm(`¿Eliminar por completo el examen "${evaluacionNombre}"? Se borran todas sus preguntas y los intentos de los estudiantes que ya lo rindieron. Las notas ya puestas en Evaluación de Cierre NO se borran (las puedes editar a mano después). Esta acción no se puede deshacer.`)) return
+    const result = await supabase.from('evaluaciones_unidad').delete().eq('id', evaluacionId)
+    if (result.error) {
+      alert('Error al eliminar: ' + result.error.message)
+    } else {
+      alert('Examen eliminado.')
+      if (onEliminado) onEliminado()
+    }
+  }
+
   async function handlePublicar() {
     if (!fechaHoraInicio) { alert('Primero ponle fecha/hora de inicio a la evaluación (vuelve a "Evaluación de Cierre").'); return }
     if (preguntas.length === 0) { alert('Agrega al menos una pregunta antes de publicar.'); return }
@@ -291,27 +302,36 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
           <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>{evaluacionNombre}</h3>
           <p className="text-xs text-slate-400">{totalPreguntas} pregunta(s) en total</p>
         </div>
-        {totalPreguntas > 0 && (
-          <div className="flex gap-2">
-            <button onClick={generarPDF} className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: NAVY }}>
-              📄 Generar PDF del examen
-            </button>
-            {publicado ? (
-              <span className="text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
-                ✓ Publicado
-              </span>
-            ) : (
-              <button
-                onClick={handlePublicar}
-                disabled={publicando}
-                className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
-                style={{ backgroundColor: GREEN }}
-              >
-                {publicando ? 'Publicando...' : '🚀 Publicar examen'}
+        <div className="flex gap-2 flex-wrap">
+          {totalPreguntas > 0 && (
+            <>
+              <button onClick={generarPDF} className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: NAVY }}>
+                📄 Generar PDF del examen
               </button>
-            )}
-          </div>
-        )}
+              {publicado ? (
+                <span className="text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
+                  ✓ Publicado
+                </span>
+              ) : (
+                <button
+                  onClick={handlePublicar}
+                  disabled={publicando}
+                  className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+                  style={{ backgroundColor: GREEN }}
+                >
+                  {publicando ? 'Publicando...' : '🚀 Publicar examen'}
+                </button>
+              )}
+            </>
+          )}
+          <button
+            onClick={handleEliminarExamenCompleto}
+            className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+            style={{ backgroundColor: '#B91C1C' }}
+          >
+            🗑️ Eliminar examen
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl p-4 mb-5" style={{ border: '1px solid #E5E9F0' }}>

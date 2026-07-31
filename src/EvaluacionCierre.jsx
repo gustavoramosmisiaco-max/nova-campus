@@ -488,6 +488,7 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
           evaluacionFecha={evalFecha}
           courseId={unidad.course_id}
           unidad={unidad}
+          onEliminado={function () { setTab('datos'); cargarTodo() }}
         />
       )}
 
