@@ -157,6 +157,18 @@ export default function RevisarExamen({ evaluacionId, evaluacionNombre, unidad, 
     abrirIntento(intentoSel)
   }
 
+  async function handleEliminarExamen() {
+    if (!confirm(`¿Eliminar el examen de ${intentoSel.student?.full_name}? Podrá volver a rendirlo desde cero. Sus notas pendientes/confirmadas de este examen también se borrarán.`)) return
+    setGuardando(true)
+
+    await supabase.from('evaluacion_cierre').delete().eq('evaluacion_id', evaluacionId).eq('student_id', intentoSel.student_id)
+    await supabase.from('examen_intentos').delete().eq('id', intentoSel.id)
+
+    setGuardando(false)
+    setIntentoSel(null)
+    cargar()
+  }
+
   if (loading) return <p className="text-slate-400 text-sm">Cargando...</p>
 
   if (intentoSel) {
@@ -220,14 +232,24 @@ export default function RevisarExamen({ evaluacionId, evaluacionNombre, unidad, 
           })}
         </div>
 
-        <button
-          onClick={handleGuardarYConfirmar}
-          disabled={guardando}
-          className="text-sm font-semibold px-6 py-2.5 rounded-xl text-white transition hover:opacity-90 disabled:opacity-50"
-          style={{ backgroundColor: GREEN }}
-        >
-          {guardando ? 'Guardando...' : '✓ Guardar y confirmar nota en el Registro'}
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={handleGuardarYConfirmar}
+            disabled={guardando}
+            className="text-sm font-semibold px-6 py-2.5 rounded-xl text-white transition hover:opacity-90 disabled:opacity-50"
+            style={{ backgroundColor: GREEN }}
+          >
+            {guardando ? 'Guardando...' : '✓ Guardar / actualizar nota en el Registro'}
+          </button>
+          <button
+            onClick={handleEliminarExamen}
+            disabled={guardando}
+            className="text-sm font-semibold px-6 py-2.5 rounded-xl text-white transition hover:opacity-90 disabled:opacity-50"
+            style={{ backgroundColor: '#B91C1C' }}
+          >
+            🗑️ Eliminar examen (permitir repetir)
+          </button>
+        </div>
 
         <PreviewModal preview={preview} onClose={function () { setPreview(null) }} />
       </div>
