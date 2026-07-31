@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import jsPDF from 'jspdf'
-import RevisarExamen from './RevisarExamen'
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -27,7 +26,6 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
   const [publicado, setPublicado] = useState(false)
   const [publicando, setPublicando] = useState(false)
   const [fechaHoraInicio, setFechaHoraInicio] = useState(null)
-  const [verRevision, setVerRevision] = useState(false)
 
   const [tipo, setTipo] = useState('alternativa')
   const [enunciado, setEnunciado] = useState('')
@@ -277,25 +275,16 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
 
   if (loading) return <p className="text-slate-400 text-sm">Cargando...</p>
 
-  if (verRevision) {
-    return (
-      <RevisarExamen
-        evaluacionId={evaluacionId}
-        evaluacionNombre={evaluacionNombre}
-        unidad={unidad}
-        onCerrar={function () { setVerRevision(false) }}
-      />
-    )
-  }
-
   const competenciasElegidas = competencias.filter(function (c) { return competenciasSeleccionadas.has(c.id) })
   const totalPreguntas = preguntas.length
 
   return (
     <div>
-      <button onClick={onCerrar} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>
-        ← Volver a Evaluación de Cierre
-      </button>
+      {onCerrar && (
+        <button onClick={onCerrar} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>
+          ← Volver a Evaluación de Cierre
+        </button>
+      )}
 
       <div className="flex justify-between items-start flex-wrap gap-3 mb-4">
         <div>
@@ -319,15 +308,6 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
                 style={{ backgroundColor: GREEN }}
               >
                 {publicando ? 'Publicando...' : '🚀 Publicar examen'}
-              </button>
-            )}
-            {publicado && (
-              <button
-                onClick={function () { setVerRevision(true) }}
-                className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
-                style={{ backgroundColor: '#B45309' }}
-              >
-                📋 Revisar exámenes rendidos
               </button>
             )}
           </div>
