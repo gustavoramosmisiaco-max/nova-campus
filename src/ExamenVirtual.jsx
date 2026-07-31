@@ -76,7 +76,16 @@ export default function ExamenVirtual({ unidad, courseId, onCerrar }) {
     if (!intentoResult.error && intentoResult.data) {
       setIntento(intentoResult.data)
       if (intentoResult.data.estado === 'finalizado') {
-        setResultado({ puntajeAuto: intentoResult.data.puntaje_auto, puntajeTotal: intentoResult.data.puntaje_total })
+        const cierreResult = await supabase
+          .from('evaluacion_cierre')
+          .select('competencia_id, nota_numerica, nota_letra, competencia:competencias(nombre)')
+          .eq('student_id', session.user.id)
+          .eq('unidad_id', unidad.id)
+          .eq('evaluacion_id', evalResult.data.id)
+        const desglose = (cierreResult.data || []).map(function (c) {
+          return { nombre: c.competencia?.nombre || '', notaNumerica: c.nota_numerica, notaLetra: c.nota_letra }
+        })
+        setResultado({ puntajeAuto: intentoResult.data.puntaje_auto, puntajeTotal: intentoResult.data.puntaje_total, desgloseCompetencias: desglose })
       }
     }
 
@@ -173,7 +182,9 @@ export default function ExamenVirtual({ unidad, courseId, onCerrar }) {
       puntaje_total: puntajeTotal,
     }).eq('id', intento.id)
 
+    const desgloseCompetencias = []
     for (const comp of competencias) {
+      if (!comp) continue
       const preguntasComp = preguntas.filter(function (p) { return p.competencia_id === comp.id })
       const tieneAbiertas = preguntasComp.some(function (p) { return p.tipo === 'abierta' })
       const puntosObtenidosComp = preguntasComp.reduce(function (a, p) {
@@ -196,9 +207,18 @@ export default function ExamenVirtual({ unidad, courseId, onCerrar }) {
         estado: tieneAbiertas ? 'pendiente_revision' : 'pendiente_revision',
         graded_at: new Date().toISOString(),
       }, { onConflict: 'student_id,unidad_id,competencia_id' })
+
+      desgloseCompetencias.push({
+        nombre: comp.nombre,
+        puntosObtenidos: puntosObtenidosComp,
+        puntosTotal: puntosTotalComp,
+        notaNumerica: notaNumerica,
+        notaLetra: getLetterGrade(notaNumerica),
+        tieneAbiertas: tieneAbiertas,
+      })
     }
 
-    setResultado({ puntajeAuto, puntajeTotal })
+    setResultado({ puntajeAuto, puntajeTotal, desgloseCompetencias })
     setEnviando(false)
   }
 
@@ -226,6 +246,25 @@ export default function ExamenVirtual({ unidad, courseId, onCerrar }) {
         <p className="text-sm text-slate-400 mb-4">
           Puntaje automático: {resultado.puntajeAuto} / {resultado.puntajeTotal} (preguntas con alternativas)
         </p>
+
+        {resultado.desgloseCompetencias && resultado.desgloseCompetencias.length > 0 && (
+          <div className="text-left rounded-xl p-4 mb-4" style={{ backgroundColor: '#F4F6F9', maxWidth: 420, margin: '0 auto 1rem' }}>
+            <p className="text-xs font-bold mb-2" style={{ color: NAVY_DARK }}>Nota por competencia (pendiente de confirmación)</p>
+            <ul className="space-y-1.5">
+              {resultado.desgloseCompetencias.map(function (c, i) {
+                return (
+                  <li key={i} className="flex justify-between items-center text-xs">
+                    <span style={{ color: '#5F5E5A' }}>{c.nombre}</span>
+                    <span className="font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#FFF7E6', color: '#B45309' }}>
+                      {c.notaNumerica} — {c.notaLetra}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )}
+
         <p className="text-xs rounded-lg p-3 inline-block" style={{ backgroundColor: '#FFF7E6', color: '#B45309' }}>
           Tu docente revisará el examen (incluyendo preguntas de desarrollo, si las hubo) antes de que la nota quede confirmada en tu Registro.
         </p>
