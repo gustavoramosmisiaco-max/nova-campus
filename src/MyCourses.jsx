@@ -6,7 +6,6 @@ import CourseAssignmentsStudent from './CourseAssignmentsStudent'
 import CourseZoomStudent from './CourseZoomStudent'
 import { getLetterGrade, getLetterColor } from './gradeUtils'
 import GruposEstudiante from './GruposEstudiante'
-import ExamenVirtual from './ExamenVirtual'
 
 const DIAS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
@@ -243,8 +242,6 @@ function UnidadActividadesStudent({ unidad, courseId, onBack, onSelectActividad 
         {[
           { id: 'actividades', label: 'Actividades' },
           { id: 'notas-tareas', label: 'Notas de Tareas' },
-          { id: 'examen', label: '📝 Examen' },
-          { id: 'notas-cierre', label: 'Evaluación Final de Unidad' },
         ].map(function (t) {
           const active = subTab === t.id
           return (
@@ -258,8 +255,6 @@ function UnidadActividadesStudent({ unidad, courseId, onBack, onSelectActividad 
       </div>
 
       {subTab === 'notas-tareas' && <NotasDeTareasUnidad unidad={unidad} courseId={courseId} />}
-      {subTab === 'examen' && <ExamenVirtual unidad={unidad} courseId={courseId} />}
-      {subTab === 'notas-cierre' && <NotasCierreUnidad unidad={unidad} />}
 
       {subTab === 'actividades' && (
       activities.length === 0 ? (
