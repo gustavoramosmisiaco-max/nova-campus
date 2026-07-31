@@ -22,6 +22,7 @@ export default function RevisarExamen({ evaluacionId, evaluacionNombre, unidad, 
   const [preview, setPreview] = useState(null)
   const [matriculados, setMatriculados] = useState([])
   const [marcandoAusente, setMarcandoAusente] = useState(null)
+  const [errorCarga, setErrorCarga] = useState('')
 
   useEffect(function () {
     cargar()
@@ -46,6 +47,8 @@ export default function RevisarExamen({ evaluacionId, evaluacionNombre, unidad, 
     if (!intentosResult.error) {
       const lista = intentosResult.data.sort(function (a, b) { return compararPorApellido(a.student?.full_name || '', b.student?.full_name || '') })
       setIntentos(lista)
+    } else {
+      setErrorCarga('Error al cargar intentos: ' + intentosResult.error.message)
     }
 
     const enrollResult = await supabase
@@ -261,6 +264,7 @@ export default function RevisarExamen({ evaluacionId, evaluacionNombre, unidad, 
       {onCerrar && <button onClick={onCerrar} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver</button>}
       <h2 className="text-xl font-bold mb-1" style={{ color: NAVY_DARK }}>Revisar examen: {evaluacionNombre}</h2>
       <p className="text-sm text-slate-400 mb-6">{intentos.length} estudiante(s) han rendido este examen.</p>
+      {errorCarga && <p className="text-red-500 text-sm mb-4">{errorCarga}</p>}
 
       {intentos.length === 0 ? (
         <p className="text-slate-400 text-sm">Ningún estudiante ha rendido este examen todavía.</p>
