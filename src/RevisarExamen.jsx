@@ -20,6 +20,8 @@ export default function RevisarExamen({ evaluacionId, evaluacionNombre, unidad, 
   const [puntajesEditados, setPuntajesEditados] = useState({})
   const [guardando, setGuardando] = useState(false)
   const [preview, setPreview] = useState(null)
+  const [matriculados, setMatriculados] = useState([])
+  const [marcandoAusente, setMarcandoAusente] = useState(null)
 
   useEffect(function () {
     cargar()
@@ -46,7 +48,47 @@ export default function RevisarExamen({ evaluacionId, evaluacionNombre, unidad, 
       setIntentos(lista)
     }
 
+    const enrollResult = await supabase
+      .from('enrollments')
+      .select('student:profiles(id, full_name)')
+      .eq('course_id', unidad.course_id)
+      .eq('status', 'activo')
+    if (!enrollResult.error) {
+      const lista = enrollResult.data.map(function (e) { return e.student }).filter(Boolean)
+      lista.sort(function (a, b) { return compararPorApellido(a.full_name, b.full_name) })
+      setMatriculados(lista)
+    }
+
     setLoading(false)
+  }
+
+  async function handleMarcarAusente(estudiante) {
+    if (!confirm(`¿Registrar C (0) a ${estudiante.full_name} por no presentar el examen?`)) return
+    setMarcandoAusente(estudiante.id)
+
+    const competenciasUnicas = [...new Map(preguntas.map(function (p) { return [p.competencia_id, p.competencia] })).values()]
+    const bimestre = Math.ceil(unidad.numero / 2)
+
+    for (const comp of competenciasUnicas) {
+      if (!comp) continue
+      await supabase.from('evaluacion_cierre').upsert({
+        student_id: estudiante.id,
+        course_id: unidad.course_id,
+        unidad_id: unidad.id,
+        competencia_id: comp.id,
+        evaluacion_id: evaluacionId,
+        bimestre: bimestre,
+        nota_numerica: 0,
+        nota_letra: 'C',
+        estado: 'confirmada',
+        graded_by: session.user.id,
+        graded_at: new Date().toISOString(),
+      }, { onConflict: 'student_id,unidad_id,competencia_id' })
+    }
+
+    setMarcandoAusente(null)
+    alert('Registrado. La nota C ya cuenta en el Registro.')
+    cargar()
   }
 
   async function abrirIntento(intento) {
@@ -223,6 +265,34 @@ export default function RevisarExamen({ evaluacionId, evaluacionNombre, unidad, 
           })}
         </ul>
       )}
+
+      {(function () {
+        const idsRindieron = new Set(intentos.map(function (i) { return i.student_id }))
+        const noRindieron = matriculados.filter(function (m) { return !idsRindieron.has(m.id) })
+        if (noRindieron.length === 0) return null
+        return (
+          <div className="mt-8">
+            <p className="text-sm font-bold mb-3" style={{ color: '#B91C1C' }}>No han rendido ({noRindieron.length})</p>
+            <ul className="space-y-2">
+              {noRindieron.map(function (m) {
+                return (
+                  <li key={m.id} className="bg-white rounded-xl p-4 flex justify-between items-center" style={{ border: '1px solid #F5C6C6' }}>
+                    <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{m.full_name}</p>
+                    <button
+                      onClick={function () { handleMarcarAusente(m) }}
+                      disabled={marcandoAusente === m.id}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+                      style={{ backgroundColor: '#B91C1C' }}
+                    >
+                      {marcandoAusente === m.id ? 'Guardando...' : 'Registrar C (no presentó)'}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )
+      })()}
     </div>
   )
 }
