@@ -11,6 +11,7 @@ const StudentGrades = lazy(function () { return import('./StudentGrades') })
 const TareasPendientes = lazy(function () { return import('./TareasPendientes') })
 const Mensajes = lazy(function () { return import('./Mensajes') })
 const ExamenesEstudiante = lazy(function () { return import('./ExamenesEstudiante') })
+const HorarioEstudiante = lazy(function () { return import('./HorarioEstudiante') })
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -29,6 +30,7 @@ export default function EstudianteDashboard() {
 
   const menuItems = [
     { id: 'cursos', label: 'Mis Asignaturas', icon: BookIcon },
+    { id: 'horario', label: 'Mi Horario', icon: ChartIcon },
     { id: 'pendientes', label: 'Tareas Pendientes', icon: ChartIcon },
     { id: 'examenes', label: 'Exámenes', icon: ChartIcon },
     { id: 'notas', label: 'Notas', icon: ChartIcon },
@@ -197,6 +199,7 @@ export default function EstudianteDashboard() {
         <main className="flex-1 p-6 md:p-10">
           <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
             {activeSection === 'cursos' && <MyCourses />}
+            {activeSection === 'horario' && <HorarioEstudiante />}
             {activeSection === 'pendientes' && <TareasPendientes />}
             {activeSection === 'examenes' && <ExamenesEstudiante />}
             {activeSection === 'notas' && <StudentGrades />}
