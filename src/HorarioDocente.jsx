@@ -32,12 +32,14 @@ export default function HorarioDocente() {
     setLoading(true)
     const result = await supabase
       .from('courses')
-      .select('id, nombre, grado, grupo, course_schedules(dia_semana, hora_inicio, hora_fin)')
+      .select('id, nombre, grado, grupo, institucion_id, course_schedules(dia_semana, hora_inicio, hora_fin)')
       .eq('docente_id', session.user.id)
 
     const lista = []
+    let institucionId = null
     if (!result.error) {
       result.data.forEach(function (c, idx) {
+        if (c.institucion_id) institucionId = c.institucion_id
         ;(c.course_schedules || []).forEach(function (h) {
           lista.push({
             courseNombre: `${c.nombre} (${c.grado}°${c.grupo})`,
@@ -45,10 +47,31 @@ export default function HorarioDocente() {
             inicio: h.hora_inicio,
             fin: h.hora_fin,
             color: COLORES[idx % COLORES.length],
+            esRecreo: false,
           })
         })
       })
     }
+
+    if (institucionId) {
+      const recreosResult = await supabase.from('recreos').select('*').eq('institucion_id', institucionId)
+      if (!recreosResult.error) {
+        const diasConClase = [...new Set(lista.map(function (b) { return b.dia }))]
+        recreosResult.data.forEach(function (r) {
+          diasConClase.forEach(function (dia) {
+            lista.push({
+              courseNombre: r.nombre,
+              dia: dia,
+              inicio: r.hora_inicio,
+              fin: r.hora_fin,
+              color: '#94A3B8',
+              esRecreo: true,
+            })
+          })
+        })
+      }
+    }
+
     setBloques(lista)
     setLoading(false)
   }
@@ -110,11 +133,21 @@ export default function HorarioDocente() {
                     return (
                       <div
                         key={i}
-                        className="absolute left-0 right-0 rounded-lg px-2 py-1 mx-0.5 overflow-hidden"
-                        style={{ top: top, height: Math.max(height, 24), backgroundColor: b.color, opacity: 0.9 }}
+                        className="absolute left-0 right-0 rounded-lg px-2 py-1 mx-0.5 overflow-hidden flex items-center justify-center"
+                        style={
+                          b.esRecreo
+                            ? { top: top, height: Math.max(height, 20), backgroundImage: 'repeating-linear-gradient(45deg, #CBD5E1, #CBD5E1 4px, #E2E8F0 4px, #E2E8F0 8px)' }
+                            : { top: top, height: Math.max(height, 24), backgroundColor: b.color, opacity: 0.9 }
+                        }
                       >
-                        <p className="text-white text-xs font-semibold leading-tight">{b.courseNombre}</p>
-                        <p className="text-white text-xs" style={{ opacity: 0.85 }}>{formatearHora(b.inicio)}-{formatearHora(b.fin)}</p>
+                        {b.esRecreo ? (
+                          <p className="text-xs font-bold" style={{ color: '#475569' }}>☕ {b.courseNombre}</p>
+                        ) : (
+                          <div className="w-full">
+                            <p className="text-white text-xs font-semibold leading-tight">{b.courseNombre}</p>
+                            <p className="text-white text-xs" style={{ opacity: 0.85 }}>{formatearHora(b.inicio)}-{formatearHora(b.fin)}</p>
+                          </div>
+                        )}
                       </div>
                     )
                   })}
