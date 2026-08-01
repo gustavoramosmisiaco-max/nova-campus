@@ -48,23 +48,9 @@ export default function Login({ onVerPortalPadres }) {
     <div className="min-h-screen w-full flex flex-col lg:flex-row">
 
       {/* Panel de imagen — elegante, con frases rotativas e íconos de materias */}
-      <div
-        className="relative flex flex-col justify-end p-6 lg:p-10 overflow-hidden"
-        style={{
-          flex: '0 0 auto',
-          height: '220px',
-          backgroundImage: `linear-gradient(160deg, ${NAVY_DARK}, ${NAVY} 55%, ${GREEN_DARK})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      >
-        <style>{`
-          @media (min-width: 1024px) {
-            .nova-hero-panel { flex: 0 0 42% !important; height: 100vh !important; }
-          }
-        `}</style>
+      <div className="relative flex flex-col justify-end p-6 lg:p-10 overflow-hidden w-full lg:w-[42%] h-[220px] lg:h-screen flex-shrink-0">
         <div
-          className="nova-hero-panel absolute inset-0"
+          className="absolute inset-0"
           style={{
             backgroundImage: 'url(/hero-estudiantes.jpg)',
             backgroundSize: 'cover',
