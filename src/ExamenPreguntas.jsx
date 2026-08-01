@@ -26,6 +26,7 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
   const [publicado, setPublicado] = useState(false)
   const [publicando, setPublicando] = useState(false)
   const [fechaHoraInicio, setFechaHoraInicio] = useState(null)
+  const [institucionNombre, setInstitucionNombre] = useState('')
 
   const [tipo, setTipo] = useState('alternativa')
   const [enunciado, setEnunciado] = useState('')
@@ -55,10 +56,11 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
 
     const courseResult = await supabase
       .from('courses')
-      .select('asignaturas(area_id, areas_curriculares(nombre))')
+      .select('asignaturas(area_id, areas_curriculares(nombre)), instituciones_educativas(nombre)')
       .eq('id', courseId)
       .single()
     const areaNombre = courseResult.data?.asignaturas?.areas_curriculares?.nombre
+    setInstitucionNombre(courseResult.data?.instituciones_educativas?.nombre || '')
     if (areaNombre) {
       const compResult = await supabase.from('competencias').select('*').eq('area', areaNombre).order('codigo')
       if (!compResult.error) setCompetencias(compResult.data)
@@ -212,14 +214,20 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
     const doc = new jsPDF()
     const pageWidth = doc.internal.pageSize.getWidth()
     let y = 15
+    const bimestre = Math.ceil(unidad.numero / 2)
 
     doc.setFontSize(11)
     doc.setFont(undefined, 'bold')
+    doc.text(institucionNombre || 'INSTITUCIÓN EDUCATIVA', pageWidth / 2, y, { align: 'center' })
+    y += 7
+
+    doc.setFontSize(10)
     doc.text(evaluacionNombre, pageWidth / 2, y, { align: 'center' })
-    y += 6
+    y += 7
+
     doc.setFontSize(9)
     doc.setFont(undefined, 'normal')
-    doc.text(`${unidad.tipo} ${unidad.numero}${evaluacionFecha ? ' — ' + new Date(evaluacionFecha + 'T00:00:00').toLocaleDateString('es-PE') : ''}`, pageWidth / 2, y, { align: 'center' })
+    doc.text(`Bimestre N° ${bimestre}          ${unidad.tipo} N° ${unidad.numero}`, pageWidth / 2, y, { align: 'center' })
     y += 10
 
     doc.setDrawColor(200, 200, 200)
@@ -227,40 +235,36 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
     y += 8
 
     doc.setFontSize(9)
-    doc.text('Apellidos y Nombres: _________________________________________', 14, y)
+    doc.text('Apellidos y Nombres: _________________________________________________________', 14, y)
     y += 6
-    doc.text('Grado y Sección: _____________     Fecha: _____________     Nota: _______', 14, y)
+    doc.text('Grado y Sección: _______________________     Fecha: _______________________', 14, y)
     y += 10
 
-    const totalPuntos = preguntas.reduce(function (a, p) { return a + Number(p.puntaje) }, 0)
-    doc.setFont(undefined, 'italic')
-    doc.text(`Puntaje total: ${totalPuntos} puntos`, 14, y)
-    doc.setFont(undefined, 'normal')
-    y += 10
-
-    let numeroGlobal = 1
-    competencias.filter(function (c) { return competenciasSeleccionadas.has(c.id) }).forEach(function (comp) {
+    competencias.filter(function (c) { return competenciasSeleccionadas.has(c.id) }).forEach(function (comp, compIdx) {
       const preguntasDeComp = preguntas.filter(function (p) { return p.competencia_id === comp.id })
       if (preguntasDeComp.length === 0) return
 
-      if (y > 260) { doc.addPage(); y = 15 }
+      if (y > 250) { doc.addPage(); y = 15 }
+
+      doc.setFillColor(240, 246, 240)
+      doc.rect(14, y - 5, pageWidth - 28, 8, 'F')
       doc.setFontSize(10)
       doc.setFont(undefined, 'bold')
       doc.setTextColor(93, 170, 71)
-      doc.text(comp.nombre, 14, y)
+      doc.text(`COMPETENCIA ${compIdx + 1} — ${comp.nombre}`, 16, y)
       doc.setTextColor(0, 0, 0)
-      y += 7
+      doc.text('NOTA: _______', pageWidth - 40, y)
+      y += 10
 
-      preguntasDeComp.forEach(function (p) {
+      preguntasDeComp.forEach(function (p, pIdx) {
         if (y > 265) { doc.addPage(); y = 15 }
 
         doc.setFontSize(10)
         doc.setFont(undefined, 'bold')
-        const enunciadoLines = doc.splitTextToSize(`${numeroGlobal}. ${p.enunciado}  (${p.puntaje} pts)`, pageWidth - 28)
+        const enunciadoLines = doc.splitTextToSize(`${pIdx + 1}. ${p.enunciado}  (${p.puntaje} pts)`, pageWidth - 28)
         doc.text(enunciadoLines, 14, y)
         y += enunciadoLines.length * 5 + 2
         doc.setFont(undefined, 'normal')
-        numeroGlobal++
 
         if (p.tipo === 'alternativa' || p.tipo === 'verdadero_falso') {
           ;(p.opciones || []).forEach(function (op) {
@@ -278,7 +282,7 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
           y += 2
         }
       })
-      y += 3
+      y += 4
     })
 
     doc.save(`${evaluacionNombre.replace(/[^a-zA-Z0-9]+/g, '_')}.pdf`)
