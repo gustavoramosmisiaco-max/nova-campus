@@ -688,6 +688,7 @@ function ActividadTareas({ actividad }) {
   const [puntajeMax, setPuntajeMax] = useState(20)
   const [instrumento, setInstrumento] = useState('')
   const [tipoEntrega, setTipoEntrega] = useState('individual')
+  const [linkDrive, setLinkDrive] = useState('')
 
   const [selectedAssignment, setSelectedAssignment] = useState(null)
   const [assignmentCapacidades, setAssignmentCapacidades] = useState([])
@@ -757,6 +758,7 @@ function ActividadTareas({ actividad }) {
     setPuntajeMax(20)
     setInstrumento('')
     setTipoEntrega('individual')
+    setLinkDrive('')
   }
 
   function openNew() {
@@ -774,6 +776,7 @@ function ActividadTareas({ actividad }) {
     setPuntajeMax(a.puntaje_maximo)
     setInstrumento(a.instrumento_evaluacion || '')
     setTipoEntrega(a.tipo_entrega || 'individual')
+    setLinkDrive(a.link_url || '')
     const acResult = await supabase.from('assignment_capacidades').select('capacidad_id').eq('assignment_id', a.id)
     setSelectedCapacidades(!acResult.error ? acResult.data.map(function (x) { return x.capacidad_id }) : [])
     setShowForm(true)
@@ -812,6 +815,7 @@ function ActividadTareas({ actividad }) {
       criterio: criterioTexto,
       tema: actividad.nombre,
       desempeno: desempenoTexto,
+      link_url: linkDrive.trim() || null,
     }
 
     let assignmentId = editingId
@@ -1071,6 +1075,11 @@ function ActividadTareas({ actividad }) {
       <div>
         <button onClick={function () { setSelectedAssignment(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a tareas</button>
         <h3 className="text-lg font-bold mb-1" style={{ color: NAVY_DARK }}>{selectedAssignment.titulo}</h3>
+        {selectedAssignment.link_url && (
+          <a href={selectedAssignment.link_url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold inline-block mb-2" style={{ color: NAVY }}>
+            📎 Ver material adjunto (Drive)
+          </a>
+        )}
         <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
           <p className="text-slate-500 text-sm">Entrega: {new Date(selectedAssignment.fecha_entrega).toLocaleString('es-PE')}</p>
           <button
@@ -1333,6 +1342,18 @@ function ActividadTareas({ actividad }) {
           )}
           <input type="text" value={titulo} onChange={function (e) { setTitulo(e.target.value) }} required placeholder="Título de la tarea" className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
           <textarea value={descripcion} onChange={function (e) { setDescripcion(e.target.value) }} placeholder="Descripción (opcional)" rows={2} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Link de Drive (opcional)</label>
+            <input
+              type="url"
+              value={linkDrive}
+              onChange={function (e) { setLinkDrive(e.target.value) }}
+              placeholder="https://drive.google.com/..."
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+              style={inputStyle}
+            />
+            <p className="text-xs text-slate-400 mt-1">Si adjuntas un link, el estudiante lo verá como material de apoyo para hacer la tarea (documento, guía, plantilla, etc.)</p>
+          </div>
           <input type="text" value={instrumento} onChange={function (e) { setInstrumento(e.target.value) }} placeholder="Instrumento de evaluación" className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Tipo de entrega</label>

@@ -286,6 +286,11 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
                     {a.instrumento_evaluacion && (
                       <p className="text-xs text-slate-500 mt-1">Instrumento: {a.instrumento_evaluacion}</p>
                     )}
+                    {a.link_url && (
+                      <a href={a.link_url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold inline-block mt-1" style={{ color: NAVY }}>
+                        📎 Ver material de apoyo (Drive)
+                      </a>
+                    )}
                     <p className="text-xs text-slate-500 mt-1">
                       Entrega: {dueDate.toLocaleString('es-PE')}
                       {isPast && !hasSubmission ? (
