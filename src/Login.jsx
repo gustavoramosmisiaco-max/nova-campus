@@ -1,5 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from './AuthContext'
+
+const NAVY_DARK = '#0F2A4A'
+const NAVY = '#1d5c8f'
+const GREEN = '#5DAA47'
+const GREEN_DARK = '#2f7a1f'
+
+const FRASES = [
+  'Cada experimento es un paso hacia el futuro.',
+  'La curiosidad es el primer paso del descubrimiento.',
+  'Aprender ciencia es aprender a pensar.',
+  'Hoy un estudiante, mañana un científico.',
+]
 
 export default function Login({ onVerPortalPadres }) {
   const { login } = useAuth()
@@ -7,6 +19,19 @@ export default function Login({ onVerPortalPadres }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [fraseIndex, setFraseIndex] = useState(0)
+  const [fraseVisible, setFraseVisible] = useState(true)
+
+  useEffect(function () {
+    const intervalo = setInterval(function () {
+      setFraseVisible(false)
+      setTimeout(function () {
+        setFraseIndex(function (i) { return (i + 1) % FRASES.length })
+        setFraseVisible(true)
+      }, 500)
+    }, 4500)
+    return function () { clearInterval(intervalo) }
+  }, [])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -20,49 +45,104 @@ export default function Login({ onVerPortalPadres }) {
   }
 
   return (
-    <div className="min-h-screen w-full flex">
+    <div className="min-h-screen w-full flex flex-col lg:flex-row">
 
+      {/* Panel de imagen — elegante, con frases rotativas e íconos de materias */}
       <div
-        className="hidden lg:flex lg:w-1/2 relative flex-col items-center justify-center text-center p-10"
+        className="relative flex flex-col justify-end p-6 lg:p-10 overflow-hidden"
         style={{
-          backgroundImage: 'linear-gradient(rgba(10,25,48,0.25), rgba(10,25,48,0.45)), url(/hero-plant.jpg)',
+          flex: '0 0 auto',
+          height: '220px',
+          backgroundImage: `linear-gradient(160deg, ${NAVY_DARK}, ${NAVY} 55%, ${GREEN_DARK})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
       >
-        <img
-          src="/logo.png"
-          alt="Nova Campus"
-          className="w-40 h-40 object-contain rounded-full bg-white p-2 mb-8"
-          style={{ boxShadow: '0 2px 10px rgba(0,0,0,0.35)' }}
+        <style>{`
+          @media (min-width: 1024px) {
+            .nova-hero-panel { flex: 0 0 42% !important; height: 100vh !important; }
+          }
+        `}</style>
+        <div
+          className="nova-hero-panel absolute inset-0"
+          style={{
+            backgroundImage: 'url(/hero-estudiantes.jpg)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
         />
-        <h1
-          className="text-5xl font-bold text-white mb-2"
-          style={{ textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}
-        >
-          Nova Campus
-        </h1>
-        <p
-          className="text-base font-semibold mb-6"
-          style={{ color: '#2f7a1f', textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}
-        >
+        <div
+          className="absolute inset-0"
+          style={{ background: `linear-gradient(0deg, rgba(15,42,74,0.88), rgba(15,42,74,0.15) 60%)` }}
+        />
+        <svg className="absolute inset-0 w-full h-full opacity-10 pointer-events-none" preserveAspectRatio="xMidYMid slice">
+          <circle cx="8%" cy="15%" r="70" fill="white" />
+          <circle cx="85%" cy="60%" r="110" fill="white" />
+          <circle cx="20%" cy="85%" r="50" fill="white" />
+        </svg>
+
+        {/* Iconos de materias */}
+        <div className="absolute top-5 left-5 lg:top-8 lg:left-8 flex gap-2 z-10">
+          {['flask', 'atom-2', 'atom'].map(function (icon) {
+            return (
+              <div
+                key={icon}
+                className="w-8 h-8 rounded-lg flex items-center justify-center"
+                style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
+              >
+                <MateriaIcon nombre={icon} />
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Logo + nombre */}
+        <div className="relative z-10 flex items-center gap-3 mb-4">
+          <img
+            src="/logo.png"
+            alt="Nova Campus"
+            className="w-10 h-10 lg:w-12 lg:h-12 object-contain rounded-full bg-white p-1"
+            style={{ boxShadow: '0 2px 10px rgba(0,0,0,0.35)' }}
+          />
+          <span className="text-white font-semibold text-base lg:text-lg tracking-wide">NOVA CAMPUS</span>
+        </div>
+
+        <p className="relative z-10 text-white text-base lg:text-xl font-medium mb-1">
           Explora · Comprende · Transforma
         </p>
-        <p
-          className="text-base leading-relaxed max-w-sm"
-          style={{ color: '#F0F4F8', textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}
-        >
-          Cada día es una nueva oportunidad para descubrir el mundo que te rodea.
+        <p className="relative z-10 text-xs lg:text-sm mb-3" style={{ color: '#c7e6b8' }}>
+          Biología · Química · Física en un solo lugar.
         </p>
+
+        <div
+          className="relative z-10 pl-3 mb-3"
+          style={{ borderLeft: `2px solid ${GREEN}`, minHeight: 36 }}
+        >
+          <p
+            className="text-white text-xs lg:text-sm italic leading-snug transition-opacity duration-500"
+            style={{ opacity: fraseVisible ? 1 : 0 }}
+          >
+            "{FRASES[fraseIndex]}"
+          </p>
+        </div>
+
+        <div className="relative z-10 flex gap-1.5">
+          {FRASES.map(function (_, i) {
+            return (
+              <span
+                key={i}
+                className="rounded-full transition-colors duration-300"
+                style={{ width: 5, height: 5, backgroundColor: i === fraseIndex ? GREEN : 'rgba(255,255,255,0.4)' }}
+              />
+            )
+          })}
+        </div>
       </div>
 
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-12" style={{ backgroundColor: 'white' }}>
+      {/* Panel del formulario */}
+      <div className="flex-1 flex items-center justify-center p-8 sm:p-12" style={{ backgroundColor: 'white' }}>
         <div className="w-full max-w-sm">
-          <div className="flex lg:hidden justify-center mb-6">
-            <img src="/logo.png" alt="Nova Campus" className="w-24 h-24 object-contain rounded-full bg-white p-2 shadow-lg" />
-          </div>
-
-          <h2 className="text-2xl font-bold mb-1" style={{ color: '#0F2A4A' }}>
+          <h2 className="text-2xl font-bold mb-1" style={{ color: NAVY_DARK }}>
             Bienvenido de vuelta
           </h2>
           <p className="text-slate-500 text-sm mb-8">Ingresa tus credenciales</p>
@@ -70,26 +150,39 @@ export default function Login({ onVerPortalPadres }) {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Correo electrónico</label>
-              <input
-                type="email"
-                value={email}
-                onChange={function (e) { setEmail(e.target.value) }}
-                required
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-slate-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition"
-                placeholder="tu@correo.com"
-              />
+              <div className="relative">
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4h16v16H4z" opacity="0" />
+                  <path d="M22 6l-10 7L2 6" />
+                  <path d="M2 6h20v12H2z" />
+                </svg>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={function (e) { setEmail(e.target.value) }}
+                  required
+                  className="w-full rounded-xl border border-slate-300 pl-10 pr-4 py-3 text-slate-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition"
+                  placeholder="tu@correo.com"
+                />
+              </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Contraseña</label>
-              <input
-                type="password"
-                value={password}
-                onChange={function (e) { setPassword(e.target.value) }}
-                required
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-slate-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition"
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={function (e) { setPassword(e.target.value) }}
+                  required
+                  className="w-full rounded-xl border border-slate-300 pl-10 pr-4 py-3 text-slate-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition"
+                  placeholder="••••••••"
+                />
+              </div>
             </div>
 
             {error ? <p className="text-red-500 text-sm text-center">{error}</p> : null}
@@ -98,7 +191,7 @@ export default function Login({ onVerPortalPadres }) {
               type="submit"
               disabled={loading}
               className="w-full text-white font-semibold rounded-xl py-3 transition disabled:opacity-50 hover:opacity-90"
-              style={{ background: 'linear-gradient(90deg, #1d5c8f, #5DAA47)' }}
+              style={{ background: `linear-gradient(90deg, ${NAVY}, ${GREEN})` }}
             >
               {loading ? 'Ingresando...' : 'Ingresar'}
             </button>
@@ -108,7 +201,7 @@ export default function Login({ onVerPortalPadres }) {
                 type="button"
                 onClick={onVerPortalPadres}
                 className="w-full text-sm font-semibold py-2.5 rounded-xl transition hover:opacity-80"
-                style={{ backgroundColor: '#F4F6F9', color: '#2f7a1f' }}
+                style={{ backgroundColor: '#F4F6F9', color: GREEN_DARK }}
               >
                 ¿Eres padre de familia? Ingresa aquí
               </button>
@@ -121,5 +214,33 @@ export default function Login({ onVerPortalPadres }) {
         </div>
       </div>
     </div>
+  )
+}
+
+function MateriaIcon({ nombre }) {
+  if (nombre === 'flask') {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 3h6" />
+        <path d="M10 3v6l-6 10a1 1 0 0 0 1 2h14a1 1 0 0 0 1-2l-6-10V3" />
+      </svg>
+    )
+  }
+  if (nombre === 'atom-2') {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="1" />
+        <ellipse cx="12" cy="12" rx="9" ry="4.5" />
+        <ellipse cx="12" cy="12" rx="9" ry="4.5" transform="rotate(60 12 12)" />
+        <ellipse cx="12" cy="12" rx="9" ry="4.5" transform="rotate(120 12 12)" />
+      </svg>
+    )
+  }
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="1" />
+      <ellipse cx="12" cy="12" rx="10" ry="4" />
+      <ellipse cx="12" cy="12" rx="4" ry="10" />
+    </svg>
   )
 }
