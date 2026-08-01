@@ -24,6 +24,7 @@ export default function ExamenVirtual({ unidad, courseId, onCerrar }) {
   const [preguntas, setPreguntas] = useState([])
   const [competencias, setCompetencias] = useState([])
   const [intento, setIntento] = useState(null)
+  const [intentosUsados, setIntentosUsados] = useState(0)
   const [respuestas, setRespuestas] = useState({})
   const [indiceActual, setIndiceActual] = useState(0)
   const [segundosRestantes, setSegundosRestantes] = useState(0)
@@ -67,26 +68,33 @@ export default function ExamenVirtual({ unidad, courseId, onCerrar }) {
       if (!compResult.error) setCompetencias(compResult.data)
     }
 
-    const intentoResult = await supabase
+    const intentosResult = await supabase
       .from('examen_intentos')
       .select('*')
       .eq('evaluacion_id', evalResult.data.id)
       .eq('student_id', session.user.id)
-      .maybeSingle()
-    if (!intentoResult.error && intentoResult.data) {
-      setIntento(intentoResult.data)
-      if (intentoResult.data.estado === 'finalizado') {
-        const cierreResult = await supabase
-          .from('evaluacion_cierre')
-          .select('competencia_id, nota_numerica, nota_letra, competencia:competencias(nombre)')
-          .eq('student_id', session.user.id)
-          .eq('unidad_id', unidad.id)
-          .eq('evaluacion_id', evalResult.data.id)
-        const desglose = (cierreResult.data || []).map(function (c) {
-          return { nombre: c.competencia?.nombre || '', notaNumerica: c.nota_numerica, notaLetra: c.nota_letra }
-        })
-        setResultado({ puntajeAuto: intentoResult.data.puntaje_auto, puntajeTotal: intentoResult.data.puntaje_total, desgloseCompetencias: desglose })
-      }
+      .order('iniciado_at', { ascending: false })
+
+    const todosIntentos = intentosResult.data || []
+    const enProgreso = todosIntentos.find(function (i) { return i.estado === 'en_progreso' })
+    const finalizados = todosIntentos.filter(function (i) { return i.estado === 'finalizado' })
+    setIntentosUsados(finalizados.length)
+
+    if (enProgreso) {
+      setIntento(enProgreso)
+    } else if (finalizados.length > 0) {
+      const ultimoFinalizado = finalizados[0]
+      setIntento(ultimoFinalizado)
+      const cierreResult = await supabase
+        .from('evaluacion_cierre')
+        .select('competencia_id, nota_numerica, nota_letra, competencia:competencias(nombre)')
+        .eq('student_id', session.user.id)
+        .eq('unidad_id', unidad.id)
+        .eq('evaluacion_id', evalResult.data.id)
+      const desglose = (cierreResult.data || []).map(function (c) {
+        return { nombre: c.competencia?.nombre || '', notaNumerica: c.nota_numerica, notaLetra: c.nota_letra }
+      })
+      setResultado({ puntajeAuto: ultimoFinalizado.puntaje_auto, puntajeTotal: ultimoFinalizado.puntaje_total, desgloseCompetencias: desglose })
     }
 
     setLoading(false)
@@ -218,6 +226,7 @@ export default function ExamenVirtual({ unidad, courseId, onCerrar }) {
       })
     }
 
+    setIntentosUsados(function (prev) { return prev + 1 })
     setResultado({ puntajeAuto, puntajeTotal, desgloseCompetencias })
     setEnviando(false)
   }
@@ -268,6 +277,19 @@ export default function ExamenVirtual({ unidad, courseId, onCerrar }) {
         <p className="text-xs rounded-lg p-3 inline-block" style={{ backgroundColor: '#FFF7E6', color: '#B45309' }}>
           Tu docente revisará el examen (incluyendo preguntas de desarrollo, si las hubo) antes de que la nota quede confirmada en tu Registro.
         </p>
+
+        {intentosUsados < (evaluacion.intentos_permitidos || 1) && estadoVentana() === 'abierto' && (
+          <div className="mt-4">
+            <p className="text-xs text-slate-400 mb-2">Has usado {intentosUsados} de {evaluacion.intentos_permitidos} intento(s) permitido(s).</p>
+            <button
+              onClick={function () { setIntento(null); setResultado(null); setRespuestas({}); setIndiceActual(0) }}
+              className="text-sm font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+              style={{ backgroundColor: '#B45309' }}
+            >
+              Rendir de nuevo
+            </button>
+          </div>
+        )}
         {onCerrar && <div className="mt-6"><button onClick={onCerrar} className="text-sm font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: GREEN }}>Volver</button></div>}
       </div>
     )
@@ -308,6 +330,9 @@ export default function ExamenVirtual({ unidad, courseId, onCerrar }) {
         {onCerrar && <button onClick={onCerrar} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver</button>}
         <h2 className="text-xl font-bold mb-1" style={{ color: NAVY_DARK }}>{evaluacion.nombre}</h2>
         <p className="text-sm text-slate-500 mb-1">{preguntas.length} preguntas · {evaluacion.duracion_minutos} minutos</p>
+        {evaluacion.intentos_permitidos > 1 && (
+          <p className="text-xs font-semibold mb-1" style={{ color: '#B45309' }}>Intento {intentosUsados + 1} de {evaluacion.intentos_permitidos}</p>
+        )}
         <p className="text-xs text-slate-400 mb-6">Una vez que empieces, el tiempo corre sin pausa hasta que se acabe la ventana del examen.</p>
         <button onClick={handleComenzar} className="text-sm font-semibold px-8 py-3 rounded-xl text-white transition hover:opacity-90" style={{ background: `linear-gradient(90deg, ${NAVY}, ${GREEN})` }}>
           Empezar examen

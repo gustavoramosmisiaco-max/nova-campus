@@ -29,6 +29,7 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
   const [evalFecha, setEvalFecha] = useState('')
   const [evalHoraInicio, setEvalHoraInicio] = useState('')
   const [evalDuracion, setEvalDuracion] = useState(45)
+  const [intentosPermitidos, setIntentosPermitidos] = useState(1)
   const [guardandoEval, setGuardandoEval] = useState(false)
 
   useEffect(function () {
@@ -118,12 +119,14 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
         setEvalHoraInicio('')
       }
       setEvalDuracion(evalResult.data.duracion_minutos || 45)
+      setIntentosPermitidos(evalResult.data.intentos_permitidos || 1)
     } else {
       setEvaluacionId(null)
       setEvalNombre('')
       setEvalFecha('')
       setEvalHoraInicio('')
       setEvalDuracion(45)
+      setIntentosPermitidos(1)
     }
 
     const unidResult = await supabase.from('unidades').select('finalizada').eq('id', unidad.id).single()
@@ -144,6 +147,7 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
       fecha: evalFecha || null,
       fecha_hora_inicio: evalHoraInicio ? `${evalHoraInicio}:00-05:00` : null,
       duracion_minutos: evalDuracion || null,
+      intentos_permitidos: intentosPermitidos,
       created_by: session.user.id,
     }
 
@@ -369,6 +373,21 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
                 className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                 style={inputStyle}
               />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>
+                N° de intentos permitidos
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={intentosPermitidos}
+                onChange={function (e) { setIntentosPermitidos(Number(e.target.value)) }}
+                disabled={finalizada}
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={inputStyle}
+              />
+              <p className="text-xs text-slate-400 mt-1">Por si hay problemas de conexión, deja que rinda el examen más de una vez.</p>
             </div>
             <p className="text-xs sm:col-span-2" style={{ color: '#B45309' }}>
               Déjalo en blanco si el examen no será virtual (solo en papel) — así, la pestaña "Notas" seguirá aceptando notas manuales normalmente.

@@ -45,7 +45,18 @@ export default function RevisarExamen({ evaluacionId, evaluacionNombre, unidad, 
       .eq('estado', 'finalizado')
       .order('finalizado_at', { ascending: false })
     if (!intentosResult.error) {
-      const lista = intentosResult.data.sort(function (a, b) { return compararPorApellido(a.student?.full_name || '', b.student?.full_name || '') })
+      const porEstudiante = {}
+      intentosResult.data.forEach(function (i) {
+        const existente = porEstudiante[i.student_id]
+        if (!existente || new Date(i.finalizado_at) > new Date(existente.masReciente.finalizado_at)) {
+          porEstudiante[i.student_id] = { masReciente: i, totalIntentos: (existente?.totalIntentos || 0) + 1 }
+        } else {
+          porEstudiante[i.student_id].totalIntentos += 1
+        }
+      })
+      const lista = Object.values(porEstudiante)
+        .map(function (v) { return { ...v.masReciente, totalIntentos: v.totalIntentos } })
+        .sort(function (a, b) { return compararPorApellido(a.student?.full_name || '', b.student?.full_name || '') })
       setIntentos(lista)
     } else {
       setErrorCarga('Error al cargar intentos: ' + intentosResult.error.message)
@@ -285,7 +296,10 @@ export default function RevisarExamen({ evaluacionId, evaluacionNombre, unidad, 
                 >
                   <div>
                     <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{i.student?.full_name}</p>
-                    <p className="text-xs text-slate-400">Entregado el {new Date(i.finalizado_at).toLocaleString('es-PE')}</p>
+                    <p className="text-xs text-slate-400">
+                      Entregado el {new Date(i.finalizado_at).toLocaleString('es-PE')}
+                      {i.totalIntentos > 1 && ` · Intento ${i.totalIntentos} (usó varios intentos)`}
+                    </p>
                   </div>
                   <span className="text-xs font-semibold px-3 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
                     {i.puntaje_auto} / {i.puntaje_total} auto

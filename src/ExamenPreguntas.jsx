@@ -211,7 +211,7 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
   }
 
   function generarPDF() {
-    const doc = new jsPDF()
+    const doc = new jsPDF({ format: 'a4', unit: 'mm' })
     const pageWidth = doc.internal.pageSize.getWidth()
     let y = 15
     const bimestre = Math.ceil(unidad.numero / 2)
@@ -552,3 +552,4 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
     </div>
   )
 }
+
