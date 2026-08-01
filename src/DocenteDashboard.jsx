@@ -84,9 +84,9 @@ export default function DocenteDashboard() {
         style={{ background: `linear-gradient(180deg, ${NAVY_DARK}, #08182c)` }}
       >
         <div className="flex items-center gap-3 px-6 py-6 border-b border-white/10">
-          <img src="/logo.png" alt="Nova Campus" className="w-10 h-10 object-contain rounded-full bg-white p-1" />
+          <img src="/logo.png" alt="Nexoris Academy" className="w-10 h-10 object-contain rounded-full bg-white p-1" />
           <div>
-            <p className="text-white font-bold leading-tight">Nova Campus</p>
+            <p className="text-white font-bold leading-tight">Nexoris Academy</p>
             <p className="text-xs" style={{ color: GREEN }}>Panel Docente</p>
           </div>
         </div>
@@ -131,9 +131,9 @@ export default function DocenteDashboard() {
             style={{ background: `linear-gradient(180deg, ${NAVY_DARK}, #08182c)` }}
           >
             <div className="flex items-center gap-3 px-6 py-6 border-b border-white/10">
-              <img src="/logo.png" alt="Nova Campus" className="w-10 h-10 object-contain rounded-full bg-white p-1" />
+              <img src="/logo.png" alt="Nexoris Academy" className="w-10 h-10 object-contain rounded-full bg-white p-1" />
               <div>
-                <p className="text-white font-bold leading-tight">Nova Campus</p>
+                <p className="text-white font-bold leading-tight">Nexoris Academy</p>
                 <p className="text-xs" style={{ color: GREEN }}>Panel Docente</p>
               </div>
             </div>
@@ -187,8 +187,8 @@ export default function DocenteDashboard() {
                 <line x1="3" y1="18" x2="21" y2="18" />
               </svg>
             </button>
-            <img src="/logo.png" alt="Nova Campus" className="w-8 h-8 object-contain rounded-full" />
-            <span className="font-bold" style={{ color: NAVY_DARK }}>Nova Campus</span>
+            <img src="/logo.png" alt="Nexoris Academy" className="w-8 h-8 object-contain rounded-full" />
+            <span className="font-bold" style={{ color: NAVY_DARK }}>Nexoris Academy</span>
           </div>
 
           <div className="hidden md:block">

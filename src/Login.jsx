@@ -86,11 +86,11 @@ export default function Login({ onVerPortalPadres }) {
         <div className="relative z-10 flex items-center gap-4 mb-5">
           <img
             src="/logo.png"
-            alt="Nova Campus"
+            alt="Nexoris Academy"
             className="w-14 h-14 lg:w-20 lg:h-20 object-contain rounded-full bg-white p-1.5"
             style={{ boxShadow: '0 2px 10px rgba(0,0,0,0.35)' }}
           />
-          <span className="text-white font-semibold text-2xl lg:text-4xl tracking-wide">NOVA CAMPUS</span>
+          <span className="text-white font-semibold text-2xl lg:text-4xl tracking-wide">NEXORIS ACADEMY</span>
         </div>
 
         <p className="relative z-10 text-white text-xl lg:text-3xl font-medium mb-2">

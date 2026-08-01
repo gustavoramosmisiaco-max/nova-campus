@@ -132,7 +132,7 @@ export default function PortalPadres({ onBack }) {
 
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
-          <img src="/logo.png" alt="Nova Campus" className="w-14 h-14 object-contain rounded-full bg-white p-1 mx-auto mb-3" style={{ boxShadow: '0 2px 8px rgba(15,42,74,0.15)' }} />
+          <img src="/logo.png" alt="Nexoris Academy" className="w-14 h-14 object-contain rounded-full bg-white p-1 mx-auto mb-3" style={{ boxShadow: '0 2px 8px rgba(15,42,74,0.15)' }} />
           <h1 className="text-lg font-bold" style={{ color: NAVY_DARK }}>Portal de Padres de Familia</h1>
           <p className="text-sm text-slate-400 mt-1">Ingresa el código de tu hijo(a) para ver su progreso</p>
         </div>
