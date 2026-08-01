@@ -54,7 +54,7 @@ export default function Login({ onVerPortalPadres }) {
           style={{
             backgroundImage: 'url(/hero-estudiantes.jpg)',
             backgroundSize: 'cover',
-            backgroundPosition: 'center',
+            backgroundPosition: 'top center',
           }}
         />
         <div
