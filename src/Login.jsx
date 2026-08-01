@@ -68,12 +68,12 @@ export default function Login({ onVerPortalPadres }) {
         </svg>
 
         {/* Iconos de materias */}
-        <div className="absolute top-5 left-5 lg:top-8 lg:left-8 flex gap-2 z-10">
+        <div className="absolute top-6 left-6 lg:top-10 lg:left-10 flex gap-3 z-10">
           {['flask', 'atom-2', 'atom'].map(function (icon) {
             return (
               <div
                 key={icon}
-                className="w-8 h-8 rounded-lg flex items-center justify-center"
+                className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl flex items-center justify-center"
                 style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
               >
                 <MateriaIcon nombre={icon} />
@@ -83,29 +83,29 @@ export default function Login({ onVerPortalPadres }) {
         </div>
 
         {/* Logo + nombre */}
-        <div className="relative z-10 flex items-center gap-3 mb-4">
+        <div className="relative z-10 flex items-center gap-4 mb-5">
           <img
             src="/logo.png"
             alt="Nova Campus"
-            className="w-10 h-10 lg:w-12 lg:h-12 object-contain rounded-full bg-white p-1"
+            className="w-14 h-14 lg:w-20 lg:h-20 object-contain rounded-full bg-white p-1.5"
             style={{ boxShadow: '0 2px 10px rgba(0,0,0,0.35)' }}
           />
-          <span className="text-white font-semibold text-base lg:text-lg tracking-wide">NOVA CAMPUS</span>
+          <span className="text-white font-semibold text-2xl lg:text-4xl tracking-wide">NOVA CAMPUS</span>
         </div>
 
-        <p className="relative z-10 text-white text-base lg:text-xl font-medium mb-1">
+        <p className="relative z-10 text-white text-xl lg:text-3xl font-medium mb-2">
           Explora · Comprende · Transforma
         </p>
-        <p className="relative z-10 text-xs lg:text-sm mb-3" style={{ color: '#c7e6b8' }}>
+        <p className="relative z-10 text-base lg:text-xl mb-5" style={{ color: '#c7e6b8' }}>
           Biología · Química · Física en un solo lugar.
         </p>
 
         <div
-          className="relative z-10 pl-3 mb-3"
-          style={{ borderLeft: `2px solid ${GREEN}`, minHeight: 36 }}
+          className="relative z-10 pl-4 mb-4"
+          style={{ borderLeft: `3px solid ${GREEN}`, minHeight: 56 }}
         >
           <p
-            className="text-white text-xs lg:text-sm italic leading-snug transition-opacity duration-500"
+            className="text-white text-lg lg:text-2xl italic leading-snug transition-opacity duration-500"
             style={{ opacity: fraseVisible ? 1 : 0 }}
           >
             "{FRASES[fraseIndex]}"
@@ -206,7 +206,7 @@ export default function Login({ onVerPortalPadres }) {
 function MateriaIcon({ nombre }) {
   if (nombre === 'flask') {
     return (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M9 3h6" />
         <path d="M10 3v6l-6 10a1 1 0 0 0 1 2h14a1 1 0 0 0 1-2l-6-10V3" />
       </svg>
@@ -214,7 +214,7 @@ function MateriaIcon({ nombre }) {
   }
   if (nombre === 'atom-2') {
     return (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="1" />
         <ellipse cx="12" cy="12" rx="9" ry="4.5" />
         <ellipse cx="12" cy="12" rx="9" ry="4.5" transform="rotate(60 12 12)" />
@@ -223,7 +223,7 @@ function MateriaIcon({ nombre }) {
     )
   }
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="1" />
       <ellipse cx="12" cy="12" rx="10" ry="4" />
       <ellipse cx="12" cy="12" rx="4" ry="10" />
