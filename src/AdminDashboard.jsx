@@ -1,18 +1,19 @@
-import { useState } from 'react'
+import { useState, lazy, Suspense } from 'react'
 import { useAuth } from './AuthContext'
-import CoursesManager from './CoursesManager'
-import EnrollmentsManager from './EnrollmentsManager'
-import AsignaturasManager from './AsignaturasManager'
-import CierrePeriodo from './CierrePeriodo'
-import ImportarEstudiantes from './ImportarEstudiantes'
-import ImportarDocentes from './ImportarDocentes'
-import EstudiantesList from './EstudiantesList'
-import DocentesList from './DocentesList'
-import ReportesManager from './ReportesManager'
-import InstitucionesManager from './InstitucionesManager'
-import HabilitarCursos from './HabilitarCursos'
 import WelcomeAnimation from './WelcomeAnimation'
 import FarewellAnimation from './FarewellAnimation'
+
+const CoursesManager = lazy(function () { return import('./CoursesManager') })
+const EnrollmentsManager = lazy(function () { return import('./EnrollmentsManager') })
+const AsignaturasManager = lazy(function () { return import('./AsignaturasManager') })
+const CierrePeriodo = lazy(function () { return import('./CierrePeriodo') })
+const ImportarEstudiantes = lazy(function () { return import('./ImportarEstudiantes') })
+const ImportarDocentes = lazy(function () { return import('./ImportarDocentes') })
+const EstudiantesList = lazy(function () { return import('./EstudiantesList') })
+const DocentesList = lazy(function () { return import('./DocentesList') })
+const ReportesManager = lazy(function () { return import('./ReportesManager') })
+const InstitucionesManager = lazy(function () { return import('./InstitucionesManager') })
+const HabilitarCursos = lazy(function () { return import('./HabilitarCursos') })
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -198,17 +199,19 @@ export default function AdminDashboard() {
 
         {/* Contenido */}
         <main className="flex-1 p-6 md:p-10">
-          {tab === 'cursos' && <CoursesManager />}
-          {tab === 'matriculas' && <EnrollmentsManager />}
-          {tab === 'asignaturas' && <AsignaturasManager />}
-          {tab === 'estudiantes' && <EstudiantesList />}
-          {tab === 'docentes' && <DocentesList />}
-          {tab === 'importar' && <ImportarEstudiantes />}
-          {tab === 'importar-docentes' && <ImportarDocentes />}
-          {tab === 'reportes' && <ReportesManager />}
-          {tab === 'instituciones' && <InstitucionesManager />}
-          {tab === 'habilitar-cursos' && <HabilitarCursos />}
-          {tab === 'periodo' && <CierrePeriodo />}
+          <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
+            {tab === 'cursos' && <CoursesManager />}
+            {tab === 'matriculas' && <EnrollmentsManager />}
+            {tab === 'asignaturas' && <AsignaturasManager />}
+            {tab === 'estudiantes' && <EstudiantesList />}
+            {tab === 'docentes' && <DocentesList />}
+            {tab === 'importar' && <ImportarEstudiantes />}
+            {tab === 'importar-docentes' && <ImportarDocentes />}
+            {tab === 'reportes' && <ReportesManager />}
+            {tab === 'instituciones' && <InstitucionesManager />}
+            {tab === 'habilitar-cursos' && <HabilitarCursos />}
+            {tab === 'periodo' && <CierrePeriodo />}
+          </Suspense>
         </main>
       </div>
     </div>

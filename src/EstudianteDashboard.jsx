@@ -1,15 +1,16 @@
-import { useState } from 'react'
+import { useState, lazy, Suspense } from 'react'
 import { useAuth } from './AuthContext'
-import MyCourses from './MyCourses'
-import StudentGrades from './StudentGrades'
-import TareasPendientes from './TareasPendientes'
 import NotificationBell from './NotificationBell'
-import Mensajes from './Mensajes'
 import BloqueoPanel from './BloqueoPanel'
 import WelcomeAnimation from './WelcomeAnimation'
 import FarewellAnimation from './FarewellAnimation'
-import ExamenesEstudiante from './ExamenesEstudiante'
 import ComunicadoPopup from './ComunicadoPopup'
+
+const MyCourses = lazy(function () { return import('./MyCourses') })
+const StudentGrades = lazy(function () { return import('./StudentGrades') })
+const TareasPendientes = lazy(function () { return import('./TareasPendientes') })
+const Mensajes = lazy(function () { return import('./Mensajes') })
+const ExamenesEstudiante = lazy(function () { return import('./ExamenesEstudiante') })
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -194,14 +195,16 @@ export default function EstudianteDashboard() {
 
         {/* Contenido */}
         <main className="flex-1 p-6 md:p-10">
-          {activeSection === 'cursos' && <MyCourses />}
-          {activeSection === 'pendientes' && <TareasPendientes />}
-          {activeSection === 'examenes' && <ExamenesEstudiante />}
-          {activeSection === 'notas' && <StudentGrades />}
-          {activeSection === 'mensajes' && <Mensajes />}
-          {activeSection === 'zoom' && (
-            <EmptyState title="Clases en vivo" subtitle="Aquí aparecerán tus próximas sesiones de Zoom." />
-          )}
+          <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
+            {activeSection === 'cursos' && <MyCourses />}
+            {activeSection === 'pendientes' && <TareasPendientes />}
+            {activeSection === 'examenes' && <ExamenesEstudiante />}
+            {activeSection === 'notas' && <StudentGrades />}
+            {activeSection === 'mensajes' && <Mensajes />}
+            {activeSection === 'zoom' && (
+              <EmptyState title="Clases en vivo" subtitle="Aquí aparecerán tus próximas sesiones de Zoom." />
+            )}
+          </Suspense>
         </main>
       </div>
     </div>
