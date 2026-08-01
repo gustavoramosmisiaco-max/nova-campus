@@ -144,9 +144,10 @@ export default function StudentGrades() {
       if (unidadIdsFinalizadas.length > 0) {
         const cierreResult = await supabase
           .from('evaluacion_cierre')
-          .select('competencia_id, nota_numerica')
+          .select('competencia_id, nota_numerica, estado')
           .eq('student_id', session.user.id)
           .in('unidad_id', unidadIdsFinalizadas)
+          .eq('estado', 'confirmada')
         if (!cierreResult.error) {
           cierreResult.data.forEach(function (row) {
             if (!cierreMap[row.competencia_id]) cierreMap[row.competencia_id] = []
