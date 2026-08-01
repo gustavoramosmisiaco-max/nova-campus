@@ -65,24 +65,20 @@ export default function StudentGrades() {
       gruposArea[areaId].courseIds.push(e.course.id)
     })
 
-    const resultado = []
+    async function procesarArea(areaId, grupo) {
+      const [compResult, unidResult] = await Promise.all([
+        supabase.from('competencias').select('*').eq('area', grupo.areaNombre).order('codigo'),
+        supabase
+          .from('unidades')
+          .select('id, numero, tipo, nombre, finalizada')
+          .eq('area_id', areaId)
+          .eq('grado', grupo.grado)
+          .eq('grupo', grupo.grupo),
+      ])
 
-    for (const areaId of Object.keys(gruposArea)) {
-      const grupo = gruposArea[areaId]
-
-      const compResult = await supabase.from('competencias').select('*').eq('area', grupo.areaNombre).order('codigo')
       const competencias = compResult.error ? [] : compResult.data
       const competenciaIds = competencias.map(function (c) { return c.id })
 
-      const capResult = await supabase.from('capacidades').select('*').in('competencia_id', competenciaIds).order('orden')
-      const capacidades = capResult.error ? [] : capResult.data
-
-      const unidResult = await supabase
-        .from('unidades')
-        .select('id, numero, tipo, nombre, finalizada')
-        .eq('area_id', areaId)
-        .eq('grado', grupo.grado)
-        .eq('grupo', grupo.grupo)
       const unidadesBimestre = (unidResult.error ? [] : unidResult.data).filter(function (u) {
         return Math.ceil(u.numero / 2) === bimestre
       })
@@ -91,24 +87,44 @@ export default function StudentGrades() {
       const unidadMap = {}
       unidadesBimestre.forEach(function (u) { unidadMap[u.id] = u })
 
-      let actividades = []
-      let assignments = []
-      if (unidadIds.length > 0) {
-        const actResult = await supabase
-          .from('actividades')
-          .select('id, nombre, numero_actividad, unidad_id, actividad_capacidades(capacidad_id, criterio, desempeno)')
-          .in('unidad_id', unidadIds)
-          .in('course_id', grupo.courseIds)
-        actividades = actResult.error ? [] : actResult.data
+      const [capResult, actResult, cierreResult] = await Promise.all([
+        supabase.from('capacidades').select('*').in('competencia_id', competenciaIds).order('orden'),
+        unidadIds.length > 0
+          ? supabase
+              .from('actividades')
+              .select('id, nombre, numero_actividad, unidad_id, actividad_capacidades(capacidad_id, criterio, desempeno)')
+              .in('unidad_id', unidadIds)
+              .in('course_id', grupo.courseIds)
+          : Promise.resolve({ data: [], error: null }),
+        unidadIdsFinalizadas.length > 0
+          ? supabase
+              .from('evaluacion_cierre')
+              .select('competencia_id, nota_numerica, estado')
+              .eq('student_id', session.user.id)
+              .in('unidad_id', unidadIdsFinalizadas)
+              .eq('estado', 'confirmada')
+          : Promise.resolve({ data: [], error: null }),
+      ])
 
-        const actIds = actividades.map(function (a) { return a.id })
-        if (actIds.length > 0) {
-          const assignResult = await supabase
-            .from('assignments')
-            .select('id, titulo, actividad_id, assignment_capacidades(capacidad_id)')
-            .in('actividad_id', actIds)
-          assignments = assignResult.error ? [] : assignResult.data
-        }
+      const capacidades = capResult.error ? [] : capResult.data
+      const actividades = actResult.error ? [] : actResult.data
+
+      const cierreMap = {}
+      if (!cierreResult.error) {
+        cierreResult.data.forEach(function (row) {
+          if (!cierreMap[row.competencia_id]) cierreMap[row.competencia_id] = []
+          cierreMap[row.competencia_id].push(row.nota_numerica)
+        })
+      }
+
+      const actIds = actividades.map(function (a) { return a.id })
+      let assignments = []
+      if (actIds.length > 0) {
+        const assignResult = await supabase
+          .from('assignments')
+          .select('id, titulo, actividad_id, assignment_capacidades(capacidad_id)')
+          .in('actividad_id', actIds)
+        assignments = assignResult.error ? [] : assignResult.data
       }
 
       const assignmentIds = assignments.map(function (a) { return a.id })
@@ -137,22 +153,6 @@ export default function StudentGrades() {
               notaTareaMap[key] = row.score
             })
           }
-        }
-      }
-
-      let cierreMap = {}
-      if (unidadIdsFinalizadas.length > 0) {
-        const cierreResult = await supabase
-          .from('evaluacion_cierre')
-          .select('competencia_id, nota_numerica, estado')
-          .eq('student_id', session.user.id)
-          .in('unidad_id', unidadIdsFinalizadas)
-          .eq('estado', 'confirmada')
-        if (!cierreResult.error) {
-          cierreResult.data.forEach(function (row) {
-            if (!cierreMap[row.competencia_id]) cierreMap[row.competencia_id] = []
-            cierreMap[row.competencia_id].push(row.nota_numerica)
-          })
         }
       }
 
@@ -190,14 +190,18 @@ export default function StudentGrades() {
 
       const promedioArea = average(competenciasData.map(function (c) { return c.promedioCompetencia }))
 
-      resultado.push({
+      return {
         areaId: areaId,
         areaNombre: grupo.areaNombre,
         unidades: unidadesBimestre,
         competenciasData: competenciasData,
         promedioArea: promedioArea,
-      })
+      }
     }
+
+    const resultado = await Promise.all(
+      Object.keys(gruposArea).map(function (areaId) { return procesarArea(areaId, gruposArea[areaId]) })
+    )
 
     resultado.sort(function (a, b) { return a.areaNombre.localeCompare(b.areaNombre) })
     setAreasData(resultado)
