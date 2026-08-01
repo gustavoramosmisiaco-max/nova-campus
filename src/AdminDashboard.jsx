@@ -14,6 +14,7 @@ const DocentesList = lazy(function () { return import('./DocentesList') })
 const ReportesManager = lazy(function () { return import('./ReportesManager') })
 const InstitucionesManager = lazy(function () { return import('./InstitucionesManager') })
 const HabilitarCursos = lazy(function () { return import('./HabilitarCursos') })
+const VaciarPeriodo = lazy(function () { return import('./VaciarPeriodo') })
 
 const NAVY_DARK = '#0F2A4A'
 const NAVY = '#1d5c8f'
@@ -41,6 +42,7 @@ export default function AdminDashboard() {
     { id: 'reportes', label: 'Reportes', icon: BookIcon },
     { id: 'instituciones', label: 'Instituciones', icon: BookIcon },
     { id: 'habilitar-cursos', label: 'Habilitar Cursos', icon: BookIcon },
+    { id: 'vaciar-periodo', label: 'Vaciar Periodo', icon: BookIcon },
     { id: 'periodo', label: 'Cierre de Periodo', icon: BookIcon },
   ]
 
@@ -210,6 +212,7 @@ export default function AdminDashboard() {
             {tab === 'reportes' && <ReportesManager />}
             {tab === 'instituciones' && <InstitucionesManager />}
             {tab === 'habilitar-cursos' && <HabilitarCursos />}
+            {tab === 'vaciar-periodo' && <VaciarPeriodo />}
             {tab === 'periodo' && <CierrePeriodo />}
           </Suspense>
         </main>

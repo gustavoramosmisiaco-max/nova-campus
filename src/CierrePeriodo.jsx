@@ -218,10 +218,11 @@ export default function CierrePeriodo() {
       }
 
       // -------- Una hoja de Instrumento por cada actividad con capacidades --------
+      const nombresHojaUsados = new Set()
       for (const course of courses) {
         const actResult = await supabase
           .from('actividades')
-          .select('id, nombre, numero_actividad, proposito, tipo_instrumento, competencia:competencias(nombre), actividad_capacidades(criterio, desempeno, desc_ad, desc_a, desc_b, desc_c, capacidad:capacidades(id, nombre, orden))')
+          .select('id, nombre, numero_actividad, proposito, tipo_instrumento, unidad:unidades(numero), competencia:competencias(nombre), actividad_capacidades(criterio, desempeno, desc_ad, desc_a, desc_b, desc_c, capacidad:capacidades(id, nombre, orden))')
           .eq('course_id', course.id)
           .order('created_at', { ascending: true })
         const actividades = (actResult.error ? [] : actResult.data).filter(function (a) {
@@ -290,7 +291,17 @@ export default function CierrePeriodo() {
             Object.keys(grouped).forEach(function (key) { cellValues[key] = average(grouped[key]) })
           }
 
-          const sheetName = safeSheetName(`${course.nombre.slice(0, 8)} ${course.grado}${course.grupo} Act${actividad.numero_actividad}`)
+          let sheetName = safeSheetName(`${course.nombre.slice(0, 6)} ${course.grado}${course.grupo} U${actividad.unidad?.numero ?? '?'}A${actividad.numero_actividad}`)
+          if (nombresHojaUsados.has(sheetName)) {
+            let contador = 2
+            let candidato = safeSheetName(`${sheetName} (${contador})`)
+            while (nombresHojaUsados.has(candidato)) {
+              contador++
+              candidato = safeSheetName(`${sheetName} (${contador})`)
+            }
+            sheetName = candidato
+          }
+          nombresHojaUsados.add(sheetName)
           const ws = workbook.addWorksheet(sheetName)
 
           if (actividad.tipo_instrumento === 'Rúbrica') {
