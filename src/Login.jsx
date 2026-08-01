@@ -195,7 +195,7 @@ export default function Login({ onVerPortalPadres }) {
           </form>
 
           <p className="text-center text-slate-400 text-xs mt-10">
-            Academia Nova Ciencias · Ica, Perú
+            Nexoris Academy · Ica, Perú
           </p>
         </div>
       </div>
