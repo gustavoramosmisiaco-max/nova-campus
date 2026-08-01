@@ -48,13 +48,13 @@ export default function Login({ onVerPortalPadres }) {
     <div className="min-h-screen w-full flex flex-col lg:flex-row">
 
       {/* Panel de imagen — elegante, con frases rotativas e íconos de materias */}
-      <div className="relative flex flex-col justify-end p-6 lg:p-10 overflow-hidden w-full lg:w-[42%] h-[220px] lg:h-screen flex-shrink-0">
+      <div className="relative flex flex-col justify-end p-6 lg:p-10 overflow-hidden w-full lg:w-[42%] h-[380px] lg:h-screen flex-shrink-0">
         <div
           className="absolute inset-0"
           style={{
             backgroundImage: 'url(/hero-estudiantes.jpg)',
             backgroundSize: 'cover',
-            backgroundPosition: 'top center',
+            backgroundPosition: 'center',
           }}
         />
         <div
