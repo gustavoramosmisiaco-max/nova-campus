@@ -256,9 +256,9 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
 
   const TABS = [
     { id: 'datos', label: '1. Datos' },
-    { id: 'notas', label: '2. Notas' },
-    { id: 'preguntas', label: '3. Preguntas del examen' },
-    { id: 'revisar', label: '4. Revisar' },
+    { id: 'preguntas', label: '2. Preguntas del examen' },
+    { id: 'revisar', label: '3. Revisar' },
+    { id: 'notas', label: '4. Calificación de examen' },
   ]
 
   const pendientesCount = Object.values(estadoMap).filter(function (e) { return e === 'pendiente_revision' }).length
