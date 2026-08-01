@@ -292,6 +292,7 @@ export default function CierrePeriodo() {
           }
 
           let sheetName = safeSheetName(`${course.nombre.slice(0, 6)} ${course.grado}${course.grupo} U${actividad.unidad?.numero ?? '?'}A${actividad.numero_actividad}`)
+          console.log('DIAGNOSTICO sheetName generado:', sheetName, '| unidad:', actividad.unidad, '| actividad.nombre:', actividad.nombre)
           if (nombresHojaUsados.has(sheetName)) {
             let contador = 2
             let candidato = safeSheetName(`${sheetName} (${contador})`)
