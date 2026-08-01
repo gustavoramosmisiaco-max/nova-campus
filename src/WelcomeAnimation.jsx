@@ -26,7 +26,7 @@ const CONFIG_POR_ROL = {
   padre: {
     icono: 'padre',
     color: '#B45309',
-    titulo: 'Bienvenido, familia Nova',
+    titulo: 'Bienvenido, familia Nexoris',
     subtitulo: 'Aquí puedes ver el progreso de tu hijo(a).',
   },
 }
