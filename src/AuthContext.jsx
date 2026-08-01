@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useState } from 'react'
-import { supabase } from './supabaseClient' 
+import { createContext, useContext, useEffect, useState, useRef } from 'react'
+import { supabase } from './supabaseClient'
 
 const AuthContext = createContext(null)
 
@@ -7,6 +7,7 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const perfilCargadoParaUserId = useRef(null)
 
   useEffect(() => {
     // Revisa si ya hay una sesión activa al cargar la app
@@ -19,15 +20,26 @@ export function AuthProvider({ children }) {
       }
     })
 
-    // Escucha cambios de sesión (login, logout)
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Escucha cambios de sesión (login, logout, refresco de token)
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
-      if (session) {
-        loadProfile(session.user.id)
-      } else {
+
+      if (!session) {
+        perfilCargadoParaUserId.current = null
         setProfile(null)
         setLoading(false)
+        return
       }
+
+      // Si ya tenemos el perfil de este mismo usuario cargado, no lo volvemos a pedir.
+      // Esto evita que el celular "resetee" pantallas cada vez que la pestaña
+      // vuelve de segundo plano (por ejemplo, al abrir el selector de archivos)
+      // y Supabase revalida el token en automático.
+      if (perfilCargadoParaUserId.current === session.user.id) {
+        return
+      }
+
+      loadProfile(session.user.id)
     })
 
     return () => listener.subscription.unsubscribe()
@@ -42,6 +54,7 @@ export function AuthProvider({ children }) {
 
     if (!error) {
       setProfile(data)
+      perfilCargadoParaUserId.current = userId
     }
     setLoading(false)
   }
