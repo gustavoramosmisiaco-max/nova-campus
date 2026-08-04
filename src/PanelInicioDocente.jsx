@@ -116,23 +116,23 @@ export default function PanelInicioDocente({ onIrACurso }) {
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
-        <div className="bg-white rounded-2xl p-4" style={{ border: '1px solid #E2E8F0' }}>
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-2" style={{ backgroundColor: '#EFF6FF' }}>
-            <span style={{ color: NAVY }}>📋</span>
+        <div className="bg-white rounded-2xl p-4 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-3" style={{ background: `linear-gradient(135deg, ${NAVY}, #1E40AF)` }}>
+            <IconoTareas />
           </div>
           <p className="text-2xl font-semibold" style={{ color: NAVY_DARK }}>{tareasPorRevisar}</p>
           <p className="text-xs text-slate-400">Tareas por revisar</p>
         </div>
-        <div className="bg-white rounded-2xl p-4" style={{ border: '1px solid #E2E8F0' }}>
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-2" style={{ backgroundColor: '#F0FDF4' }}>
-            <span style={{ color: GREEN }}>💬</span>
+        <div className="bg-white rounded-2xl p-4 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-3" style={{ background: `linear-gradient(135deg, ${GREEN}, #15803D)` }}>
+            <IconoCampana />
           </div>
           <p className="text-2xl font-semibold" style={{ color: NAVY_DARK }}>{mensajesNoLeidos}</p>
           <p className="text-xs text-slate-400">Notificaciones nuevas</p>
         </div>
-        <div className="bg-white rounded-2xl p-4" style={{ border: '1px solid #E2E8F0' }}>
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-2" style={{ backgroundColor: '#FEFCE8' }}>
-            <span style={{ color: '#CA8A04' }}>👥</span>
+        <div className="bg-white rounded-2xl p-4 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-3" style={{ background: 'linear-gradient(135deg, #FACC15, #CA8A04)' }}>
+            <IconoGrupos />
           </div>
           <p className="text-2xl font-semibold" style={{ color: NAVY_DARK }}>{gruposActivos}</p>
           <p className="text-xs text-slate-400">Grupos de trabajo</p>
@@ -174,5 +174,34 @@ export default function PanelInicioDocente({ onIrACurso }) {
         </div>
       )}
     </div>
+  )
+}
+
+function IconoTareas() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 11l3 3L22 4" />
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+    </svg>
+  )
+}
+
+function IconoCampana() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  )
+}
+
+function IconoGrupos() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
   )
 }
