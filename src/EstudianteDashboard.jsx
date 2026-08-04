@@ -13,6 +13,7 @@ const TareasPendientes = lazy(function () { return import('./TareasPendientes') 
 const Mensajes = lazy(function () { return import('./Mensajes') })
 const ExamenesEstudiante = lazy(function () { return import('./ExamenesEstudiante') })
 const HorarioEstudiante = lazy(function () { return import('./HorarioEstudiante') })
+const PanelInicioEstudiante = lazy(function () { return import('./PanelInicioEstudiante') })
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
@@ -21,7 +22,7 @@ const GREEN_DARK = '#16A34A'
 
 export default function EstudianteDashboard() {
   const { profile, logout } = useAuth()
-  const [activeSection, setActiveSection] = useState('cursos')
+  const [activeSection, setActiveSection] = useState('inicio')
   const [despidiendo, setDespidiendo] = useState(false)
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false)
 
@@ -30,6 +31,7 @@ export default function EstudianteDashboard() {
   }
 
   const menuItems = [
+    { id: 'inicio', label: 'Inicio', icon: BookIcon },
     { id: 'cursos', label: 'Mis Asignaturas', icon: BookIcon },
     { id: 'horario', label: 'Mi Horario', icon: ChartIcon },
     { id: 'pendientes', label: 'Tareas Pendientes', icon: ChartIcon },
@@ -57,7 +59,7 @@ export default function EstudianteDashboard() {
       {/* Sidebar de escritorio — siempre visible, sin ninguna condición */}
       <aside
         className="w-64 flex-shrink-0 flex-col hidden md:flex"
-        style={{ background: `linear-gradient(180deg, ${NAVY_DARK}, #08182c)` }}
+        style={{ backgroundColor: NAVY_DARK }}
       >
         <div className="flex items-center gap-3 px-6 py-6 border-b border-white/10">
           <img src="/logo.png" alt="Nexoris Academy" className="w-10 h-10 object-contain rounded-full bg-white p-1" />
@@ -104,7 +106,7 @@ export default function EstudianteDashboard() {
           />
           <aside
             className="w-64 flex-shrink-0 flex flex-col fixed inset-y-0 left-0 z-50 md:hidden"
-            style={{ background: `linear-gradient(180deg, ${NAVY_DARK}, #08182c)` }}
+            style={{ backgroundColor: NAVY_DARK }}
           >
             <div className="flex items-center gap-3 px-6 py-6 border-b border-white/10">
               <img src="/logo.png" alt="Nexoris Academy" className="w-10 h-10 object-contain rounded-full bg-white p-1" />
@@ -200,6 +202,7 @@ export default function EstudianteDashboard() {
         <main className="flex-1 p-6 md:p-10">
           <ErrorBoundary key={activeSection}>
             <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
+              {activeSection === 'inicio' && <PanelInicioEstudiante onIrACurso={function () { setActiveSection('cursos') }} />}
               {activeSection === 'cursos' && <MyCourses />}
               {activeSection === 'horario' && <HorarioEstudiante />}
               {activeSection === 'pendientes' && <TareasPendientes />}

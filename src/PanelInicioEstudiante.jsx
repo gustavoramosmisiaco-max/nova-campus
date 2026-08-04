@@ -17,13 +17,13 @@ function saludoSegunHora() {
   return 'Buenas noches'
 }
 
-export default function PanelInicioDocente({ onIrACurso }) {
+export default function PanelInicioEstudiante({ onIrACurso }) {
   const { session, profile } = useAuth()
   const [loading, setLoading] = useState(true)
   const [courses, setCourses] = useState([])
-  const [tareasPorRevisar, setTareasPorRevisar] = useState(0)
-  const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0)
-  const [gruposActivos, setGruposActivos] = useState(0)
+  const [tareasPendientes, setTareasPendientes] = useState(0)
+  const [notifNoLeidas, setNotifNoLeidas] = useState(0)
+  const [examenesProgramados, setExamenesProgramados] = useState(0)
 
   useEffect(function () {
     cargar()
@@ -32,71 +32,64 @@ export default function PanelInicioDocente({ onIrACurso }) {
   async function cargar() {
     setLoading(true)
 
-    const coursesResult = await supabase
-      .from('courses')
-      .select('id, nombre, grado, grupo, enrollments(count), asignaturas(areas_curriculares(nombre))')
-      .eq('docente_id', session.user.id)
-      .eq('activo', true)
-      .order('grado')
-      .order('grupo')
+    const enrollResult = await supabase
+      .from('enrollments')
+      .select('course:courses(id, nombre, grado, grupo, asignaturas(areas_curriculares(nombre)))')
+      .eq('student_id', session.user.id)
+      .eq('status', 'activo')
 
-    const coursesData = coursesResult.data || []
+    const enrolls = enrollResult.data || []
+    const coursesData = enrolls.map(function (e) { return e.course }).filter(Boolean)
+    const courseIds = coursesData.map(function (c) { return c.id })
 
-    const promedios = await Promise.all(
-      coursesData.map(async function (c) {
-        const totalEstudiantes = c.enrollments?.[0]?.count || 0
+    let totalPendientes = 0
+    if (courseIds.length > 0) {
+      const assignResult = await supabase.from('assignments').select('id, course_id').in('course_id', courseIds)
+      const assignments = assignResult.data || []
+      const assignmentIds = assignments.map(function (a) { return a.id })
 
-        const assignResult = await supabase.from('assignments').select('id').eq('course_id', c.id)
-        const assignmentIds = (assignResult.data || []).map(function (a) { return a.id })
-
-        if (assignmentIds.length === 0 || totalEstudiantes === 0) {
-          return { ...c, totalEstudiantes: totalEstudiantes, progreso: 0 }
-        }
-
+      let entregadosIds = new Set()
+      if (assignmentIds.length > 0) {
         const subsResult = await supabase
           .from('submissions')
-          .select('id', { count: 'exact', head: true })
+          .select('assignment_id, file_url')
+          .eq('student_id', session.user.id)
           .in('assignment_id', assignmentIds)
-
-        const totalPosibles = assignmentIds.length * totalEstudiantes
-        const entregadas = subsResult.count || 0
-        const progreso = totalPosibles > 0 ? Math.round((entregadas / totalPosibles) * 100) : 0
-
-        return { ...c, totalEstudiantes: totalEstudiantes, progreso: progreso }
-      })
-    )
-    setCourses(promedios)
-
-    const courseIds = coursesData.map(function (c) { return c.id })
-    let totalPorRevisar = 0
-    if (courseIds.length > 0) {
-      const assignResult2 = await supabase.from('assignments').select('id').in('course_id', courseIds)
-      const allAssignmentIds = (assignResult2.data || []).map(function (a) { return a.id })
-      if (allAssignmentIds.length > 0) {
-        const sinRevisarResult = await supabase
-          .from('submissions')
-          .select('id', { count: 'exact', head: true })
-          .in('assignment_id', allAssignmentIds)
-          .eq('publicado', false)
-          .not('file_url', 'is', null)
-        totalPorRevisar = sinRevisarResult.count || 0
+        ;(subsResult.data || []).forEach(function (s) { if (s.file_url) entregadosIds.add(s.assignment_id) })
       }
+      totalPendientes = assignments.filter(function (a) { return !entregadosIds.has(a.id) }).length
+
+      const promedios = await Promise.all(
+        coursesData.map(async function (c) {
+          const assignmentsDelCurso = assignments.filter(function (a) { return a.course_id === c.id })
+          if (assignmentsDelCurso.length === 0) return { ...c, progreso: 0 }
+          const entregadasDelCurso = assignmentsDelCurso.filter(function (a) { return entregadosIds.has(a.id) }).length
+          return { ...c, progreso: Math.round((entregadasDelCurso / assignmentsDelCurso.length) * 100) }
+        })
+      )
+      setCourses(promedios)
+    } else {
+      setCourses([])
     }
-    setTareasPorRevisar(totalPorRevisar)
+    setTareasPendientes(totalPendientes)
 
     const notifResult = await supabase
       .from('notificaciones')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', session.user.id)
       .eq('leido', false)
-    setMensajesNoLeidos(notifResult.count || 0)
+    setNotifNoLeidas(notifResult.count || 0)
 
+    const areaIds = [...new Set(coursesData.map(function (c) { return c.asignaturas?.areas_curriculares?.nombre }).filter(Boolean))]
     if (courseIds.length > 0) {
-      const gruposResult = await supabase
-        .from('grupos_trabajo')
-        .select('id', { count: 'exact', head: true })
-        .in('course_id', courseIds)
-      setGruposActivos(gruposResult.count || 0)
+      const unidResult = await supabase
+        .from('unidades')
+        .select('id, evaluaciones_unidad(publicado)')
+        .in('grado', [...new Set(coursesData.map(function (c) { return c.grado }))])
+      const publicados = (unidResult.data || []).filter(function (u) {
+        return (u.evaluaciones_unidad || []).some(function (e) { return e.publicado })
+      }).length
+      setExamenesProgramados(publicados)
     }
 
     setLoading(false)
@@ -112,7 +105,7 @@ export default function PanelInicioDocente({ onIrACurso }) {
         {saludoSegunHora()}, {primerNombre} 👋
       </p>
       <p className="text-sm text-slate-400 mb-6">
-        Tienes {courses.length} curso(s) activo(s){tareasPorRevisar > 0 ? `, ${tareasPorRevisar} tarea(s) por revisar` : ''}.
+        {tareasPendientes > 0 ? `Tienes ${tareasPendientes} tarea(s) pendiente(s).` : '¡Estás al día con tus tareas!'}
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
@@ -120,22 +113,22 @@ export default function PanelInicioDocente({ onIrACurso }) {
           <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-3" style={{ background: `linear-gradient(135deg, ${NAVY}, #1E40AF)` }}>
             <IconoTareas />
           </div>
-          <p className="text-2xl font-semibold" style={{ color: NAVY_DARK }}>{tareasPorRevisar}</p>
-          <p className="text-xs text-slate-400">Tareas por revisar</p>
+          <p className="text-2xl font-semibold" style={{ color: NAVY_DARK }}>{tareasPendientes}</p>
+          <p className="text-xs text-slate-400">Tareas pendientes</p>
         </div>
         <div className="bg-white rounded-2xl p-4 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
           <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-3" style={{ background: `linear-gradient(135deg, ${GREEN}, #15803D)` }}>
             <IconoCampana />
           </div>
-          <p className="text-2xl font-semibold" style={{ color: NAVY_DARK }}>{mensajesNoLeidos}</p>
+          <p className="text-2xl font-semibold" style={{ color: NAVY_DARK }}>{notifNoLeidas}</p>
           <p className="text-xs text-slate-400">Notificaciones nuevas</p>
         </div>
         <div className="bg-white rounded-2xl p-4 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
           <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-3" style={{ background: 'linear-gradient(135deg, #FACC15, #CA8A04)' }}>
-            <IconoGrupos />
+            <IconoExamen />
           </div>
-          <p className="text-2xl font-semibold" style={{ color: NAVY_DARK }}>{gruposActivos}</p>
-          <p className="text-xs text-slate-400">Grupos de trabajo</p>
+          <p className="text-2xl font-semibold" style={{ color: NAVY_DARK }}>{examenesProgramados}</p>
+          <p className="text-xs text-slate-400">Exámenes disponibles</p>
         </div>
       </div>
 
@@ -143,7 +136,7 @@ export default function PanelInicioDocente({ onIrACurso }) {
 
       {courses.length === 0 ? (
         <div className="bg-white rounded-2xl p-10 text-center" style={{ border: '1px dashed #D6DCE5' }}>
-          <p className="text-slate-400 text-sm">Aún no tienes cursos asignados.</p>
+          <p className="text-slate-400 text-sm">Aún no estás matriculado en ningún curso.</p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -163,7 +156,7 @@ export default function PanelInicioDocente({ onIrACurso }) {
                   <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{c.nombre}</p>
                   <p className="text-xs text-slate-400 mb-3">{gradoLabel(c.grado)} — Sección {c.grupo}{areaNombre ? ` · ${areaNombre}` : ''}</p>
                   <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs text-slate-400">{c.totalEstudiantes} estudiante(s)</span>
+                    <span className="text-xs text-slate-400">Progreso de tareas</span>
                     <span className="text-xs font-semibold" style={{ color: GREEN }}>{c.progreso}%</span>
                   </div>
                   <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#E2E8F0' }}>
@@ -197,13 +190,12 @@ function IconoCampana() {
   )
 }
 
-function IconoGrupos() {
+function IconoExamen() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      <path d="M9 11l3 3L22 4" />
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9" />
+      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
     </svg>
   )
 }
