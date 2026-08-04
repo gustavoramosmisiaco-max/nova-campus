@@ -5,6 +5,7 @@ import BloqueoPanel from './BloqueoPanel'
 import WelcomeAnimation from './WelcomeAnimation'
 import FarewellAnimation from './FarewellAnimation'
 import ComunicadoPopup from './ComunicadoPopup'
+import ErrorBoundary from './ErrorBoundary'
 
 const MyCourses = lazy(function () { return import('./MyCourses') })
 const StudentGrades = lazy(function () { return import('./StudentGrades') })
@@ -197,17 +198,19 @@ export default function EstudianteDashboard() {
 
         {/* Contenido */}
         <main className="flex-1 p-6 md:p-10">
-          <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
-            {activeSection === 'cursos' && <MyCourses />}
-            {activeSection === 'horario' && <HorarioEstudiante />}
-            {activeSection === 'pendientes' && <TareasPendientes />}
-            {activeSection === 'examenes' && <ExamenesEstudiante />}
-            {activeSection === 'notas' && <StudentGrades />}
-            {activeSection === 'mensajes' && <Mensajes />}
-            {activeSection === 'zoom' && (
-              <EmptyState title="Clases en vivo" subtitle="Aquí aparecerán tus próximas sesiones de Zoom." />
-            )}
-          </Suspense>
+          <ErrorBoundary key={activeSection}>
+            <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
+              {activeSection === 'cursos' && <MyCourses />}
+              {activeSection === 'horario' && <HorarioEstudiante />}
+              {activeSection === 'pendientes' && <TareasPendientes />}
+              {activeSection === 'examenes' && <ExamenesEstudiante />}
+              {activeSection === 'notas' && <StudentGrades />}
+              {activeSection === 'mensajes' && <Mensajes />}
+              {activeSection === 'zoom' && (
+                <EmptyState title="Clases en vivo" subtitle="Aquí aparecerán tus próximas sesiones de Zoom." />
+              )}
+            </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
     </div>

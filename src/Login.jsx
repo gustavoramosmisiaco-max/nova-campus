@@ -144,7 +144,7 @@ export default function Login({ onVerPortalPadres }) {
 
         <div className="w-full max-w-sm relative z-10">
           <div className="flex justify-center mb-6">
-            <img src="/logo.png" alt="Nexoris Academy" className="w-16 h-16 object-contain" />
+            <img src="/logo.png" alt="Nexoris Academy" className="w-28 h-28 object-contain" />
           </div>
 
           <div className="flex items-center gap-2 mb-1">

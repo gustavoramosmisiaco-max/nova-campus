@@ -2,6 +2,7 @@ import { useState, lazy, Suspense } from 'react'
 import { useAuth } from './AuthContext'
 import WelcomeAnimation from './WelcomeAnimation'
 import FarewellAnimation from './FarewellAnimation'
+import ErrorBoundary from './ErrorBoundary'
 
 const CoursesManager = lazy(function () { return import('./CoursesManager') })
 const EnrollmentsManager = lazy(function () { return import('./EnrollmentsManager') })
@@ -203,21 +204,23 @@ export default function AdminDashboard() {
 
         {/* Contenido */}
         <main className="flex-1 p-6 md:p-10">
-          <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
-            {tab === 'cursos' && <CoursesManager />}
-            {tab === 'matriculas' && <EnrollmentsManager />}
-            {tab === 'asignaturas' && <AsignaturasManager />}
-            {tab === 'estudiantes' && <EstudiantesList />}
-            {tab === 'docentes' && <DocentesList />}
-            {tab === 'importar' && <ImportarEstudiantes />}
-            {tab === 'importar-docentes' && <ImportarDocentes />}
-            {tab === 'reportes' && <ReportesManager />}
-            {tab === 'instituciones' && <InstitucionesManager />}
-            {tab === 'habilitar-cursos' && <HabilitarCursos />}
-            {tab === 'vaciar-periodo' && <VaciarPeriodo />}
-            {tab === 'recreos' && <RecreosManager />}
-            {tab === 'periodo' && <CierrePeriodo />}
-          </Suspense>
+          <ErrorBoundary key={tab}>
+            <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
+              {tab === 'cursos' && <CoursesManager />}
+              {tab === 'matriculas' && <EnrollmentsManager />}
+              {tab === 'asignaturas' && <AsignaturasManager />}
+              {tab === 'estudiantes' && <EstudiantesList />}
+              {tab === 'docentes' && <DocentesList />}
+              {tab === 'importar' && <ImportarEstudiantes />}
+              {tab === 'importar-docentes' && <ImportarDocentes />}
+              {tab === 'reportes' && <ReportesManager />}
+              {tab === 'instituciones' && <InstitucionesManager />}
+              {tab === 'habilitar-cursos' && <HabilitarCursos />}
+              {tab === 'vaciar-periodo' && <VaciarPeriodo />}
+              {tab === 'recreos' && <RecreosManager />}
+              {tab === 'periodo' && <CierrePeriodo />}
+            </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
     </div>

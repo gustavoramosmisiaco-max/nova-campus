@@ -3,6 +3,7 @@ import { useAuth } from './AuthContext'
 import NotificationBell from './NotificationBell'
 import WelcomeAnimation from './WelcomeAnimation'
 import FarewellAnimation from './FarewellAnimation'
+import ErrorBoundary from './ErrorBoundary'
 
 const MyTeachingCourses = lazy(function () { return import('./MyTeachingCourses') })
 const MisTareas = lazy(function () { return import('./MisTareas') })
@@ -222,19 +223,21 @@ export default function DocenteDashboard() {
 
         {/* Contenido */}
         <main className="flex-1 p-6 md:p-10">
-          <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
-            {activeSection === 'cursos' && <MyTeachingCourses />}
-            {activeSection === 'horario' && <HorarioDocente />}
-            {activeSection === 'tareas' && (
-              <MisTareas
-                tareaDestacadaId={tareaDestacadaId}
-                onTareaDestacadaAtendida={function () { setTareaDestacadaId(null) }}
-              />
-            )}
-            {activeSection === 'conducta' && <RegistroConducta />}
-            {activeSection === 'comunicados' && <ComunicadoDocente />}
-            {activeSection === 'mensajes' && <Mensajes />}
-          </Suspense>
+          <ErrorBoundary key={activeSection}>
+            <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
+              {activeSection === 'cursos' && <MyTeachingCourses />}
+              {activeSection === 'horario' && <HorarioDocente />}
+              {activeSection === 'tareas' && (
+                <MisTareas
+                  tareaDestacadaId={tareaDestacadaId}
+                  onTareaDestacadaAtendida={function () { setTareaDestacadaId(null) }}
+                />
+              )}
+              {activeSection === 'conducta' && <RegistroConducta />}
+              {activeSection === 'comunicados' && <ComunicadoDocente />}
+              {activeSection === 'mensajes' && <Mensajes />}
+            </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
     </div>
