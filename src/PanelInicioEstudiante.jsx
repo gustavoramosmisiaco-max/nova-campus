@@ -34,7 +34,7 @@ export default function PanelInicioEstudiante({ onIrACurso }) {
 
     const enrollResult = await supabase
       .from('enrollments')
-      .select('course:courses(id, nombre, grado, grupo, asignaturas(areas_curriculares(nombre)))')
+      .select('course:courses(id, nombre, grado, grupo, asignaturas(area_id, areas_curriculares(nombre)))')
       .eq('student_id', session.user.id)
       .eq('status', 'activo')
 
@@ -80,17 +80,22 @@ export default function PanelInicioEstudiante({ onIrACurso }) {
       .eq('leido', false)
     setNotifNoLeidas(notifResult.count || 0)
 
-    const areaIds = [...new Set(coursesData.map(function (c) { return c.asignaturas?.areas_curriculares?.nombre }).filter(Boolean))]
-    if (courseIds.length > 0) {
+    let totalExamenes = 0
+    for (const c of coursesData) {
+      const areaId = c.asignaturas?.area_id
+      if (!areaId) continue
       const unidResult = await supabase
         .from('unidades')
         .select('id, evaluaciones_unidad(publicado)')
-        .in('grado', [...new Set(coursesData.map(function (c) { return c.grado }))])
-      const publicados = (unidResult.data || []).filter(function (u) {
+        .eq('area_id', areaId)
+        .eq('grado', c.grado)
+        .eq('grupo', c.grupo)
+      const publicadosDelCurso = (unidResult.data || []).filter(function (u) {
         return (u.evaluaciones_unidad || []).some(function (e) { return e.publicado })
       }).length
-      setExamenesProgramados(publicados)
+      totalExamenes += publicadosDelCurso
     }
+    setExamenesProgramados(totalExamenes)
 
     setLoading(false)
   }
