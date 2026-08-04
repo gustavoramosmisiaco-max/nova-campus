@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { getLetterGrade } from './gradeUtils'
@@ -67,6 +67,13 @@ export default function PortalPadres({ onBack }) {
   const [datos, setDatos] = useState(null)
   const [comunicadoIndice, setComunicadoIndice] = useState(0)
   const [areaSeleccionada, setAreaSeleccionada] = useState(null)
+  const refAreas = useRef(null)
+  const refTareas = useRef(null)
+  const refConductas = useRef(null)
+
+  function scrollA(ref) {
+    if (ref.current) ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
   const [despidiendo, setDespidiendo] = useState(false)
 
   function handleVolverConDespedida() {
@@ -193,30 +200,30 @@ export default function PortalPadres({ onBack }) {
             </div>
 
             <div className="grid grid-cols-3 gap-2.5">
-              <div className="bg-white rounded-2xl p-3 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+              <button onClick={function () { scrollA(refAreas) }} className="text-left bg-white rounded-2xl p-3 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-2" style={{ background: `linear-gradient(135deg, ${NAVY}, #1E40AF)` }}>
                   <IconoLibroPortal />
                 </div>
                 <p className="text-xl font-semibold" style={{ color: NAVY_DARK }}>{datos.notas.length}</p>
                 <p className="text-xs text-slate-400">Áreas</p>
-              </div>
-              <div className="bg-white rounded-2xl p-3 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+              </button>
+              <button onClick={function () { scrollA(refTareas) }} className="text-left bg-white rounded-2xl p-3 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-2" style={{ background: datos.pendientes.length > 0 ? 'linear-gradient(135deg, #EF4444, #B91C1C)' : `linear-gradient(135deg, ${GREEN}, #15803D)` }}>
                   <IconoTareaPortal />
                 </div>
                 <p className="text-xl font-semibold" style={{ color: NAVY_DARK }}>{datos.pendientes.length}</p>
                 <p className="text-xs text-slate-400">Tareas vencidas</p>
-              </div>
-              <div className="bg-white rounded-2xl p-3 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+              </button>
+              <button onClick={function () { scrollA(refConductas) }} className="text-left bg-white rounded-2xl p-3 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-2" style={{ background: 'linear-gradient(135deg, #FACC15, #CA8A04)' }}>
                   <IconoAlertaPortal />
                 </div>
                 <p className="text-xl font-semibold" style={{ color: NAVY_DARK }}>{(datos.conductas || []).length}</p>
                 <p className="text-xs text-slate-400">Conductas</p>
-              </div>
+              </button>
             </div>
 
-            <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
+            <div ref={refAreas} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
               <p className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>
                 Áreas y Asignaturas — {datos.bimestre}° Bimestre
               </p>
@@ -287,7 +294,7 @@ export default function PortalPadres({ onBack }) {
               })()}
             </div>
 
-            <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
+            <div ref={refTareas} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
               <p className="text-sm font-bold mb-3" style={{ color: datos.pendientes.length > 0 ? '#B91C1C' : NAVY_DARK }}>
                 Tareas vencidas sin presentar ({datos.pendientes.length})
               </p>
@@ -308,7 +315,7 @@ export default function PortalPadres({ onBack }) {
             </div>
 
             {datos.conductas && datos.conductas.length > 0 && (
-              <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
+              <div ref={refConductas} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
                 <p className="text-sm font-bold mb-3" style={{ color: '#B45309' }}>
                   Registro de Conducta ({datos.conductas.length})
                 </p>
