@@ -17,7 +17,7 @@ function saludoSegunHora() {
   return 'Buenas noches'
 }
 
-export default function PanelInicioDocente({ onIrACurso }) {
+export default function PanelInicioDocente({ onNavegar }) {
   const { session, profile } = useAuth()
   const [loading, setLoading] = useState(true)
   const [courses, setCourses] = useState([])
@@ -123,27 +123,27 @@ export default function PanelInicioDocente({ onIrACurso }) {
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
-        <div className="bg-white rounded-2xl p-4 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+        <button onClick={function () { if (onNavegar) onNavegar('tareas') }} className="text-left bg-white rounded-2xl p-4 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
           <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-3" style={{ background: `linear-gradient(135deg, ${NAVY}, #1E40AF)` }}>
             <IconoTareas />
           </div>
           <p className="text-2xl font-semibold" style={{ color: NAVY_DARK }}>{tareasPorRevisar}</p>
           <p className="text-xs text-slate-400">Tareas por revisar</p>
-        </div>
-        <div className="bg-white rounded-2xl p-4 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+        </button>
+        <button onClick={function () { if (onNavegar) onNavegar('mensajes') }} className="text-left bg-white rounded-2xl p-4 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
           <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-3" style={{ background: `linear-gradient(135deg, ${GREEN}, #15803D)` }}>
             <IconoCampana />
           </div>
           <p className="text-2xl font-semibold" style={{ color: NAVY_DARK }}>{mensajesNoLeidos}</p>
           <p className="text-xs text-slate-400">Notificaciones nuevas</p>
-        </div>
-        <div className="bg-white rounded-2xl p-4 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+        </button>
+        <button onClick={function () { if (onNavegar) onNavegar('cursos') }} className="text-left bg-white rounded-2xl p-4 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
           <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-3" style={{ background: 'linear-gradient(135deg, #FACC15, #CA8A04)' }}>
             <IconoGrupos />
           </div>
           <p className="text-2xl font-semibold" style={{ color: NAVY_DARK }}>{gruposActivos}</p>
           <p className="text-xs text-slate-400">Grupos de trabajo</p>
-        </div>
+        </button>
       </div>
 
       <p className="text-sm font-semibold mb-3" style={{ color: NAVY_DARK }}>Mis asignaturas</p>
@@ -159,7 +159,7 @@ export default function PanelInicioDocente({ onIrACurso }) {
             return (
               <button
                 key={c.id}
-                onClick={function () { if (onIrACurso) onIrACurso() }}
+                onClick={function () { if (onNavegar) onNavegar('cursos') }}
                 className="text-left bg-white rounded-2xl overflow-hidden transition hover:-translate-y-0.5"
                 style={{ border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}
               >

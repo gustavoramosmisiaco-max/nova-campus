@@ -202,7 +202,7 @@ export default function EstudianteDashboard() {
         <main className="flex-1 p-6 md:p-10">
           <ErrorBoundary key={activeSection}>
             <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
-              {activeSection === 'inicio' && <PanelInicioEstudiante onIrACurso={function () { setActiveSection('cursos') }} />}
+              {activeSection === 'inicio' && <PanelInicioEstudiante onNavegar={function (tab) { setActiveSection(tab) }} />}
               {activeSection === 'cursos' && <MyCourses />}
               {activeSection === 'horario' && <HorarioEstudiante />}
               {activeSection === 'pendientes' && <TareasPendientes />}
