@@ -192,6 +192,30 @@ export default function PortalPadres({ onBack }) {
               </button>
             </div>
 
+            <div className="grid grid-cols-3 gap-2.5">
+              <div className="bg-white rounded-2xl p-3 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-2" style={{ background: `linear-gradient(135deg, ${NAVY}, #1E40AF)` }}>
+                  <IconoLibroPortal />
+                </div>
+                <p className="text-xl font-semibold" style={{ color: NAVY_DARK }}>{datos.notas.length}</p>
+                <p className="text-xs text-slate-400">Áreas</p>
+              </div>
+              <div className="bg-white rounded-2xl p-3 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-2" style={{ background: datos.pendientes.length > 0 ? 'linear-gradient(135deg, #EF4444, #B91C1C)' : `linear-gradient(135deg, ${GREEN}, #15803D)` }}>
+                  <IconoTareaPortal />
+                </div>
+                <p className="text-xl font-semibold" style={{ color: NAVY_DARK }}>{datos.pendientes.length}</p>
+                <p className="text-xs text-slate-400">Tareas vencidas</p>
+              </div>
+              <div className="bg-white rounded-2xl p-3 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-2" style={{ background: 'linear-gradient(135deg, #FACC15, #CA8A04)' }}>
+                  <IconoAlertaPortal />
+                </div>
+                <p className="text-xl font-semibold" style={{ color: NAVY_DARK }}>{(datos.conductas || []).length}</p>
+                <p className="text-xs text-slate-400">Conductas</p>
+              </div>
+            </div>
+
             <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
               <p className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>
                 Áreas y Asignaturas — {datos.bimestre}° Bimestre
@@ -371,5 +395,33 @@ export default function PortalPadres({ onBack }) {
         </button>
       </div>
     </div>
+  )
+}
+
+function IconoLibroPortal() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </svg>
+  )
+}
+
+function IconoTareaPortal() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 11l3 3L22 4" />
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+    </svg>
+  )
+}
+
+function IconoAlertaPortal() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
   )
 }
