@@ -24,6 +24,7 @@ export default function PanelInicioEstudiante({ onIrACurso }) {
   const [tareasPendientes, setTareasPendientes] = useState(0)
   const [notifNoLeidas, setNotifNoLeidas] = useState(0)
   const [examenesProgramados, setExamenesProgramados] = useState(0)
+  const [error, setError] = useState('')
 
   useEffect(function () {
     cargar()
@@ -31,76 +32,82 @@ export default function PanelInicioEstudiante({ onIrACurso }) {
 
   async function cargar() {
     setLoading(true)
+    setError('')
+    try {
+      const enrollResult = await supabase
+        .from('enrollments')
+        .select('course:courses(id, nombre, grado, grupo, asignaturas(area_id, areas_curriculares(nombre)))')
+        .eq('student_id', session.user.id)
+        .eq('status', 'activo')
 
-    const enrollResult = await supabase
-      .from('enrollments')
-      .select('course:courses(id, nombre, grado, grupo, asignaturas(area_id, areas_curriculares(nombre)))')
-      .eq('student_id', session.user.id)
-      .eq('status', 'activo')
+      const enrolls = enrollResult.data || []
+      const coursesData = enrolls.map(function (e) { return e.course }).filter(Boolean)
+      const courseIds = coursesData.map(function (c) { return c.id })
 
-    const enrolls = enrollResult.data || []
-    const coursesData = enrolls.map(function (e) { return e.course }).filter(Boolean)
-    const courseIds = coursesData.map(function (c) { return c.id })
+      let totalPendientes = 0
+      if (courseIds.length > 0) {
+        const assignResult = await supabase.from('assignments').select('id, course_id').in('course_id', courseIds)
+        const assignments = assignResult.data || []
+        const assignmentIds = assignments.map(function (a) { return a.id })
 
-    let totalPendientes = 0
-    if (courseIds.length > 0) {
-      const assignResult = await supabase.from('assignments').select('id, course_id').in('course_id', courseIds)
-      const assignments = assignResult.data || []
-      const assignmentIds = assignments.map(function (a) { return a.id })
+        let entregadosIds = new Set()
+        if (assignmentIds.length > 0) {
+          const subsResult = await supabase
+            .from('submissions')
+            .select('assignment_id, file_url')
+            .eq('student_id', session.user.id)
+            .in('assignment_id', assignmentIds)
+          ;(subsResult.data || []).forEach(function (s) { if (s.file_url) entregadosIds.add(s.assignment_id) })
+        }
+        totalPendientes = assignments.filter(function (a) { return !entregadosIds.has(a.id) }).length
 
-      let entregadosIds = new Set()
-      if (assignmentIds.length > 0) {
-        const subsResult = await supabase
-          .from('submissions')
-          .select('assignment_id, file_url')
-          .eq('student_id', session.user.id)
-          .in('assignment_id', assignmentIds)
-        ;(subsResult.data || []).forEach(function (s) { if (s.file_url) entregadosIds.add(s.assignment_id) })
+        const promedios = await Promise.all(
+          coursesData.map(async function (c) {
+            const assignmentsDelCurso = assignments.filter(function (a) { return a.course_id === c.id })
+            if (assignmentsDelCurso.length === 0) return { ...c, progreso: 0 }
+            const entregadasDelCurso = assignmentsDelCurso.filter(function (a) { return entregadosIds.has(a.id) }).length
+            return { ...c, progreso: Math.round((entregadasDelCurso / assignmentsDelCurso.length) * 100) }
+          })
+        )
+        setCourses(promedios)
+      } else {
+        setCourses([])
       }
-      totalPendientes = assignments.filter(function (a) { return !entregadosIds.has(a.id) }).length
+      setTareasPendientes(totalPendientes)
 
-      const promedios = await Promise.all(
-        coursesData.map(async function (c) {
-          const assignmentsDelCurso = assignments.filter(function (a) { return a.course_id === c.id })
-          if (assignmentsDelCurso.length === 0) return { ...c, progreso: 0 }
-          const entregadasDelCurso = assignmentsDelCurso.filter(function (a) { return entregadosIds.has(a.id) }).length
-          return { ...c, progreso: Math.round((entregadasDelCurso / assignmentsDelCurso.length) * 100) }
-        })
-      )
-      setCourses(promedios)
-    } else {
-      setCourses([])
+      const notifResult = await supabase
+        .from('notificaciones')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', session.user.id)
+        .eq('leido', false)
+      setNotifNoLeidas(notifResult.count || 0)
+
+      let totalExamenes = 0
+      for (const c of coursesData) {
+        const areaId = c.asignaturas?.area_id
+        if (!areaId) continue
+        const unidResult = await supabase
+          .from('unidades')
+          .select('id, evaluaciones_unidad(publicado)')
+          .eq('area_id', areaId)
+          .eq('grado', c.grado)
+          .eq('grupo', c.grupo)
+        const publicadosDelCurso = (unidResult.data || []).filter(function (u) {
+          return u.evaluaciones_unidad?.publicado === true
+        }).length
+        totalExamenes += publicadosDelCurso
+      }
+      setExamenesProgramados(totalExamenes)
+    } catch (err) {
+      console.error('Error cargando Inicio del estudiante:', err)
+      setError('No se pudo cargar toda la información. Intenta recargar la página.')
+    } finally {
+      setLoading(false)
     }
-    setTareasPendientes(totalPendientes)
-
-    const notifResult = await supabase
-      .from('notificaciones')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', session.user.id)
-      .eq('leido', false)
-    setNotifNoLeidas(notifResult.count || 0)
-
-    let totalExamenes = 0
-    for (const c of coursesData) {
-      const areaId = c.asignaturas?.area_id
-      if (!areaId) continue
-      const unidResult = await supabase
-        .from('unidades')
-        .select('id, evaluaciones_unidad(publicado)')
-        .eq('area_id', areaId)
-        .eq('grado', c.grado)
-        .eq('grupo', c.grupo)
-      const publicadosDelCurso = (unidResult.data || []).filter(function (u) {
-        return (u.evaluaciones_unidad || []).some(function (e) { return e.publicado })
-      }).length
-      totalExamenes += publicadosDelCurso
-    }
-    setExamenesProgramados(totalExamenes)
-
-    setLoading(false)
   }
 
   if (loading) return <p className="text-slate-400 text-sm">Cargando...</p>
+  if (error) return <p className="text-red-500 text-sm">{error}</p>
 
   const primerNombre = profile?.full_name ? profile.full_name.split(' ')[0] : ''
 

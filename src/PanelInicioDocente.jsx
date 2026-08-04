@@ -24,6 +24,7 @@ export default function PanelInicioDocente({ onIrACurso }) {
   const [tareasPorRevisar, setTareasPorRevisar] = useState(0)
   const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0)
   const [gruposActivos, setGruposActivos] = useState(0)
+  const [error, setError] = useState('')
 
   useEffect(function () {
     cargar()
@@ -31,7 +32,8 @@ export default function PanelInicioDocente({ onIrACurso }) {
 
   async function cargar() {
     setLoading(true)
-
+    setError('')
+    try {
     const coursesResult = await supabase
       .from('courses')
       .select('id, nombre, grado, grupo, enrollments(count), asignaturas(areas_curriculares(nombre))')
@@ -98,11 +100,16 @@ export default function PanelInicioDocente({ onIrACurso }) {
         .in('course_id', courseIds)
       setGruposActivos(gruposResult.count || 0)
     }
-
-    setLoading(false)
+    } catch (err) {
+      console.error('Error cargando Inicio del docente:', err)
+      setError('No se pudo cargar toda la información. Intenta recargar la página.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (loading) return <p className="text-slate-400 text-sm">Cargando...</p>
+  if (error) return <p className="text-red-500 text-sm">{error}</p>
 
   const primerNombre = profile?.full_name ? profile.full_name.split(' ')[0] : ''
 
