@@ -6,9 +6,9 @@ import PreviewModal from './PreviewModal'
 import { estaEnLinea } from './PresenceHeartbeat'
 import { usePresence } from './PresenceContext'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 
@@ -175,7 +175,7 @@ export default function Mensajes() {
                               >
                                 <p className="text-sm font-semibold flex items-center gap-1.5" style={{ color: NAVY_DARK }}>
                                   {c.personaNombre}
-                                  {isOnline(c.personaId) && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#5DAA47' }} title="En línea" />}
+                                  {isOnline(c.personaId) && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#22C55E' }} title="En línea" />}
                                 </p>
                                 <p className="text-xs text-slate-400">{c.courseNombre}{isOnline(c.personaId) ? ' · En línea' : ''}</p>
                               </button>
@@ -232,7 +232,7 @@ export default function Mensajes() {
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
                                 <p className="text-sm font-semibold truncate" style={{ color: NAVY_DARK }}>{nombre}</p>
-                                {contacto && isOnline(contacto.personaId) && <span className="w-2 h-2 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: '#5DAA47' }} title="En línea" />}
+                                {contacto && isOnline(contacto.personaId) && <span className="w-2 h-2 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: '#22C55E' }} title="En línea" />}
                                 {conv.noLeidos > 0 && (
                                   <span className="text-xs font-bold px-1.5 rounded-full text-white" style={{ backgroundColor: '#B91C1C' }}>{conv.noLeidos}</span>
                                 )}
@@ -382,8 +382,8 @@ function HiloConversacion({ contacto, onBack }) {
         <p className="text-base font-bold flex items-center gap-2" style={{ color: NAVY_DARK }}>
           {contacto.personaNombre}
           {isOnline(contacto.personaId) && (
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex items-center gap-1" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
-              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#5DAA47' }} />
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex items-center gap-1" style={{ backgroundColor: '#E7F3E4', color: '#16A34A' }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#22C55E' }} />
               En línea
             </span>
           )}
@@ -435,7 +435,7 @@ function HiloConversacion({ contacto, onBack }) {
 
       <div className="flex-shrink-0">
         {archivo && (
-          <div className="flex items-center gap-2 mb-2 text-xs rounded-lg px-3 py-1.5" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
+          <div className="flex items-center gap-2 mb-2 text-xs rounded-lg px-3 py-1.5" style={{ backgroundColor: '#E7F3E4', color: '#16A34A' }}>
             📎 {archivo.name}
             <button onClick={function () { setArchivo(null) }} className="font-bold ml-1">✕</button>
           </div>

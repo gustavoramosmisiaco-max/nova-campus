@@ -3,9 +3,9 @@ import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 import { compararPorApellido } from './gradeUtils'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 
@@ -218,7 +218,7 @@ export default function ComunicadoDocente() {
             <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Buscar estudiante</label>
             {estudianteSel ? (
               <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ backgroundColor: '#E7F3E4' }}>
-                <span className="text-sm font-semibold" style={{ color: '#2f7a1f' }}>{estudianteSel.full_name}</span>
+                <span className="text-sm font-semibold" style={{ color: '#16A34A' }}>{estudianteSel.full_name}</span>
                 <button type="button" onClick={function () { setEstudianteSel(null) }} className="text-xs font-semibold" style={{ color: '#B91C1C' }}>Cambiar</button>
               </div>
             ) : (

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
-const GREEN_DARK = '#2f7a1f'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
+const GREEN_DARK = '#16A34A'
 
 const GRADOS = [1, 2, 3, 4, 5]
 const SECCIONES = ['A', 'B', 'C', 'D', 'E']
@@ -257,7 +257,7 @@ export default function EnrollmentsManager() {
       <p className="text-xs text-slate-400 mb-4">
         Completa automáticamente a cada estudiante en todas las asignaturas de su Grado y Sección — útil si creaste asignaturas nuevas después de matricular alumnos.
       </p>
-      {mensajeSync && <p className="text-xs mb-4" style={{ color: '#2f7a1f' }}>{mensajeSync}</p>}
+      {mensajeSync && <p className="text-xs mb-4" style={{ color: '#16A34A' }}>{mensajeSync}</p>}
 
       <div className="grid grid-cols-2 gap-3 mb-6 max-w-md">
         <div>

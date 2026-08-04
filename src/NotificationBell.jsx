@@ -2,13 +2,13 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
 
 const TIPO_COLOR = {
-  tarea_nueva: '#1d5c8f',
-  nota_publicada: '#2f7a1f',
+  tarea_nueva: '#2563EB',
+  nota_publicada: '#16A34A',
   justificacion: '#B45309',
   mensaje: '#8a5cb0',
   default: '#5F5E5A',

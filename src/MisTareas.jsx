@@ -4,10 +4,10 @@ import { useAuth } from './AuthContext'
 import { getLetterGrade, getLetterColor } from './gradeUtils'
 import PreviewModal from './PreviewModal'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
-const GREEN_DARK = '#2f7a1f'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
+const GREEN_DARK = '#16A34A'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 

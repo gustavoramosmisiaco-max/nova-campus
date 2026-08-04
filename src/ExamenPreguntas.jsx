@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import jsPDF from 'jspdf'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 
@@ -313,7 +313,7 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
                 📄 Generar PDF del examen
               </button>
               {publicado ? (
-                <span className="text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
+                <span className="text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1" style={{ backgroundColor: '#E7F3E4', color: '#16A34A' }}>
                   ✓ Publicado
                 </span>
               ) : (
@@ -347,7 +347,7 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
             return (
               <label key={c.id} className="flex items-center gap-2 text-sm rounded-lg px-3 py-2 cursor-pointer" style={{ backgroundColor: marcado ? '#E7F3E4' : '#F4F6F9' }}>
                 <input type="checkbox" checked={marcado} onChange={function () { toggleCompetencia(c.id) }} />
-                <span style={{ color: marcado ? '#2f7a1f' : NAVY_DARK }}>{c.nombre}</span>
+                <span style={{ color: marcado ? '#16A34A' : NAVY_DARK }}>{c.nombre}</span>
               </label>
             )
           })}
@@ -504,8 +504,8 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
               return (
                 <div key={comp.id}>
                   <div className="flex justify-between items-center mb-2">
-                    <p className="text-sm font-bold" style={{ color: '#2f7a1f' }}>{comp.nombre}</p>
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
+                    <p className="text-sm font-bold" style={{ color: '#16A34A' }}>{comp.nombre}</p>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#E7F3E4', color: '#16A34A' }}>
                       {preguntasDeComp.length} pregunta(s) · {puntosComp} pts
                     </span>
                   </div>
@@ -524,7 +524,7 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
                                     {p.opciones.map(function (o) {
                                       const esCorrecta = o.letra === p.respuesta_correcta
                                       return (
-                                        <li key={o.letra} className="text-xs" style={{ color: esCorrecta ? '#2f7a1f' : '#5F5E5A', fontWeight: esCorrecta ? 600 : 400 }}>
+                                        <li key={o.letra} className="text-xs" style={{ color: esCorrecta ? '#16A34A' : '#5F5E5A', fontWeight: esCorrecta ? 600 : 400 }}>
                                           {o.letra}) {o.texto} {esCorrecta ? '✓' : ''}
                                         </li>
                                       )
@@ -552,4 +552,3 @@ export default function ExamenPreguntas({ evaluacionId, evaluacionNombre, evalua
     </div>
   )
 }
-

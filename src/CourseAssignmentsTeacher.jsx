@@ -4,9 +4,9 @@ import { useAuth } from './AuthContext'
 import { getLetterGrade, getLetterColor } from './gradeUtils'
 import PreviewModal from './PreviewModal'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 
@@ -567,7 +567,7 @@ export default function CourseAssignmentsTeacher({ courseId }) {
                       <p className="text-xs text-slate-500">Instrumento: {a.instrumento_evaluacion}</p>
                     )}
                     {a.assignment_capacidades && a.assignment_capacidades.length > 0 && (
-                      <p className="text-xs mt-1" style={{ color: '#2f7a1f' }}>
+                      <p className="text-xs mt-1" style={{ color: '#16A34A' }}>
                         {a.assignment_capacidades.map(function (ac) { return ac.capacidad.nombre }).join(' · ')}
                       </p>
                     )}

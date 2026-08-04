@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 
-const NAVY_DARK = '#0F2A4A'
+const NAVY_DARK = '#0F172A'
 
 const DIAS = [null, 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
-const COLORES = ['#1d5c8f', '#5DAA47', '#B45309', '#8a5cb0', '#B91C1C', '#0891B2']
+const COLORES = ['#2563EB', '#22C55E', '#B45309', '#8a5cb0', '#B91C1C', '#0891B2']
 
 function horaAMinutos(horaStr) {
   const [h, m] = horaStr.split(':').map(Number)

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
 
 const CONFIG_POR_ROL = {
   admin: {

@@ -3,9 +3,9 @@ import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 import { getLetterGrade } from './gradeUtils'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
 
 function formatearFechaHora(iso) {
   return new Date(iso).toLocaleString('es-PE', { dateStyle: 'medium', timeStyle: 'short' })
@@ -378,7 +378,7 @@ export default function ExamenVirtual({ unidad, courseId, onCerrar }) {
                   style={marcado ? { backgroundColor: '#E7F3E4', border: '1px solid ' + GREEN } : { backgroundColor: 'white', border: '1px solid #D6DCE5' }}
                 >
                   <input type="radio" name={`pregunta-${pregunta.id}`} checked={marcado} onChange={function () { handleRespuesta(pregunta.id, op.letra) }} />
-                  <span className="text-sm" style={{ color: marcado ? '#2f7a1f' : NAVY_DARK }}>{op.letra}) {op.texto}</span>
+                  <span className="text-sm" style={{ color: marcado ? '#16A34A' : NAVY_DARK }}>{op.letra}) {op.texto}</span>
                 </label>
               )
             })}

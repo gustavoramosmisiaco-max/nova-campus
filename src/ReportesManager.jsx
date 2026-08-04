@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 
-const NAVY_DARK = '#0F2A4A'
-const GREEN = '#5DAA47'
-const GREEN_DARK = '#2f7a1f'
+const NAVY_DARK = '#0F172A'
+const GREEN = '#22C55E'
+const GREEN_DARK = '#16A34A'
 const RED = '#B91C1C'
 
 function average(numbers) {

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
-const GREEN_DARK = '#2f7a1f'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
+const GREEN_DARK = '#16A34A'
 
 const DIAS = [
   { value: 1, label: 'Lunes' },
@@ -529,7 +529,7 @@ export default function CoursesManager() {
             {bulkSaving ? 'Aplicando...' : 'Aplicar a toda el aula'}
           </button>
         </div>
-        {bulkMsg && <p className="text-xs mt-2" style={{ color: bulkMsg.startsWith('Error') ? '#B91C1C' : '#2f7a1f' }}>{bulkMsg}</p>}
+        {bulkMsg && <p className="text-xs mt-2" style={{ color: bulkMsg.startsWith('Error') ? '#B91C1C' : '#16A34A' }}>{bulkMsg}</p>}
       </div>
 
       <div className="bg-white rounded-2xl p-4 mb-6" style={{ border: '1px solid #E5E9F0' }}>
@@ -621,7 +621,7 @@ export default function CoursesManager() {
         >
           {masivoCreando ? 'Creando...' : 'Crear cursos'}
         </button>
-        {masivoMsg && <p className="text-xs mt-2" style={{ color: masivoMsg.startsWith('Error') ? '#B91C1C' : '#2f7a1f' }}>{masivoMsg}</p>}
+        {masivoMsg && <p className="text-xs mt-2" style={{ color: masivoMsg.startsWith('Error') ? '#B91C1C' : '#16A34A' }}>{masivoMsg}</p>}
       </div>
 
       {loading ? (

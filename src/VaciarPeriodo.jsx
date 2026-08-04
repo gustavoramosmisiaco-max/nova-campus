@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { supabase } from './supabaseClient'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
 
 const FRASE_CONFIRMACION = 'BORRAR TODO'
 const BUCKETS = ['materials', 'conductas', 'examenes', 'mensajes']
@@ -90,8 +90,8 @@ export default function VaciarPeriodo() {
 
         <div className="grid sm:grid-cols-2 gap-4 mb-4">
           <div className="rounded-xl p-3" style={{ backgroundColor: '#E7F3E4' }}>
-            <p className="text-xs font-bold mb-1" style={{ color: '#2f7a1f' }}>Se mantiene</p>
-            <ul className="text-xs space-y-0.5" style={{ color: '#2f7a1f' }}>
+            <p className="text-xs font-bold mb-1" style={{ color: '#16A34A' }}>Se mantiene</p>
+            <ul className="text-xs space-y-0.5" style={{ color: '#16A34A' }}>
               <li>• Cuentas (estudiantes, docentes, admin)</li>
               <li>• Cursos y horarios</li>
               <li>• Matrículas</li>
@@ -135,7 +135,7 @@ export default function VaciarPeriodo() {
 
         {resultado && (
           <div className="mt-4 rounded-lg p-3" style={{ backgroundColor: '#E7F3E4' }}>
-            <p className="text-sm font-semibold" style={{ color: '#2f7a1f' }}>
+            <p className="text-sm font-semibold" style={{ color: '#16A34A' }}>
               ✓ Periodo vaciado correctamente. Se borraron {resultado.archivos} archivo(s) guardados, además de todos los datos académicos del periodo.
             </p>
           </div>

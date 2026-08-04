@@ -5,9 +5,9 @@ import { getLetterGrade } from './gradeUtils'
 import WelcomeAnimation from './WelcomeAnimation'
 import FarewellAnimation from './FarewellAnimation'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 
@@ -240,7 +240,7 @@ export default function PortalPadres({ onBack }) {
                         return (
                           <div key={ci} className="rounded-lg p-3" style={{ backgroundColor: '#F4F6F9' }}>
                             <div className="flex justify-between items-start gap-2">
-                              <p className="text-xs font-semibold flex-1 min-w-0" style={{ color: '#2f7a1f' }}>{comp.nombre}</p>
+                              <p className="text-xs font-semibold flex-1 min-w-0" style={{ color: '#16A34A' }}>{comp.nombre}</p>
                               <p className="text-xs font-bold flex-shrink-0" style={{ color: NAVY_DARK }}>{letraComp || '—'}</p>
                             </div>
                             <ul className="mt-1.5 space-y-1">

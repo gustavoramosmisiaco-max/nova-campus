@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 
-const NAVY_DARK = '#0F2A4A'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const GREEN = '#22C55E'
 
 export default function ComunicadoPopup() {
   const { session } = useAuth()

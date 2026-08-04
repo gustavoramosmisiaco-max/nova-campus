@@ -3,9 +3,9 @@ import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 import PreviewModal from './PreviewModal'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 
@@ -71,7 +71,7 @@ export default function GruposEstudiante({ courseId }) {
                 <p className="text-xs text-slate-400 mt-1">
                   {g.grupos_trabajo_miembros.map(function (m) { return m.student?.full_name }).join(', ')}
                 </p>
-                <p className="text-xs mt-2" style={{ color: '#2f7a1f' }}>Abrir chat grupal →</p>
+                <p className="text-xs mt-2" style={{ color: '#16A34A' }}>Abrir chat grupal →</p>
               </button>
             )
           })}
@@ -218,7 +218,7 @@ function ChatGrupo({ grupo, onBack }) {
 
       <div className="flex-shrink-0">
         {archivo && (
-          <div className="flex items-center gap-2 mb-2 text-xs rounded-lg px-3 py-1.5" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
+          <div className="flex items-center gap-2 mb-2 text-xs rounded-lg px-3 py-1.5" style={{ backgroundColor: '#E7F3E4', color: '#16A34A' }}>
             📎 {archivo.name}
             <button onClick={function () { setArchivo(null) }} className="font-bold ml-1">✕</button>
           </div>

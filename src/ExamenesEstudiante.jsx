@@ -3,9 +3,9 @@ import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 import ExamenVirtual from './ExamenVirtual'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
 
 function formatearFechaHora(iso) {
   return new Date(iso).toLocaleString('es-PE', { dateStyle: 'medium', timeStyle: 'short' })
@@ -24,7 +24,7 @@ function calcularEstado(evaluacion, intento) {
 
 const ESTADO_INFO = {
   antes: { label: 'Programado', color: '#B45309', bg: '#FFF7E6' },
-  abierto: { label: '¡Disponible ahora!', color: '#2f7a1f', bg: '#E7F3E4' },
+  abierto: { label: '¡Disponible ahora!', color: '#16A34A', bg: '#E7F3E4' },
   cerrado: { label: 'Cerrado', color: '#B91C1C', bg: '#FDECEC' },
   rendido: { label: 'Ya lo rendiste', color: '#5F5E5A', bg: '#F4F6F9' },
   sin_programar: { label: 'Sin fecha programada', color: '#5F5E5A', bg: '#F4F6F9' },

@@ -3,8 +3,8 @@ import { supabase } from './supabaseClient'
 import ExcelJS from 'exceljs'
 import { compararPorApellido } from './gradeUtils'
 
-const NAVY_DARK = '#0F2A4A'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const GREEN = '#22C55E'
 
 const COLOR_INSTITUCION = 'FF1F4E79'
 const COLOR_TITULO = 'FF2E75B6'
@@ -474,7 +474,7 @@ export default function CierrePeriodo() {
             completo de cada curso (todas las unidades), y el instrumento de evaluación de cada actividad con
             capacidades. Puede tardar unos minutos si tienes muchos cursos.
           </p>
-          {progreso && <p className="text-xs mb-3" style={{ color: '#1d5c8f' }}>{progreso}</p>}
+          {progreso && <p className="text-xs mb-3" style={{ color: '#2563EB' }}>{progreso}</p>}
           {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
           <button
             onClick={generarRespaldo}
@@ -489,7 +489,7 @@ export default function CierrePeriodo() {
 
       {step === 2 && (
         <div className="bg-white rounded-2xl p-6" style={{ border: '1px solid #E5E9F0' }}>
-          <h3 className="text-sm font-bold mb-3" style={{ color: '#2f7a1f' }}>✓ Respaldo descargado</h3>
+          <h3 className="text-sm font-bold mb-3" style={{ color: '#16A34A' }}>✓ Respaldo descargado</h3>
           <p className="text-sm text-slate-500 mb-4">
             Sube ese archivo a tu Google Drive ahora, antes de continuar. Cuando confirmes que ya lo guardaste
             en un lugar seguro, sigue al paso de borrado.
@@ -527,7 +527,7 @@ export default function CierrePeriodo() {
             className="w-full max-w-xs rounded-lg px-3 py-2 text-sm outline-none mb-4"
             style={{ backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }}
           />
-          {progreso && <p className="text-xs mb-3" style={{ color: '#1d5c8f' }}>{progreso}</p>}
+          {progreso && <p className="text-xs mb-3" style={{ color: '#2563EB' }}>{progreso}</p>}
           {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
           <div className="flex gap-2">
             <button
@@ -551,7 +551,7 @@ export default function CierrePeriodo() {
 
       {step === 4 && (
         <div className="bg-white rounded-2xl p-6" style={{ border: '1px solid #E5E9F0' }}>
-          <h3 className="text-sm font-bold mb-2" style={{ color: '#2f7a1f' }}>✓ Periodo cerrado</h3>
+          <h3 className="text-sm font-bold mb-2" style={{ color: '#16A34A' }}>✓ Periodo cerrado</h3>
           <p className="text-sm text-slate-500 mb-4">
             Se borraron materiales, tareas, entregas y carpetas de todos los cursos. Cuentas, cursos y matrículas
             siguen intactos. Ya puedes empezar el siguiente periodo creando nuevas Unidades y Actividades.

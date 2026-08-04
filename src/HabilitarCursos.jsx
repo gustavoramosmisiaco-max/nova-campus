@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
 
 function gradoLabel(g) {
   return g ? `${g}° Secundaria` : 'Sin grado'
@@ -74,7 +74,7 @@ export default function HabilitarCursos() {
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}>
                       🏫
                     </div>
-                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: '#16A34A' }}>
                       {cantidad} curso(s)
                     </span>
                   </div>
@@ -108,7 +108,7 @@ export default function HabilitarCursos() {
                         <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}>
                           🎓
                         </div>
-                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
+                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: '#16A34A' }}>
                           {activos}/{cursosDeAula.length} activos
                         </span>
                       </div>

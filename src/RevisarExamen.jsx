@@ -4,9 +4,9 @@ import { useAuth } from './AuthContext'
 import { compararPorApellido, getLetterGrade } from './gradeUtils'
 import PreviewModal from './PreviewModal'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 
@@ -212,7 +212,7 @@ export default function RevisarExamen({ evaluacionId, evaluacionNombre, unidad, 
 
                 {esAutocorregible ? (
                   <div>
-                    <p className="text-xs" style={{ color: respuesta?.es_correcta ? '#2f7a1f' : '#B91C1C' }}>
+                    <p className="text-xs" style={{ color: respuesta?.es_correcta ? '#16A34A' : '#B91C1C' }}>
                       Respondió: {(p.opciones || []).find(function (o) { return o.letra === respuesta?.respuesta_texto })?.texto || respuesta?.respuesta_texto || '(sin responder)'}
                       {respuesta?.es_correcta ? ' ✓ Correcta' : ' ✗ Incorrecta'}
                     </p>
@@ -301,7 +301,7 @@ export default function RevisarExamen({ evaluacionId, evaluacionNombre, unidad, 
                       {i.totalIntentos > 1 && ` · Intento ${i.totalIntentos} (usó varios intentos)`}
                     </p>
                   </div>
-                  <span className="text-xs font-semibold px-3 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
+                  <span className="text-xs font-semibold px-3 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: '#16A34A' }}>
                     {i.puntaje_auto} / {i.puntaje_total} auto
                   </span>
                 </button>

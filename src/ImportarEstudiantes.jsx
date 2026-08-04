@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { supabase } from './supabaseClient'
 import ExcelJS from 'exceljs'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
-const GREEN_DARK = '#2f7a1f'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
+const GREEN_DARK = '#16A34A'
 
 const GRADOS = [1, 2, 3, 4, 5]
 const SECCIONES = ['A', 'B', 'C', 'D', 'E']

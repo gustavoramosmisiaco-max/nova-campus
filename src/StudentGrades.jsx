@@ -3,10 +3,10 @@ import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 import { getLetterGrade, getLetterColor } from './gradeUtils'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
-const GREEN_DARK = '#2f7a1f'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
+const GREEN_DARK = '#16A34A'
 
 const BIMESTRES = [1, 2, 3, 4]
 const NOMBRE_BIMESTRE = { 1: 'I Bimestre', 2: 'II Bimestre', 3: 'III Bimestre', 4: 'IV Bimestre' }

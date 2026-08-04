@@ -3,9 +3,9 @@ import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 import PreviewModal from './PreviewModal'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 
@@ -337,7 +337,7 @@ export default function TareasPendientes() {
 
       {habilitadas.length > 0 && (
         <div className="mb-6">
-          <h3 className="text-sm font-bold mb-3" style={{ color: '#2f7a1f' }}>Habilitadas para entregar ({habilitadas.length})</h3>
+          <h3 className="text-sm font-bold mb-3" style={{ color: '#16A34A' }}>Habilitadas para entregar ({habilitadas.length})</h3>
           <ul className="space-y-3">
             {habilitadas.map(function (item) { return <TareaCard
               key={item.id}
@@ -505,7 +505,7 @@ function TareaCard({
       )}
 
       {tipo === 'habilitada' && (
-        <p className="text-xs mt-2 font-semibold" style={{ color: '#2f7a1f' }}>
+        <p className="text-xs mt-2 font-semibold" style={{ color: '#16A34A' }}>
           Tu docente aprobó tu justificación. Ya puedes subir tu tarea.
         </p>
       )}

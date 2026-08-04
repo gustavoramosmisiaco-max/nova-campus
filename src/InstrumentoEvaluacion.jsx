@@ -6,15 +6,15 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import ExcelJS from 'exceljs'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 
 const NIVELES = [
-  { letra: 'AD', nombre: 'Logro destacado', color: '#2f7a1f' },
-  { letra: 'A', nombre: 'Logro esperado', color: '#1d5c8f' },
+  { letra: 'AD', nombre: 'Logro destacado', color: '#16A34A' },
+  { letra: 'A', nombre: 'Logro esperado', color: '#2563EB' },
   { letra: 'B', nombre: 'En proceso', color: '#B45309' },
   { letra: 'C', nombre: 'En inicio', color: '#B91C1C' },
 ]
@@ -654,7 +654,7 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
 
         {matrix && matrix.capacidades.length > 0 && (
           <div className="flex gap-2 mb-3">
-            <button onClick={exportarActualExcel} className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: '#1d5c8f' }}>
+            <button onClick={exportarActualExcel} className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: '#2563EB' }}>
               Exportar Excel
             </button>
             <button onClick={exportarActualPDF} className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: GREEN }}>
@@ -745,7 +745,7 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
             onClick={exportarSeleccionadosExcel}
             disabled={exporting}
             className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
-            style={{ backgroundColor: '#1d5c8f' }}
+            style={{ backgroundColor: '#2563EB' }}
           >
             {exporting ? 'Generando...' : `Exportar seleccionados a Excel (${selectedForExport.size})`}
           </button>
@@ -841,7 +841,7 @@ function ListaCotejoView({ matrix, courseGrado, courseGrupo }) {
                   key={cap.capacidad.id}
                   style={{
                     ...tableCell,
-                    color: '#1d5c8f',
+                    color: '#2563EB',
                     verticalAlign: 'top',
                     width: `${100 / matrix.capacidades.length}%`,
                     wordBreak: 'break-word',

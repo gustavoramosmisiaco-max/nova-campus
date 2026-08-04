@@ -5,9 +5,9 @@ import { getLetterGrade, getLetterColor, compararPorApellido } from './gradeUtil
 import ExamenPreguntas from './ExamenPreguntas'
 import RevisarExamen from './RevisarExamen'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 
@@ -269,7 +269,7 @@ export default function EvaluacionCierre({ unidad, onFinalizada }) {
         <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>Evaluación de Cierre</h3>
         {finalizada ? (
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}>
+            <span className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ backgroundColor: '#E7F3E4', color: '#16A34A' }}>
               ✓ {unidad.tipo} {unidad.numero} finalizada
             </span>
             <button onClick={handleReabrirUnidad} className="text-xs font-semibold px-3 py-1.5 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }}>

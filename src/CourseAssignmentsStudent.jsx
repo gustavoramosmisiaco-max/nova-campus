@@ -4,9 +4,9 @@ import { useAuth } from './AuthContext'
 import { getLetterGrade, getLetterColor } from './gradeUtils'
 import PreviewModal from './PreviewModal'
 
-const NAVY_DARK = '#0F2A4A'
-const NAVY = '#1d5c8f'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 
@@ -307,7 +307,7 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
                     ) : hasSubmission ? (
                       <span
                         className="text-xs font-semibold px-3 py-1 rounded-full"
-                        style={{ backgroundColor: '#E7F3E4', color: '#2f7a1f' }}
+                        style={{ backgroundColor: '#E7F3E4', color: '#16A34A' }}
                       >
                         Tarea enviada
                       </span>
@@ -434,7 +434,7 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
                 )}
 
                 {justificacionAprobada && !hasSubmission && (
-                  <p className="text-xs mt-2 font-semibold" style={{ color: '#2f7a1f' }}>
+                  <p className="text-xs mt-2 font-semibold" style={{ color: '#16A34A' }}>
                     Tu docente aprobó la justificación. Ya puedes subir tu tarea.
                   </p>
                 )}

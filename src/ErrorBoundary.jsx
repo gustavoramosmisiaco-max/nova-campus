@@ -1,7 +1,7 @@
 import { Component } from 'react'
 
-const NAVY_DARK = '#0F2A4A'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const GREEN = '#22C55E'
 
 export default class ErrorBoundary extends Component {
   constructor(props) {

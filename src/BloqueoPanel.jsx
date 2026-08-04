@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 
-const NAVY_DARK = '#0F2A4A'
-const GREEN = '#5DAA47'
+const NAVY_DARK = '#0F172A'
+const GREEN = '#22C55E'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 
