@@ -647,14 +647,11 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
     setExportando(false)
   }
 
-  if (loading) return <p className="text-slate-400 text-sm">Cargando registro... (courseId: {courseId || 'VACÍO'})</p>
-  if (error) return <p className="text-red-500 text-sm">Error: {error} (courseId: {courseId || 'VACÍO'})</p>
+  if (loading) return <p className="text-slate-400 text-sm">Cargando registro...</p>
+  if (error) return <p className="text-red-500 text-sm">{error}</p>
 
   return (
     <div>
-      <div style={{ backgroundColor: '#FEE2E2', border: '2px solid #EF4444', borderRadius: 8, padding: 10, marginBottom: 12, fontFamily: 'monospace', fontSize: 11 }}>
-        DIAGNÓSTICO — courseId: {courseId || 'VACÍO'} · students: {students.length} · competencias: {competenciasData.length} · ficha: {ficha ? 'sí' : 'no'}
-      </div>
       <div className="flex justify-between items-center flex-wrap gap-3 mb-4">
         <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>Registro Auxiliar</h3>
         <button
