@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
-import { useDocenteContextoActivo } from './DocenteContextoActivo'
-import InstrumentoEvaluacion from './InstrumentoEvaluacion'
 import CourseActivities from './CourseActivities'
 import CourseZoomTeacher from './CourseZoomTeacher'
-import GruposTrabajo from './GruposTrabajo'
 import RegistroAuxiliarPorArea from './RegistroAuxiliarPorArea'
+import InstrumentoEvaluacion from './InstrumentoEvaluacion'
+import GruposTrabajo from './GruposTrabajo'
 import EvaluacionCierre from './EvaluacionCierre'
+
+const DIAS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+const GRADOS = [1, 2, 3, 4, 5]
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
@@ -19,17 +21,19 @@ function gradoLabel(g) {
 }
 
 function scheduleText(schedules) {
-  if (!schedules || schedules.length === 0) return 'Sin horario asignado'
-  const DIAS = [null, 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
-  return schedules.map(function (s) { return `${DIAS[s.dia_semana]} ${s.hora_inicio.slice(0, 5)}-${s.hora_fin.slice(0, 5)}` }).join(' · ')
+  if (!schedules || schedules.length === 0) return 'Sin horario definido'
+  const sorted = [...schedules].sort(function (a, b) { return a.dia_semana - b.dia_semana })
+  return sorted
+    .map(function (s) { return `${DIAS[s.dia_semana]} ${s.hora_inicio?.slice(0, 5)}-${s.hora_fin?.slice(0, 5)}` })
+    .join(' · ')
 }
 
 function CourseDetailTeacher({ course, onBack }) {
   const [tab, setTab] = useState('actividades')
-  const [verInstrumento, setVerInstrumento] = useState(false)
 
   const tabs = [
     { id: 'actividades', label: 'Actividades' },
+    { id: 'instrumento', label: 'Instrumento de Evaluación' },
     { id: 'zoom', label: 'Videoclases' },
     { id: 'grupos', label: 'Grupos de Trabajo' },
   ]
@@ -59,40 +63,29 @@ function CourseDetailTeacher({ course, onBack }) {
         {scheduleText(course.course_schedules)}
       </p>
 
-      <div className="flex justify-between items-center flex-wrap gap-3 mb-6 border-b" style={{ borderColor: '#E5E9F0' }}>
-        <div className="flex gap-2 flex-wrap">
-          {tabs.map(function (t) {
-            const active = tab === t.id
-            return (
-              <button
-                key={t.id}
-                onClick={function () { setTab(t.id); setVerInstrumento(false) }}
-                className="px-4 py-2.5 text-sm font-semibold border-b-2 transition"
-                style={
-                  active && !verInstrumento
-                    ? { borderColor: GREEN, color: NAVY_DARK }
-                    : { borderColor: 'transparent', color: '#94A3B8' }
-                }
-              >
-                {t.label}
-              </button>
-            )
-          })}
-        </div>
-        {tab === 'actividades' && (
-          <button
-            onClick={function () { setVerInstrumento(true) }}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg mb-1 transition hover:opacity-90"
-            style={{ backgroundColor: verInstrumento ? NAVY : '#F4F6F9', color: verInstrumento ? 'white' : NAVY }}
-          >
-            📋 Ver instrumento completo
-          </button>
-        )}
+      <div className="flex gap-2 mb-6 border-b flex-wrap" style={{ borderColor: '#E5E9F0' }}>
+        {tabs.map(function (t) {
+          const active = tab === t.id
+          return (
+            <button
+              key={t.id}
+              onClick={function () { setTab(t.id) }}
+              className="px-4 py-2.5 text-sm font-semibold border-b-2 transition"
+              style={
+                active
+                  ? { borderColor: GREEN, color: NAVY_DARK }
+                  : { borderColor: 'transparent', color: '#94A3B8' }
+              }
+            >
+              {t.label}
+            </button>
+          )
+        })}
       </div>
 
       <div className="bg-white rounded-2xl p-6" style={{ border: '1px solid #E5E9F0' }}>
-        {tab === 'actividades' && !verInstrumento && <CourseActivities courseId={course.id} />}
-        {tab === 'actividades' && verInstrumento && (
+        {tab === 'actividades' && <CourseActivities courseId={course.id} />}
+        {tab === 'instrumento' && (
           <InstrumentoEvaluacion
             courseId={course.id}
             courseNombre={course.nombre}
@@ -109,11 +102,13 @@ function CourseDetailTeacher({ course, onBack }) {
 
 export default function MyTeachingCourses() {
   const { session } = useAuth()
-  const { institucionSel, aulaSel, areaId, areaNombre, elegirInstitucion, elegirAula, elegirArea } = useDocenteContextoActivo()
   const [courses, setCourses] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedCourse, setSelectedCourse] = useState(null)
+  const [institucionSel, setInstitucionSel] = useState(null)
+  const [aulaSel, setAulaSel] = useState(null)
+  const [areaSel, setAreaSel] = useState(null)
   const [verRegistroDirecto, setVerRegistroDirecto] = useState(false)
   const [verUnidadesArea, setVerUnidadesArea] = useState(false)
   const [unidadesArea, setUnidadesArea] = useState([])
@@ -139,10 +134,6 @@ export default function MyTeachingCourses() {
       setError(result.error.message)
     } else {
       setCourses(result.data)
-      const institucionesIds = [...new Set(result.data.map(function (c) { return c.institucion_id || 'sin-institucion' }))]
-      if (institucionesIds.length === 1 && !institucionSel) {
-        elegirInstitucion(institucionesIds[0])
-      }
     }
     setLoading(false)
   }
@@ -152,14 +143,14 @@ export default function MyTeachingCourses() {
     const cursoRef = courses.find(function (c) {
       return String(c.grado) === grado && c.grupo === grupo
         && (c.institucion_id || 'sin-institucion') === institucionSel
-        && c.asignaturas?.area_id === areaId
+        && (c.asignaturas?.areas_curriculares?.nombre || 'Otras') === areaSel
     })
     if (!cursoRef) return
 
     const result = await supabase
       .from('unidades')
       .select('id, tipo, numero, nombre, finalizada')
-      .eq('area_id', areaId)
+      .eq('area_id', cursoRef.asignaturas.area_id)
       .eq('grado', grado)
       .eq('grupo', grupo)
       .order('numero')
@@ -175,17 +166,17 @@ export default function MyTeachingCourses() {
     return <CourseDetailTeacher course={selectedCourse} onBack={function () { setSelectedCourse(null) }} />
   }
 
-  if (verRegistroDirecto && aulaSel && areaId) {
+  if (verRegistroDirecto && aulaSel && areaSel) {
     const [gradoReg, grupoReg] = aulaSel.split('__')
     const cursoDeReferencia = courses.find(function (c) {
       return String(c.grado) === gradoReg && c.grupo === grupoReg
         && (c.institucion_id || 'sin-institucion') === institucionSel
-        && c.asignaturas?.area_id === areaId
+        && (c.asignaturas?.areas_curriculares?.nombre || 'Otras') === areaSel
     })
     return (
       <div>
         <button onClick={function () { setVerRegistroDirecto(false) }} className="text-sm font-semibold mb-4 hover:underline flex items-center gap-1" style={{ color: NAVY }}>
-          ← Volver a {areaNombre}
+          ← Volver a {areaSel}
         </button>
         {cursoDeReferencia ? (
           <RegistroAuxiliarPorArea courseId={cursoDeReferencia.id} />
@@ -196,12 +187,12 @@ export default function MyTeachingCourses() {
     )
   }
 
-  if (verUnidadesArea && aulaSel && areaId) {
+  if (verUnidadesArea && aulaSel && areaSel) {
     const [gradoU, grupoU] = aulaSel.split('__')
     const cursoDeReferencia = courses.find(function (c) {
       return String(c.grado) === gradoU && c.grupo === grupoU
         && (c.institucion_id || 'sin-institucion') === institucionSel
-        && c.asignaturas?.area_id === areaId
+        && (c.asignaturas?.areas_curriculares?.nombre || 'Otras') === areaSel
     })
 
     if (unidadEvaluacionSel) {
@@ -221,9 +212,9 @@ export default function MyTeachingCourses() {
     return (
       <div>
         <button onClick={function () { setVerUnidadesArea(false); setUnidadesArea([]) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>
-          ← Volver a {areaNombre}
+          ← Volver a {areaSel}
         </button>
-        <h3 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>Evaluación de Cierre por Unidad — {areaNombre}</h3>
+        <h3 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>Evaluación de Cierre por Unidad — {areaSel}</h3>
         {unidadesArea.length === 0 ? (
           <p className="text-slate-400 text-sm">No hay Unidades/Experiencias creadas todavía para esta aula.</p>
         ) : (
@@ -254,13 +245,19 @@ export default function MyTeachingCourses() {
 
   return (
     <div>
+      <style>{`
+        @keyframes nexoris-flotar { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        @keyframes nexoris-borla { 0%,100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
+        @keyframes nexoris-hoja { 0%,100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-3px) rotate(-3deg); } }
+        @media (prefers-reduced-motion: reduce) { [style*="nexoris-"] { animation: none !important; } }
+      `}</style>
       <h2 className="text-2xl font-bold mb-2" style={{ color: NAVY_DARK }}>Mis Asignaturas</h2>
 
       {courses.length === 0 ? (
         <div className="bg-white rounded-2xl p-10 text-center" style={{ border: '1px dashed #D6DCE5' }}>
           <p className="text-slate-400 text-sm">Aún no tienes cursos asignados. Contacta al administrador.</p>
         </div>
-      ) : !institucionSel ? (
+      ) : institucionSel == null ? (
         <>
           <p className="text-sm text-slate-400 mb-5">Elige la institución educativa</p>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -269,13 +266,25 @@ export default function MyTeachingCourses() {
               return (
                 <button
                   key={id}
-                  onClick={function () { elegirInstitucion(id) }}
+                  onClick={function () { setInstitucionSel(id) }}
                   className="text-left bg-white rounded-2xl p-5 space-y-2 transition hover:-translate-y-0.5"
                   style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}>
-                      🏫
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#EAF2FB' }}>
+                      <div style={{ animation: 'nexoris-flotar 3s ease-in-out infinite' }}>
+                        <svg width="30" height="30" viewBox="0 0 60 60">
+                          <rect x="10" y="20" width="40" height="30" fill="#0C447C" />
+                          <rect x="8" y="18" width="40" height="30" fill="#378ADD" />
+                          <polygon points="6,20 28,6 50,20" fill="#0C447C" />
+                          <polygon points="6,18 28,4 50,18" fill="#185FA5" />
+                          <rect x="24" y="34" width="8" height="14" fill="#E6F1FB" />
+                          <rect x="12" y="26" width="6" height="6" fill="#B5D4F4" />
+                          <rect x="22" y="26" width="6" height="6" fill="#B5D4F4" />
+                          <rect x="32" y="26" width="6" height="6" fill="#B5D4F4" />
+                          <rect x="40" y="26" width="6" height="6" fill="#B5D4F4" />
+                        </svg>
+                      </div>
                     </div>
                     <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
                       {cantidad} curso(s)
@@ -287,11 +296,9 @@ export default function MyTeachingCourses() {
             })}
           </div>
         </>
-      ) : !aulaSel ? (
+      ) : aulaSel == null ? (
         <>
-          {institucionesUnicas.length > 1 && (
-            <button onClick={function () { elegirInstitucion('') }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Instituciones</button>
-          )}
+          <button onClick={function () { setInstitucionSel(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Instituciones</button>
           <p className="text-sm text-slate-400 mb-5">Elige el Grado y Sección</p>
           {(function () {
             const cursosInst = courses.filter(function (c) { return (c.institucion_id || 'sin-institucion') === institucionSel })
@@ -304,13 +311,21 @@ export default function MyTeachingCourses() {
                   return (
                     <button
                       key={`${a.grado}-${a.grupo}`}
-                      onClick={function () { elegirAula(`${a.grado}__${a.grupo}`) }}
+                      onClick={function () { setAulaSel(`${a.grado}__${a.grupo}`) }}
                       className="text-left bg-white rounded-2xl p-5 space-y-2 transition hover:-translate-y-0.5"
                       style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
                     >
                       <div className="flex items-center justify-between">
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}>
-                          🎓
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#F2F0FE' }}>
+                          <svg width="30" height="30" viewBox="0 0 60 60">
+                            <ellipse cx="30" cy="24" rx="22" ry="7" fill="#3C3489" />
+                            <ellipse cx="30" cy="22" rx="22" ry="7" fill="#7F77DD" />
+                            <path d="M30 22l-14-5v10c0 3 6 6 14 6s14-3 14-6V17z" fill="#534AB7" />
+                            <g style={{ animation: 'nexoris-borla 2.2s ease-in-out infinite', transformOrigin: '46px 22px' }}>
+                              <line x1="46" y1="20" x2="46" y2="38" stroke="#3C3489" strokeWidth="1.5" />
+                              <circle cx="46" cy="40" r="3" fill="#EF9F27" />
+                            </g>
+                          </svg>
                         </div>
                         <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
                           {cantidad} asignatura(s)
@@ -325,34 +340,41 @@ export default function MyTeachingCourses() {
             )
           })()}
         </>
-      ) : !areaId ? (
+      ) : areaSel == null ? (
         <>
-          <button onClick={function () { elegirAula('') }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Grados y Secciones</button>
+          <button onClick={function () { setAulaSel(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Grados y Secciones</button>
           <p className="text-sm text-slate-400 mb-5">Elige el Área</p>
           {(function () {
             const [grado, grupo] = aulaSel.split('__')
             const cursosAula = courses.filter(function (c) { return String(c.grado) === grado && c.grupo === grupo && (c.institucion_id || 'sin-institucion') === institucionSel })
-            const areasUnicas = [...new Map(cursosAula.map(function (c) { return [c.asignaturas?.area_id, c.asignaturas?.areas_curriculares?.nombre || 'Otras'] })).entries()]
+            const areasUnicas = [...new Set(cursosAula.map(function (c) { return c.asignaturas?.areas_curriculares?.nombre || 'Otras' }))]
             return (
               <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-                {areasUnicas.map(function ([id, nombre]) {
-                  const cantidad = cursosAula.filter(function (c) { return c.asignaturas?.area_id === id }).length
+                {areasUnicas.map(function (areaNombre) {
+                  const cantidad = cursosAula.filter(function (c) { return (c.asignaturas?.areas_curriculares?.nombre || 'Otras') === areaNombre }).length
                   return (
                     <button
-                      key={id}
-                      onClick={function () { elegirArea(id, nombre) }}
+                      key={areaNombre}
+                      onClick={function () { setAreaSel(areaNombre) }}
                       className="text-left bg-white rounded-2xl p-5 space-y-2 transition hover:-translate-y-0.5"
                       style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
                     >
                       <div className="flex items-center justify-between">
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}>
-                          📁
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#FAEEDA' }}>
+                          <div style={{ animation: 'nexoris-hoja 2.6s ease-in-out infinite' }}>
+                            <svg width="30" height="30" viewBox="0 0 60 60">
+                              <path d="M10 20h14l4 5h22a3 3 0 0 1 3 3v20a3 3 0 0 1-3 3H10a3 3 0 0 1-3-3V23a3 3 0 0 1 3-3z" fill="#854F0B" />
+                              <path d="M8 18h14l4 5h22a3 3 0 0 1 3 3v18a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V21a3 3 0 0 1 3-3z" fill="#EF9F27" />
+                              <rect x="13" y="30" width="18" height="3" rx="1.5" fill="#FAEEDA" opacity="0.8" />
+                              <rect x="13" y="36" width="24" height="3" rx="1.5" fill="#FAEEDA" opacity="0.6" />
+                            </svg>
+                          </div>
                         </div>
                         <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
                           {cantidad} asignatura(s)
                         </span>
                       </div>
-                      <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>{nombre}</h3>
+                      <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>{areaNombre}</h3>
                     </button>
                   )
                 })}
@@ -362,9 +384,9 @@ export default function MyTeachingCourses() {
         </>
       ) : (
         <>
-          <button onClick={function () { elegirArea('', '') }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Áreas</button>
+          <button onClick={function () { setAreaSel(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Áreas</button>
           <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
-            <p className="text-sm text-slate-400">{areaNombre}</p>
+            <p className="text-sm text-slate-400">{areaSel}</p>
             <div className="flex gap-2 flex-wrap">
               <button
                 onClick={function () { handleAbrirUnidadesArea() }}
@@ -387,7 +409,7 @@ export default function MyTeachingCourses() {
             const cursosFinal = courses.filter(function (c) {
               return String(c.grado) === grado && c.grupo === grupo
                 && (c.institucion_id || 'sin-institucion') === institucionSel
-                && c.asignaturas?.area_id === areaId
+                && (c.asignaturas?.areas_curriculares?.nombre || 'Otras') === areaSel
             })
             return (
               <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">

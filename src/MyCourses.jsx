@@ -370,6 +370,11 @@ export default function MyCourses() {
 
   return (
     <div>
+      <style>{`
+        @keyframes nexoris-flotar { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        @keyframes nexoris-hoja { 0%,100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-3px) rotate(-3deg); } }
+        @media (prefers-reduced-motion: reduce) { [style*="nexoris-"] { animation: none !important; } }
+      `}</style>
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         <h2 className="text-2xl font-bold" style={{ color: NAVY_DARK }}>Mis Asignaturas</h2>
         {miGrado && (
@@ -397,8 +402,20 @@ export default function MyCourses() {
                   style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}>
-                      🏫
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#EAF2FB' }}>
+                      <div style={{ animation: 'nexoris-flotar 3s ease-in-out infinite' }}>
+                        <svg width="30" height="30" viewBox="0 0 60 60">
+                          <rect x="10" y="20" width="40" height="30" fill="#0C447C" />
+                          <rect x="8" y="18" width="40" height="30" fill="#378ADD" />
+                          <polygon points="6,20 28,6 50,20" fill="#0C447C" />
+                          <polygon points="6,18 28,4 50,18" fill="#185FA5" />
+                          <rect x="24" y="34" width="8" height="14" fill="#E6F1FB" />
+                          <rect x="12" y="26" width="6" height="6" fill="#B5D4F4" />
+                          <rect x="22" y="26" width="6" height="6" fill="#B5D4F4" />
+                          <rect x="32" y="26" width="6" height="6" fill="#B5D4F4" />
+                          <rect x="40" y="26" width="6" height="6" fill="#B5D4F4" />
+                        </svg>
+                      </div>
                     </div>
                     <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
                       {cantidad} asignatura(s)
@@ -431,8 +448,15 @@ export default function MyCourses() {
                       style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
                     >
                       <div className="flex items-center justify-between">
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}>
-                          📁
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#FAEEDA' }}>
+                          <div style={{ animation: 'nexoris-hoja 2.6s ease-in-out infinite' }}>
+                            <svg width="30" height="30" viewBox="0 0 60 60">
+                              <path d="M10 20h14l4 5h22a3 3 0 0 1 3 3v20a3 3 0 0 1-3 3H10a3 3 0 0 1-3-3V23a3 3 0 0 1 3-3z" fill="#854F0B" />
+                              <path d="M8 18h14l4 5h22a3 3 0 0 1 3 3v18a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V21a3 3 0 0 1 3-3z" fill="#EF9F27" />
+                              <rect x="13" y="30" width="18" height="3" rx="1.5" fill="#FAEEDA" opacity="0.8" />
+                              <rect x="13" y="36" width="24" height="3" rx="1.5" fill="#FAEEDA" opacity="0.6" />
+                            </svg>
+                          </div>
                         </div>
                         <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
                           {cantidad} asignatura(s)
