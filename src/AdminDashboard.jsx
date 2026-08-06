@@ -17,6 +17,7 @@ const InstitucionesManager = lazy(function () { return import('./InstitucionesMa
 const HabilitarCursos = lazy(function () { return import('./HabilitarCursos') })
 const VaciarPeriodo = lazy(function () { return import('./VaciarPeriodo') })
 const RecreosManager = lazy(function () { return import('./RecreosManager') })
+const FeriadosManager = lazy(function () { return import('./FeriadosManager') })
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
@@ -46,6 +47,7 @@ export default function AdminDashboard() {
     { id: 'habilitar-cursos', label: 'Habilitar Cursos', icon: ToggleIcon },
     { id: 'vaciar-periodo', label: 'Vaciar Periodo', icon: TrashIcon },
     { id: 'recreos', label: 'Recreos', icon: CoffeeIcon },
+    { id: 'feriados', label: 'Feriados', icon: CalendarIcon },
     { id: 'periodo', label: 'Cierre de Periodo', icon: CalendarIcon },
   ]
 
@@ -218,6 +220,7 @@ export default function AdminDashboard() {
               {tab === 'habilitar-cursos' && <HabilitarCursos />}
               {tab === 'vaciar-periodo' && <VaciarPeriodo />}
               {tab === 'recreos' && <RecreosManager />}
+            {tab === 'feriados' && <FeriadosManager />}
               {tab === 'periodo' && <CierrePeriodo />}
             </Suspense>
           </ErrorBoundary>

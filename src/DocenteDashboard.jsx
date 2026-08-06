@@ -9,6 +9,7 @@ import FondoEstrellas from './FondoEstrellas'
 
 const MyTeachingCourses = lazy(function () { return import('./MyTeachingCourses') })
 const MisTareas = lazy(function () { return import('./MisTareas') })
+const RegistroAsistencia = lazy(function () { return import('./RegistroAsistencia') })
 const Mensajes = lazy(function () { return import('./Mensajes') })
 const RegistroConducta = lazy(function () { return import('./RegistroConducta') })
 const ComunicadoDocente = lazy(function () { return import('./ComunicadoDocente') })
@@ -65,6 +66,7 @@ export default function DocenteDashboard() {
     { id: 'inicio', label: 'Inicio', icon: HomeIcon },
     { id: 'cursos', label: 'Mis Asignaturas', icon: BookIcon },
     { id: 'tareas', label: 'Mis Tareas', icon: ClipboardIcon },
+    { id: 'asistencia', label: 'Asistencia', icon: CalendarIcon },
     { id: 'mensajes', label: 'Mensajes', icon: MessageIcon },
     { id: 'horario', label: 'Mi Horario', icon: CalendarIcon },
     { id: 'conducta', label: 'Registro de Conducta', icon: AlertIcon },
@@ -245,6 +247,7 @@ export default function DocenteDashboard() {
                   onTareaDestacadaAtendida={function () { setTareaDestacadaId(null) }}
                 />
               )}
+              {activeSection === 'asistencia' && <RegistroAsistencia />}
               {activeSection === 'conducta' && <RegistroConducta />}
               {activeSection === 'comunicados' && <ComunicadoDocente />}
               {activeSection === 'mensajes' && <Mensajes />}

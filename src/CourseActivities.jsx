@@ -69,6 +69,8 @@ function UnidadesList({ courseId, onSelectUnidad }) {
   const [tipo, setTipo] = useState('Unidad')
   const [numero, setNumero] = useState(1)
   const [nombre, setNombre] = useState('')
+  const [fechaInicio, setFechaInicio] = useState('')
+  const [fechaFin, setFechaFin] = useState('')
 
   useEffect(function () {
     cargarAulaYUnidades()
@@ -134,6 +136,8 @@ function UnidadesList({ courseId, onSelectUnidad }) {
     setTipo('Unidad')
     setNumero(1)
     setNombre('')
+    setFechaInicio('')
+    setFechaFin('')
   }
 
   function openNew() {
@@ -146,13 +150,15 @@ function UnidadesList({ courseId, onSelectUnidad }) {
     setTipo(u.tipo)
     setNumero(u.numero)
     setNombre(u.nombre || '')
+    setFechaInicio(u.fecha_inicio || '')
+    setFechaFin(u.fecha_fin || '')
     setShowForm(true)
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    const payload = { area_id: aula.areaId, grado: aula.grado, grupo: aula.grupo, tipo: tipo, numero: numero, nombre: nombre || null }
+    const payload = { area_id: aula.areaId, grado: aula.grado, grupo: aula.grupo, tipo: tipo, numero: numero, nombre: nombre || null, fecha_inicio: fechaInicio || null, fecha_fin: fechaFin || null }
 
     let result
     if (editingId) {
@@ -256,6 +262,29 @@ function UnidadesList({ courseId, onSelectUnidad }) {
               style={inputStyle}
             />
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Fecha de inicio</label>
+              <input
+                type="date"
+                value={fechaInicio}
+                onChange={function (e) { setFechaInicio(e.target.value) }}
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Fecha de fin</label>
+              <input
+                type="date"
+                value={fechaFin}
+                onChange={function (e) { setFechaFin(e.target.value) }}
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+          <p className="text-xs text-slate-400">Estas fechas se usan para calcular en qué días registrar asistencia.</p>
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <button
             type="submit"
