@@ -100,7 +100,9 @@ export default function PortalPadres({ onBack }) {
       if (!response.ok) {
         setError(json.error || 'No se pudo verificar el código.')
       } else {
-        setDatos(json)
+        const vistos = JSON.parse(localStorage.getItem('nexoris_comunicados_vistos') || '[]')
+        const comunicadosNuevos = (json.comunicados || []).filter(function (c) { return !vistos.includes(c.id) })
+        setDatos({ ...json, comunicados: comunicadosNuevos })
         setComunicadoIndice(0)
       }
     } catch (err) {
@@ -126,7 +128,14 @@ export default function PortalPadres({ onBack }) {
               <p className="text-sm text-slate-600 whitespace-pre-wrap">{comunicado.mensaje}</p>
               <p className="text-xs text-slate-400 mt-3">{new Date(comunicado.fecha).toLocaleDateString('es-PE')}</p>
               <button
-                onClick={function () { setComunicadoIndice(comunicadoIndice + 1) }}
+                onClick={function () {
+                  const vistos = JSON.parse(localStorage.getItem('nexoris_comunicados_vistos') || '[]')
+                  if (comunicado.id && !vistos.includes(comunicado.id)) {
+                    vistos.push(comunicado.id)
+                    localStorage.setItem('nexoris_comunicados_vistos', JSON.stringify(vistos))
+                  }
+                  setComunicadoIndice(comunicadoIndice + 1)
+                }}
                 className="mt-5 text-sm font-semibold px-6 py-2.5 rounded-xl text-white transition hover:opacity-90"
                 style={{ backgroundColor: GREEN }}
               >
