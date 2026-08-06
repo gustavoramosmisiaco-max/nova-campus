@@ -208,6 +208,21 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
       }
     }
 
+    // Notas de clase puestas directo por Actividad+Capacidad (sin tarea de por medio)
+    let notaClasePorActividadMap = {} // studentId__actividadId__capacidadId -> nota
+    const actIdsTodas = actividades.map(function (a) { return a.id })
+    if (actIdsTodas.length > 0) {
+      const notasClaseActResult = await supabase
+        .from('notas_clase')
+        .select('student_id, actividad_id, capacidad_id, nota')
+        .in('actividad_id', actIdsTodas)
+      if (!notasClaseActResult.error) {
+        notasClaseActResult.data.forEach(function (n) {
+          notaClasePorActividadMap[`${n.student_id}__${n.actividad_id}__${n.capacidad_id}`] = n.nota
+        })
+      }
+    }
+
     // Notas de tareas (publicadas)
     const assignmentIds = assignments.map(function (a) { return a.id })
     let notaTareaMap = {} // studentId__assignmentId__capacidadId -> score
@@ -278,6 +293,28 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
               desempeno: detalleCap?.desempeno || '',
             })
           })
+          // Notas de clase puestas directo por Actividad (sin tarea) para esta capacidad
+          actividades.forEach(function (act) {
+            const tieneCapacidad = (act.actividad_capacidades || []).some(function (ac) { return ac.capacidad_id === cap.id })
+            if (!tieneCapacidad) return
+            const hayAlgunaNota = Object.keys(notaClasePorActividadMap).some(function (k) { return k.endsWith(`__${act.id}__${cap.id}`) })
+            if (!hayAlgunaNota) return
+            const detalleCap = (act.actividad_capacidades || []).find(function (ac) { return ac.capacidad_id === cap.id })
+            instancias.push({
+              soloNotaClase: true,
+              assignmentId: 'sinTarea_' + act.id + '_' + cap.id,
+              actividadId: act.id,
+              tituloTarea: '(solo nota de clase)',
+              actividadNombre: act.nombre,
+              actividadNumero: act.numero_actividad,
+              fechaClase: null,
+              fechaEntrega: null,
+              habilitarNotasClase: false,
+              asignaturaAbrev: mapaAbreviaturas[act.course_id] || '',
+              criterio: detalleCap?.criterio || '',
+              desempeno: detalleCap?.desempeno || '',
+            })
+          })
           return { ...cap, instancias: instancias }
         })
       return { ...comp, capacidades: capsDeEstaCompetencia }
@@ -300,6 +337,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
       notaTareaMap: notaTareaMap,
       ausenciaMap: ausenciaMap,
       notaClaseMap: notaClaseMap,
+      notaClasePorActividadMap: notaClasePorActividadMap,
     })
 
     setLoading(false)
@@ -326,6 +364,10 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
   // - Sin notas de clase: solo la nota de tarea, como antes
   // - Asistió, no entregó, y la tarea ya venció → C automático (0) para la parte de "nota de tarea"
   function notaTareaFinal(studentId, inst, capacidadId) {
+    if (inst.soloNotaClase) {
+      const v = ficha?.notaClasePorActividadMap?.[`${studentId}__${inst.actividadId}__${capacidadId}`]
+      return v != null ? v : null
+    }
     if (estuvoAusente(studentId, inst.fechaClase)) return null
 
     let notaTareaEfectiva = notaTarea(studentId, inst.assignmentId, capacidadId)

@@ -690,7 +690,7 @@ function ActividadContenido({ actividad, onBack }) {
       </h3>
 
       <div className="flex gap-2 mb-6 border-b" style={{ borderColor: '#E5E9F0' }}>
-        {[{ id: 'materiales', label: 'Materiales' }, { id: 'tareas', label: 'Tareas' }].map(function (t) {
+        {[{ id: 'materiales', label: 'Materiales' }, { id: 'tareas', label: 'Tareas' }, { id: 'notasclase', label: 'Notas de Clase' }].map(function (t) {
           const active = tab === t.id
           return (
             <button key={t.id} onClick={function () { setTab(t.id) }}
@@ -704,6 +704,7 @@ function ActividadContenido({ actividad, onBack }) {
 
       {tab === 'materiales' && <CourseMaterials courseId={actividad.course_id} actividadId={actividad.id} canUpload={true} />}
       {tab === 'tareas' && <ActividadTareas actividad={actividad} />}
+      {tab === 'notasclase' && <NotasClasePorActividad actividad={actividad} />}
     </div>
   )
 }
@@ -1493,6 +1494,114 @@ function FolderIcon({ big }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
     </svg>
+  )
+}
+
+function NotasClasePorActividad({ actividad }) {
+  const [loading, setLoading] = useState(true)
+  const [estudiantes, setEstudiantes] = useState([])
+  const [notas, setNotas] = useState({}) // studentId__capacidadId -> nota
+  const [guardandoKey, setGuardandoKey] = useState(null)
+
+  const capacidades = (actividad.actividad_capacidades || [])
+    .map(function (ac) { return ac.capacidad })
+    .filter(Boolean)
+    .sort(function (a, b) { return (a.orden || 0) - (b.orden || 0) })
+
+  useEffect(function () {
+    cargar()
+  }, [actividad.id])
+
+  async function cargar() {
+    setLoading(true)
+    const enrollResult = await supabase
+      .from('enrollments')
+      .select('student:profiles(id, full_name)')
+      .eq('course_id', actividad.course_id)
+      .eq('status', 'activo')
+    const lista = enrollResult.error ? [] : enrollResult.data.map(function (e) { return e.student }).filter(Boolean)
+    lista.sort(function (a, b) { return compararPorApellido(a.full_name, b.full_name) })
+    setEstudiantes(lista)
+
+    const notasResult = await supabase
+      .from('notas_clase')
+      .select('student_id, capacidad_id, nota')
+      .eq('actividad_id', actividad.id)
+    const mapa = {}
+    ;(notasResult.data || []).forEach(function (n) { mapa[`${n.student_id}__${n.capacidad_id}`] = n.nota })
+    setNotas(mapa)
+    setLoading(false)
+  }
+
+  async function guardarNota(studentId, capacidadId, valorStr) {
+    const key = `${studentId}__${capacidadId}`
+    const valor = valorStr === '' ? null : Number(valorStr)
+    if (valor != null && (isNaN(valor) || valor < 0 || valor > 20)) return
+    setGuardandoKey(key)
+
+    if (valor == null) {
+      await supabase.from('notas_clase').delete().eq('actividad_id', actividad.id).eq('capacidad_id', capacidadId).eq('student_id', studentId)
+    } else {
+      await supabase.from('notas_clase').upsert(
+        { actividad_id: actividad.id, capacidad_id: capacidadId, student_id: studentId, nota: valor, updated_at: new Date().toISOString() },
+        { onConflict: 'actividad_id,capacidad_id,student_id' }
+      )
+    }
+    setNotas(function (prev) { return { ...prev, [key]: valor } })
+    setGuardandoKey(null)
+  }
+
+  if (loading) return <p className="text-slate-400 text-sm">Cargando...</p>
+  if (capacidades.length === 0) return <p className="text-slate-400 text-sm">Esta Actividad no tiene capacidades asignadas todavía.</p>
+
+  return (
+    <div>
+      <div className="rounded-xl p-4 mb-4" style={{ backgroundColor: '#F0F6E4', border: '1px solid #C0DD97' }}>
+        <p className="text-xs" style={{ color: '#3B6D11' }}>
+          Aquí puedes calificar solo con nota de clase, sin necesidad de crear una tarea. Si más adelante creas una tarea para esta Actividad con "Notas de clase" habilitado, esa nota se maneja aparte, por tarea.
+        </p>
+      </div>
+
+      <div className="bg-white rounded-2xl overflow-x-auto" style={{ border: '1px solid #E5E9F0' }}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr style={{ borderBottom: '1px solid #E5E9F0' }}>
+              <th className="text-left py-2 px-3 font-semibold" style={{ color: NAVY_DARK }}>Estudiante</th>
+              {capacidades.map(function (cap) {
+                return <th key={cap.id} className="text-center py-2 px-2 font-semibold" style={{ color: NAVY_DARK, minWidth: 90 }}>{cap.nombre}</th>
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {estudiantes.map(function (s) {
+              return (
+                <tr key={s.id} style={{ borderBottom: '1px solid #F4F6F9' }}>
+                  <td className="py-2 px-3" style={{ color: NAVY_DARK }}>{s.full_name}</td>
+                  {capacidades.map(function (cap) {
+                    const key = `${s.id}__${cap.id}`
+                    return (
+                      <td key={cap.id} className="text-center py-2 px-2">
+                        <input
+                          type="number"
+                          min={0}
+                          max={20}
+                          defaultValue={notas[key] != null ? notas[key] : ''}
+                          onBlur={function (e) { guardarNota(s.id, cap.id, e.target.value) }}
+                          placeholder="—"
+                          disabled={guardandoKey === key}
+                          className="w-14 text-center rounded-lg px-2 py-1 text-sm outline-none"
+                          style={inputStyle}
+                        />
+                      </td>
+                    )
+                  })}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   )
 }
 

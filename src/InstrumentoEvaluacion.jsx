@@ -134,7 +134,7 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
 
     const result = await supabase
       .from('actividades')
-      .select('id, nombre, numero_actividad, proposito, tipo_instrumento, unidad_id, competencia:competencias(nombre), actividad_capacidades(criterio, desempeno, desc_ad, desc_a, desc_b, desc_c, capacidad:capacidades(id, nombre, orden))')
+      .select('id, nombre, numero_actividad, proposito, tipo_instrumento, unidad_id, fecha_clase, competencia:competencias(nombre), actividad_capacidades(criterio, desempeno, desc_ad, desc_a, desc_b, desc_c, capacidad:capacidades(id, nombre, orden))')
       .eq('course_id', courseId)
       .order('created_at', { ascending: true })
     if (!result.error) setActivities(result.data)
@@ -148,7 +148,7 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
 
     const assignResult = await supabase
       .from('assignments')
-      .select('id, fecha_entrega, assignment_capacidades(capacidad_id)')
+      .select('id, fecha_entrega, habilitar_notas_clase, assignment_capacidades(capacidad_id)')
       .eq('actividad_id', actividad.id)
     if (assignResult.error) return null
     const assignmentIds = assignResult.data.map(function (a) { return a.id })
@@ -164,6 +164,31 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
       .sort(function (a, b) { return compararPorApellido(a.full_name, b.full_name) })
 
     let cellValues = {}
+    // Asistencias sin justificar, para dejar en blanco las celdas de estudiantes ausentes ese día
+    const ausenciaSet = new Set()
+    if (actividad.fecha_clase) {
+      const studentIds = students.map(function (s) { return s.id })
+      if (studentIds.length > 0) {
+        const asisResult = await supabase
+          .from('asistencias')
+          .select('student_id')
+          .eq('fecha', actividad.fecha_clase)
+          .eq('estado', 'ausente')
+          .in('student_id', studentIds)
+        if (!asisResult.error) asisResult.data.forEach(function (a) { ausenciaSet.add(a.student_id) })
+      }
+    }
+
+    // Notas de clase sueltas (sin tarea), directo por Actividad+Capacidad
+    const notaClaseStandaloneMap = {} // studentId__capId -> nota
+    const notasClaseActResult = await supabase
+      .from('notas_clase')
+      .select('student_id, capacidad_id, nota')
+      .eq('actividad_id', actividad.id)
+    if (!notasClaseActResult.error) {
+      notasClaseActResult.data.forEach(function (n) { notaClaseStandaloneMap[`${n.student_id}__${n.capacidad_id}`] = n.nota })
+    }
+
     if (assignmentIds.length > 0) {
       const subsResult = await supabase.from('submissions').select('id, student_id, assignment_id, publicado').in('assignment_id', assignmentIds)
       const submissionsData = subsResult.error ? [] : subsResult.data
@@ -180,30 +205,47 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
         if (!scoresResult.error) scoresData = scoresResult.data
       }
 
+      // Notas de clase de tareas con esa opción habilitada
+      const assignmentIdsConNotaClase = assignResult.data.filter(function (a) { return a.habilitar_notas_clase }).map(function (a) { return a.id })
+      const notaClaseTareaMap = {} // studentId__assignmentId -> nota
+      if (assignmentIdsConNotaClase.length > 0) {
+        const notasClaseResult = await supabase
+          .from('notas_clase')
+          .select('student_id, assignment_id, nota')
+          .in('assignment_id', assignmentIdsConNotaClase)
+        if (!notasClaseResult.error) {
+          notasClaseResult.data.forEach(function (n) { notaClaseTareaMap[`${n.student_id}__${n.assignment_id}`] = n.nota })
+        }
+      }
+
       const now = new Date()
       const grouped = {}
 
-      scoresData.forEach(function (row) {
-        const info = subMap[row.submission_id]
-        if (!info || !info.publicado) return
-        const key = `${info.studentId}__${row.capacidad_id}`
-        if (!grouped[key]) grouped[key] = []
-        if (row.score != null) grouped[key].push(row.score)
-      })
+      students.forEach(function (student) {
+        if (ausenciaSet.has(student.id)) return // ausente sin justificar ese día, no se evalúa
 
-      assignResult.data.forEach(function (assignment) {
-        const isPastDue = new Date(assignment.fecha_entrega) < now
-        if (!isPastDue) return
-        const capacidadIds = (assignment.assignment_capacidades || []).map(function (ac) { return ac.capacidad_id })
-        students.forEach(function (student) {
-          const hasSubmission = submissionsData.some(function (s) {
-            return s.student_id === student.id && s.assignment_id === assignment.id
-          })
-          if (hasSubmission) return
+        assignResult.data.forEach(function (assignment) {
+          const capacidadIds = (assignment.assignment_capacidades || []).map(function (ac) { return ac.capacidad_id })
+          const sub = submissionsData.find(function (s) { return s.student_id === student.id && s.assignment_id === assignment.id })
+          const isPastDue = new Date(assignment.fecha_entrega) < now
+
           capacidadIds.forEach(function (capId) {
             const key = `${student.id}__${capId}`
+            let notaTareaEfectiva = null
+            if (sub && sub.publicado) {
+              const scoreRow = scoresData.find(function (r) { return r.submission_id === sub.id && r.capacidad_id === capId })
+              notaTareaEfectiva = scoreRow ? scoreRow.score : null
+            }
+            if (notaTareaEfectiva == null && isPastDue) notaTareaEfectiva = 0
+
+            let notaFinal = notaTareaEfectiva
+            if (assignment.habilitar_notas_clase) {
+              const notaClaseVal = notaClaseTareaMap[`${student.id}__${assignment.id}`]
+              notaFinal = average([notaClaseVal != null ? notaClaseVal : null, notaTareaEfectiva])
+            }
+            if (notaFinal == null) return
             if (!grouped[key]) grouped[key] = []
-            grouped[key].push(0)
+            grouped[key].push(notaFinal)
           })
         })
       })
@@ -212,6 +254,18 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
         cellValues[key] = average(grouped[key])
       })
     }
+
+    // Sumar las notas de clase sueltas (sin tarea) al promedio de cada celda
+    students.forEach(function (student) {
+      if (ausenciaSet.has(student.id)) return
+      capacidades.forEach(function (c) {
+        const capId = c.capacidad.id
+        const sueltaVal = notaClaseStandaloneMap[`${student.id}__${capId}`]
+        if (sueltaVal == null) return
+        const key = `${student.id}__${capId}`
+        cellValues[key] = average([cellValues[key] != null ? cellValues[key] : null, sueltaVal])
+      })
+    })
 
     const unidadInfo = unidades.find(function (u) { return u.id === actividad.unidad_id })
 
