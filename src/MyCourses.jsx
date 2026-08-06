@@ -6,6 +6,7 @@ import CourseAssignmentsStudent from './CourseAssignmentsStudent'
 import CourseZoomStudent from './CourseZoomStudent'
 import { getLetterGrade, getLetterColor } from './gradeUtils'
 import GruposEstudiante from './GruposEstudiante'
+import IconoAsignatura from './IconoAsignatura'
 
 const DIAS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
@@ -490,9 +491,7 @@ export default function MyCourses() {
                       style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
                     >
                       <div className="flex items-center justify-between">
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})` }}>
-                          <BookIcon />
-                        </div>
+                        <IconoAsignatura nombre={e.course.nombre} size={34} />
                         {e.course.grado && (
                           <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
                             {gradoLabel(e.course.grado)}
