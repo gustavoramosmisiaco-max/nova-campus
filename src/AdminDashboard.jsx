@@ -34,7 +34,7 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState('cursos')
 
   const menuItems = [
-    { id: 'cursos', label: 'Áreas y Asignaturas', icon: BookIcon },
+    { id: 'cursos', label: 'Gestión de Aulas', icon: BookIcon },
     { id: 'matriculas', label: 'Matrículas', icon: ClipboardIcon },
     { id: 'asignaturas', label: 'Asignaturas', icon: LayersIcon },
     { id: 'estudiantes', label: 'Estudiantes', icon: UsersIcon },

@@ -485,7 +485,7 @@ export default function CoursesManager() {
   return (
     <div>
       <div className="flex justify-between items-center mb-1">
-        <h2 className="text-2xl font-bold" style={{ color: NAVY_DARK }}>Áreas y Asignaturas</h2>
+        <h2 className="text-2xl font-bold" style={{ color: NAVY_DARK }}>Gestión de Aulas</h2>
         <button
           onClick={openNewForm}
           className="font-semibold px-4 py-2 rounded-lg transition text-white hover:opacity-90"
