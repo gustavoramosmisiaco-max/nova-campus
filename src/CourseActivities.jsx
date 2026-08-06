@@ -598,7 +598,7 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
             </div>
           )}
           {error && <p className="text-red-500 text-sm">{error}</p>}
-          <button type="submit" className="font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: GREEN }}>
+          <button type="submit" className="font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ background: `linear-gradient(90deg, ${NAVY}, ${GREEN})`, boxShadow: '0 8px 20px rgba(37,99,235,0.3)' }}>
             {editingId ? 'Guardar cambios' : 'Crear actividad'}
           </button>
         </form>
@@ -1384,7 +1384,7 @@ function ActividadTareas({ actividad }) {
             <input type="number" value={puntajeMax} onChange={function (e) { setPuntajeMax(e.target.value) }} max={20} min={0} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
           </div>
           {error && <p className="text-red-500 text-sm">{error}</p>}
-          <button type="submit" className="font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: GREEN }}>
+          <button type="submit" className="font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ background: `linear-gradient(90deg, ${NAVY}, ${GREEN})`, boxShadow: '0 8px 20px rgba(37,99,235,0.3)' }}>
             {editingId ? 'Guardar cambios' : 'Crear tarea'}
           </button>
         </form>

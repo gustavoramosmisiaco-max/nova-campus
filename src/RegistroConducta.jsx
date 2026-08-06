@@ -324,7 +324,7 @@ export default function RegistroConducta() {
               {archivo && <span className="text-xs text-slate-500 ml-2">{archivo.name}</span>}
             </div>
             {error && <p className="text-red-500 text-sm">{error}</p>}
-            <button type="submit" disabled={guardando} className="text-sm font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50" style={{ backgroundColor: GREEN }}>
+            <button type="submit" disabled={guardando} className="text-sm font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50" style={{ background: `linear-gradient(90deg, ${NAVY}, ${GREEN})`, boxShadow: '0 8px 20px rgba(37,99,235,0.3)' }}>
               {guardando ? 'Guardando...' : 'Registrar conducta'}
             </button>
           </form>
