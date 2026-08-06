@@ -898,7 +898,7 @@ export default function CoursesManager() {
               <button
                 type="submit"
                 className="flex-1 font-semibold py-2 rounded-lg transition text-white hover:opacity-90"
-                style={{ backgroundColor: GREEN }}
+                style={{ background: `linear-gradient(90deg, ${NAVY}, ${GREEN})`, boxShadow: '0 8px 20px rgba(37,99,235,0.3)' }}
               >
                 Guardar
               </button>

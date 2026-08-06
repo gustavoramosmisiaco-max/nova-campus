@@ -253,7 +253,7 @@ export default function EnrollmentsManager() {
           onClick={handleSincronizarTodo}
           disabled={sincronizando}
           className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
-          style={{ backgroundColor: GREEN }}
+          style={{ background: `linear-gradient(90deg, ${NAVY}, ${GREEN})`, boxShadow: '0 8px 20px rgba(37,99,235,0.3)' }}
         >
           {sincronizando ? 'Sincronizando...' : 'Sincronizar Matrículas (todas las aulas)'}
         </button>
