@@ -72,8 +72,9 @@ function todayFormatted() {
 }
 
 function average(numbers) {
-  if (numbers.length === 0) return null
-  return numbers.reduce(function (a, b) { return a + b }, 0) / numbers.length
+  const validos = numbers.filter(function (n) { return n != null })
+  if (validos.length === 0) return null
+  return validos.reduce(function (a, b) { return a + b }, 0) / validos.length
 }
 
 async function descargarWorkbook(workbook, filename) {
