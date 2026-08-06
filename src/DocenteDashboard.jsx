@@ -4,6 +4,7 @@ import NotificationBell from './NotificationBell'
 import WelcomeAnimation from './WelcomeAnimation'
 import FarewellAnimation from './FarewellAnimation'
 import ErrorBoundary from './ErrorBoundary'
+import { DocenteContextoActivoProvider } from './DocenteContextoActivo'
 
 const MyTeachingCourses = lazy(function () { return import('./MyTeachingCourses') })
 const MisTareas = lazy(function () { return import('./MisTareas') })
@@ -77,6 +78,7 @@ export default function DocenteDashboard() {
     .toUpperCase()
 
   return (
+    <DocenteContextoActivoProvider>
     <div className="min-h-screen flex" style={{ backgroundColor: '#F4F6F9' }}>
       <WelcomeAnimation role="docente" nombre={profile?.full_name} />
       <FarewellAnimation visible={despidiendo} role="docente" nombre={profile?.full_name} onComplete={logout} />
@@ -244,6 +246,7 @@ export default function DocenteDashboard() {
         </main>
       </div>
     </div>
+    </DocenteContextoActivoProvider>
   )
 }
 

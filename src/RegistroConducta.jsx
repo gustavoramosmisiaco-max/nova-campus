@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
+import { useDocenteContextoActivo } from './DocenteContextoActivo'
 import { compararPorApellido } from './gradeUtils'
 import PreviewModal from './PreviewModal'
 
@@ -26,11 +27,9 @@ function gradoLabel(g) {
 
 export default function RegistroConducta() {
   const { session } = useAuth()
+  const { institucionSel, aulaSel, areaId: areaSel, elegirInstitucion, elegirAula, elegirArea } = useDocenteContextoActivo()
   const [loading, setLoading] = useState(true)
   const [misCursos, setMisCursos] = useState([])
-  const [institucionSel, setInstitucionSel] = useState('')
-  const [aulaSel, setAulaSel] = useState('')
-  const [areaSel, setAreaSel] = useState('')
   const [busqueda, setBusqueda] = useState('')
   const [estudiantes, setEstudiantes] = useState([])
   const [estudianteSel, setEstudianteSel] = useState(null)
@@ -57,7 +56,13 @@ export default function RegistroConducta() {
       .from('courses')
       .select('id, grado, grupo, institucion_id, instituciones_educativas(nombre), asignaturas(area_id, areas_curriculares(nombre))')
       .eq('docente_id', session.user.id)
-    if (!result.error) setMisCursos(result.data)
+    if (!result.error) {
+      setMisCursos(result.data)
+      const institucionesIds = [...new Set(result.data.map(function (c) { return c.institucion_id || 'sin-institucion' }))]
+      if (institucionesIds.length === 1 && !institucionSel) {
+        elegirInstitucion(institucionesIds[0])
+      }
+    }
     setLoading(false)
   }
 
@@ -214,21 +219,25 @@ export default function RegistroConducta() {
       <div className="grid sm:grid-cols-3 gap-3 mb-6">
         <div>
           <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Institución</label>
-          <select value={institucionSel} onChange={function (e) { setInstitucionSel(e.target.value); setAulaSel(''); setAreaSel(''); setEstudianteSel(null) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+          <select value={institucionSel} onChange={function (e) { elegirInstitucion(e.target.value); setEstudianteSel(null) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
             <option value="">-- Elige --</option>
             {institucionesUnicas.map(function ([id, nombre]) { return <option key={id} value={id}>{nombre}</option> })}
           </select>
         </div>
         <div>
           <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Grado y Sección</label>
-          <select value={aulaSel} onChange={function (e) { setAulaSel(e.target.value); setAreaSel(''); setEstudianteSel(null) }} disabled={!institucionSel} className="w-full rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-50" style={inputStyle}>
+          <select value={aulaSel} onChange={function (e) { elegirAula(e.target.value); setEstudianteSel(null) }} disabled={!institucionSel} className="w-full rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-50" style={inputStyle}>
             <option value="">-- Elige --</option>
             {aulasDisponibles.map(function (a) { return <option key={`${a.grado}-${a.grupo}`} value={`${a.grado}__${a.grupo}`}>{gradoLabel(a.grado)} — Sección {a.grupo}</option> })}
           </select>
         </div>
         <div>
           <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Área</label>
-          <select value={areaSel} onChange={function (e) { setAreaSel(e.target.value); setEstudianteSel(null) }} disabled={!aulaSel} className="w-full rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-50" style={inputStyle}>
+          <select value={areaSel} onChange={function (e) {
+            const nombreSel = areasDisponibles.find(function (a) { return a[0] === e.target.value })?.[1] || ''
+            elegirArea(e.target.value, nombreSel)
+            setEstudianteSel(null)
+          }} disabled={!aulaSel} className="w-full rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-50" style={inputStyle}>
             <option value="">-- Elige --</option>
             {areasDisponibles.map(function ([id, nombre]) { return <option key={id} value={id}>{nombre}</option> })}
           </select>
