@@ -569,7 +569,7 @@ function NotasDeTareasUnidad({ unidad, courseId }) {
 
     const actResult = await supabase
       .from('actividades')
-      .select('id, nombre, numero_actividad, actividad_capacidades(capacidad_id, criterio, desempeno)')
+      .select('id, nombre, numero_actividad, fecha_clase, actividad_capacidades(capacidad_id, criterio, desempeno)')
       .eq('unidad_id', unidad.id)
       .eq('course_id', courseId)
     const actividades = actResult.error ? [] : actResult.data
@@ -579,13 +579,14 @@ function NotasDeTareasUnidad({ unidad, courseId }) {
     if (actIds.length > 0) {
       const assignResult = await supabase
         .from('assignments')
-        .select('id, titulo, actividad_id, assignment_capacidades(capacidad_id)')
+        .select('id, titulo, fecha_entrega, habilitar_notas_clase, actividad_id, assignment_capacidades(capacidad_id)')
         .in('actividad_id', actIds)
       assignments = assignResult.error ? [] : assignResult.data
     }
 
     const assignmentIds = assignments.map(function (a) { return a.id })
     let notaMap = {}
+    let notaClaseMap = {}
     if (assignmentIds.length > 0) {
       const subsResult = await supabase
         .from('submissions')
@@ -610,7 +611,24 @@ function NotasDeTareasUnidad({ unidad, courseId }) {
           })
         }
       }
+
+      const notasClaseResult = await supabase
+        .from('notas_clase')
+        .select('assignment_id, nota')
+        .eq('student_id', session.user.id)
+        .in('assignment_id', assignmentIds)
+      if (!notasClaseResult.error) {
+        notasClaseResult.data.forEach(function (n) { notaClaseMap[n.assignment_id] = n.nota })
+      }
     }
+
+    const ausenciaSet = new Set()
+    const asisResult = await supabase
+      .from('asistencias')
+      .select('fecha')
+      .eq('student_id', session.user.id)
+      .eq('estado', 'ausente')
+    if (!asisResult.error) asisResult.data.forEach(function (a) { ausenciaSet.add(a.fecha) })
 
     const estructura = competencias.map(function (comp) {
       const caps = capacidades.filter(function (c) { return c.competencia_id === comp.id }).map(function (cap) {
@@ -620,13 +638,29 @@ function NotasDeTareasUnidad({ unidad, courseId }) {
           if (!tiene) return
           const actividad = actividades.find(function (act) { return act.id === a.actividad_id })
           const detalle = (actividad?.actividad_capacidades || []).find(function (ac) { return ac.capacidad_id === cap.id })
+
+          const ausente = actividad?.fecha_clase ? ausenciaSet.has(actividad.fecha_clase) : false
+          const notaTareaSola = notaMap[`${cap.id}__${a.id}`] != null ? notaMap[`${cap.id}__${a.id}`] : null
+          let notaTareaEfectiva = notaTareaSola
+          if (notaTareaEfectiva == null && a.fecha_entrega && new Date(a.fecha_entrega) < new Date()) notaTareaEfectiva = 0
+          const notaClaseVal = notaClaseMap[a.id] != null ? notaClaseMap[a.id] : null
+
+          let notaFinal = null
+          if (!ausente) {
+            notaFinal = a.habilitar_notas_clase ? average([notaClaseVal, notaTareaEfectiva]) : notaTareaEfectiva
+          }
+
           instancias.push({
             assignmentId: a.id,
             tituloTarea: a.titulo,
             actividadNumero: actividad?.numero_actividad,
             criterio: detalle?.criterio || '',
             desempeno: detalle?.desempeno || '',
-            nota: notaMap[`${cap.id}__${a.id}`] != null ? notaMap[`${cap.id}__${a.id}`] : null,
+            nota: notaFinal,
+            notaClase: a.habilitar_notas_clase ? notaClaseVal : null,
+            notaTareaSola: notaTareaSola,
+            habilitarNotasClase: !!a.habilitar_notas_clase,
+            ausente: ausente,
           })
         })
         return { ...cap, instancias: instancias, promedioCapacidad: average(instancias.map(function (i) { return i.nota })) }
@@ -676,9 +710,15 @@ function NotasDeTareasUnidad({ unidad, courseId }) {
                                 <button className="underline decoration-dotted" style={{ color: '#8a5cb0' }} onClick={function () { toggle(keyD) }}>Desempeño</button>
                               </span>
                               <span className={'font-bold ' + getLetterColor(inst.nota)}>
-                                {inst.nota != null ? getLetterGrade(inst.nota) : '—'}
+                                {inst.ausente ? '—' : (inst.nota != null ? getLetterGrade(inst.nota) : '—')}
                               </span>
                             </div>
+                            {inst.habilitarNotasClase && !inst.ausente && (
+                              <div className="flex gap-3 mt-1 text-[11px]" style={{ color: '#8a8779' }}>
+                                <span>Nota en clase: <strong style={{ color: NAVY_DARK }}>{inst.notaClase != null ? inst.notaClase : '—'}</strong></span>
+                                <span>Nota de tarea: <strong style={{ color: NAVY_DARK }}>{inst.notaTareaSola != null ? inst.notaTareaSola : '—'}</strong></span>
+                              </div>
+                            )}
                             {abierto === keyC && (
                               <div className="mt-1 p-2 rounded" style={{ backgroundColor: '#DEEBF7', color: NAVY_DARK }}>{inst.criterio || 'Sin criterio registrado.'}</div>
                             )}
@@ -792,7 +832,7 @@ function NotasDeAsignatura({ courseId }) {
 
     const actResult = await supabase
       .from('actividades')
-      .select('id, nombre, numero_actividad, unidad_id, actividad_capacidades(capacidad_id, criterio, desempeno)')
+      .select('id, nombre, numero_actividad, unidad_id, fecha_clase, actividad_capacidades(capacidad_id, criterio, desempeno)')
       .eq('course_id', courseId)
     const actividades = actResult.error ? [] : actResult.data
     const actIds = actividades.map(function (a) { return a.id })
@@ -809,13 +849,14 @@ function NotasDeAsignatura({ courseId }) {
     if (actIds.length > 0) {
       const assignResult = await supabase
         .from('assignments')
-        .select('id, titulo, actividad_id, assignment_capacidades(capacidad_id)')
+        .select('id, titulo, fecha_entrega, habilitar_notas_clase, actividad_id, assignment_capacidades(capacidad_id)')
         .in('actividad_id', actIds)
       assignments = assignResult.error ? [] : assignResult.data
     }
 
     const assignmentIds = assignments.map(function (a) { return a.id })
     let notaMap = {}
+    let notaClaseMap = {}
     if (assignmentIds.length > 0) {
       const subsResult = await supabase
         .from('submissions')
@@ -840,7 +881,24 @@ function NotasDeAsignatura({ courseId }) {
           })
         }
       }
+
+      const notasClaseResult = await supabase
+        .from('notas_clase')
+        .select('assignment_id, nota')
+        .eq('student_id', session.user.id)
+        .in('assignment_id', assignmentIds)
+      if (!notasClaseResult.error) {
+        notasClaseResult.data.forEach(function (n) { notaClaseMap[n.assignment_id] = n.nota })
+      }
     }
+
+    const ausenciaSet = new Set()
+    const asisResult = await supabase
+      .from('asistencias')
+      .select('fecha')
+      .eq('student_id', session.user.id)
+      .eq('estado', 'ausente')
+    if (!asisResult.error) asisResult.data.forEach(function (a) { ausenciaSet.add(a.fecha) })
 
     function estructuraParaActividades(actividadesDeUnidad) {
       return competencias.map(function (comp) {
@@ -852,13 +910,29 @@ function NotasDeAsignatura({ courseId }) {
             const tiene = (a.assignment_capacidades || []).some(function (ac) { return ac.capacidad_id === cap.id })
             if (!tiene) return
             const detalle = (actividad.actividad_capacidades || []).find(function (ac) { return ac.capacidad_id === cap.id })
+
+            const ausente = actividad.fecha_clase ? ausenciaSet.has(actividad.fecha_clase) : false
+            const notaTareaSola = notaMap[`${cap.id}__${a.id}`] != null ? notaMap[`${cap.id}__${a.id}`] : null
+            let notaTareaEfectiva = notaTareaSola
+            if (notaTareaEfectiva == null && a.fecha_entrega && new Date(a.fecha_entrega) < new Date()) notaTareaEfectiva = 0
+            const notaClaseVal = notaClaseMap[a.id] != null ? notaClaseMap[a.id] : null
+
+            let notaFinal = null
+            if (!ausente) {
+              notaFinal = a.habilitar_notas_clase ? average([notaClaseVal, notaTareaEfectiva]) : notaTareaEfectiva
+            }
+
             instancias.push({
               assignmentId: a.id,
               tituloTarea: a.titulo,
               actividadNumero: actividad.numero_actividad,
               criterio: detalle?.criterio || '',
               desempeno: detalle?.desempeno || '',
-              nota: notaMap[`${cap.id}__${a.id}`] != null ? notaMap[`${cap.id}__${a.id}`] : null,
+              nota: notaFinal,
+              notaClase: a.habilitar_notas_clase ? notaClaseVal : null,
+              notaTareaSola: notaTareaSola,
+              habilitarNotasClase: !!a.habilitar_notas_clase,
+              ausente: ausente,
             })
           })
           return { ...cap, instancias: instancias, promedioCapacidad: average(instancias.map(function (i) { return i.nota })) }
@@ -921,9 +995,15 @@ function NotasDeAsignatura({ courseId }) {
                                         <button className="underline decoration-dotted" style={{ color: '#8a5cb0' }} onClick={function () { toggle(keyD) }}>Desempeño</button>
                                       </span>
                                       <span className={'font-bold ' + getLetterColor(inst.nota)}>
-                                        {inst.nota != null ? getLetterGrade(inst.nota) : '—'}
+                                        {inst.ausente ? '—' : (inst.nota != null ? getLetterGrade(inst.nota) : '—')}
                                       </span>
                                     </div>
+                                    {inst.habilitarNotasClase && !inst.ausente && (
+                                      <div className="flex gap-3 mt-1 text-[11px]" style={{ color: '#8a8779' }}>
+                                        <span>Nota en clase: <strong style={{ color: NAVY_DARK }}>{inst.notaClase != null ? inst.notaClase : '—'}</strong></span>
+                                        <span>Nota de tarea: <strong style={{ color: NAVY_DARK }}>{inst.notaTareaSola != null ? inst.notaTareaSola : '—'}</strong></span>
+                                      </div>
+                                    )}
                                     {abierto === keyC && (
                                       <div className="mt-1 p-2 rounded" style={{ backgroundColor: '#DEEBF7', color: NAVY_DARK }}>{inst.criterio || 'Sin criterio registrado.'}</div>
                                     )}
