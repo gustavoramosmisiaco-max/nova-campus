@@ -1502,6 +1502,7 @@ function NotasClasePorActividad({ actividad }) {
   const [estudiantes, setEstudiantes] = useState([])
   const [notas, setNotas] = useState({}) // studentId__capacidadId -> nota
   const [guardandoKey, setGuardandoKey] = useState(null)
+  const [errorGuardado, setErrorGuardado] = useState('')
 
   const capacidades = (actividad.actividad_capacidades || [])
     .map(function (ac) { return ac.capacidad })
@@ -1538,16 +1539,23 @@ function NotasClasePorActividad({ actividad }) {
     const valor = valorStr === '' ? null : Number(valorStr)
     if (valor != null && (isNaN(valor) || valor < 0 || valor > 20)) return
     setGuardandoKey(key)
+    setErrorGuardado('')
 
+    let result
     if (valor == null) {
-      await supabase.from('notas_clase').delete().eq('actividad_id', actividad.id).eq('capacidad_id', capacidadId).eq('student_id', studentId)
+      result = await supabase.from('notas_clase').delete().eq('actividad_id', actividad.id).eq('capacidad_id', capacidadId).eq('student_id', studentId)
     } else {
-      await supabase.from('notas_clase').upsert(
+      result = await supabase.from('notas_clase').upsert(
         { actividad_id: actividad.id, capacidad_id: capacidadId, student_id: studentId, nota: valor, updated_at: new Date().toISOString() },
         { onConflict: 'actividad_id,capacidad_id,student_id' }
       )
     }
-    setNotas(function (prev) { return { ...prev, [key]: valor } })
+
+    if (result.error) {
+      setErrorGuardado('No se guardó: ' + result.error.message)
+    } else {
+      setNotas(function (prev) { return { ...prev, [key]: valor } })
+    }
     setGuardandoKey(null)
   }
 
@@ -1561,6 +1569,7 @@ function NotasClasePorActividad({ actividad }) {
           Aquí puedes calificar solo con nota de clase, sin necesidad de crear una tarea. Si más adelante creas una tarea para esta Actividad con "Notas de clase" habilitado, esa nota se maneja aparte, por tarea.
         </p>
       </div>
+      {errorGuardado && <p className="text-sm text-red-500 mb-3">{errorGuardado}</p>}
 
       <div className="bg-white rounded-2xl overflow-x-auto" style={{ border: '1px solid #E5E9F0' }}>
         <table className="w-full text-sm">
