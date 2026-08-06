@@ -27,7 +27,13 @@ export default function HabilitarCursos() {
       .select('id, nombre, grado, grupo, activo, institucion_id, instituciones_educativas(nombre), asignaturas(nombre, area_id, areas_curriculares(nombre))')
       .order('grado')
       .order('grupo')
-    if (!result.error) setCourses(result.data)
+    if (!result.error) {
+      setCourses(result.data)
+      const institucionesIds = [...new Set(result.data.map(function (c) { return c.institucion_id || 'sin-institucion' }))]
+      if (institucionesIds.length === 1 && !institucionSel) {
+        setInstitucionSel(institucionesIds[0])
+      }
+    }
     setLoading(false)
   }
 
