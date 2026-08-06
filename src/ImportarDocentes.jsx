@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import ExcelJS from 'exceljs'
-import { compararPorApellido } from './gradeUtils'
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
@@ -38,44 +37,10 @@ export default function ImportarDocentes() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [resultados, setResultados] = useState(null)
-  const [docentes, setDocentes] = useState([])
-  const [loadingDocentes, setLoadingDocentes] = useState(true)
-  const [deletingId, setDeletingId] = useState(null)
 
   useEffect(function () {
     loadAreas()
-    loadDocentes()
   }, [])
-
-  async function loadDocentes() {
-    setLoadingDocentes(true)
-    const result = await supabase
-      .from('profiles')
-      .select('id, full_name')
-      .eq('role', 'docente')
-      .order('full_name', { ascending: true })
-    if (!result.error) {
-      const ordenados = [...result.data].sort(function (a, b) { return compararPorApellido(a.full_name, b.full_name) })
-      setDocentes(ordenados)
-    }
-    setLoadingDocentes(false)
-  }
-
-  async function handleDeleteDocente(id, nombre) {
-    if (!confirm(`¿Eliminar la cuenta de "${nombre}"? Esta acción no se puede deshacer.`)) return
-    setDeletingId(id)
-    const { data, error: fnError } = await supabase.functions.invoke('delete-user', {
-      body: { userId: id },
-    })
-    if (fnError) {
-      alert('Error al eliminar: ' + fnError.message)
-    } else if (data.error) {
-      alert('Error al eliminar: ' + data.error)
-    } else {
-      setDocentes(function (prev) { return prev.filter(function (d) { return d.id !== id }) })
-    }
-    setDeletingId(null)
-  }
 
   async function loadAreas() {
     const result = await supabase.from('areas_curriculares').select('*').order('orden', { ascending: true })
@@ -121,7 +86,6 @@ export default function ImportarDocentes() {
     }
 
     setResultados(data.resultados)
-    loadDocentes()
     setLoading(false)
   }
 
@@ -249,45 +213,6 @@ export default function ImportarDocentes() {
           </div>
         </div>
       )}
-
-      <div className="bg-white rounded-2xl p-6 mt-6" style={{ border: '1px solid #E5E9F0' }}>
-        <h3 className="text-sm font-bold mb-4" style={{ color: NAVY_DARK }}>
-          Docentes registrados {!loadingDocentes && `(${docentes.length})`}
-        </h3>
-        {loadingDocentes ? (
-          <p className="text-slate-400 text-sm">Cargando...</p>
-        ) : docentes.length === 0 ? (
-          <p className="text-slate-400 text-sm">Aún no hay docentes registrados.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: '1px solid #E5E9F0' }}>
-                <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Nombre</th>
-                <th className="text-right py-2 font-semibold" style={{ color: NAVY_DARK }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {docentes.map(function (d) {
-                return (
-                  <tr key={d.id} style={{ borderBottom: '1px solid #F4F6F9' }}>
-                    <td className="py-2 pr-3" style={{ color: NAVY_DARK }}>{d.full_name}</td>
-                    <td className="py-2 text-right">
-                      <button
-                        onClick={function () { handleDeleteDocente(d.id, d.full_name) }}
-                        disabled={deletingId === d.id}
-                        className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
-                        style={{ backgroundColor: '#B91C1C' }}
-                      >
-                        {deletingId === d.id ? 'Eliminando...' : 'Eliminar'}
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
     </div>
   )
 }
