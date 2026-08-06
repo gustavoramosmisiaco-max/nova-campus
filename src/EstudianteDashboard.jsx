@@ -6,6 +6,7 @@ import WelcomeAnimation from './WelcomeAnimation'
 import FarewellAnimation from './FarewellAnimation'
 import ComunicadoPopup from './ComunicadoPopup'
 import ErrorBoundary from './ErrorBoundary'
+import FondoEstrellas from './FondoEstrellas'
 
 const MyCourses = lazy(function () { return import('./MyCourses') })
 const StudentGrades = lazy(function () { return import('./StudentGrades') })
@@ -58,17 +59,18 @@ export default function EstudianteDashboard() {
 
       {/* Sidebar de escritorio — siempre visible, sin ninguna condición */}
       <aside
-        className="w-64 flex-shrink-0 flex-col hidden md:flex"
+        className="relative w-64 flex-shrink-0 flex-col hidden md:flex overflow-hidden"
         style={{ backgroundColor: NAVY_DARK }}
       >
-        <div className="flex items-center gap-3 px-6 py-6 border-b border-white/10">
+        <FondoEstrellas variante="oscuro" />
+        <div className="relative flex items-center gap-3 px-6 py-6 border-b border-white/10" style={{ zIndex: 1 }}>
           <img src="/logo.png" alt="Nexoris Academy" className="w-10 h-10 object-contain rounded-full bg-white p-1" />
           <div>
             <p className="text-white font-bold leading-tight">Nexoris Academy</p>
             <p className="text-xs" style={{ color: GREEN }}>Panel Estudiante</p>
           </div>
         </div>
-        <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
+        <nav className="relative flex-1 px-3 py-6 space-y-1 overflow-y-auto" style={{ zIndex: 1 }}>
           {menuItems.map(function (item) {
             const Icon = item.icon
             const active = activeSection === item.id
@@ -85,7 +87,7 @@ export default function EstudianteDashboard() {
             )
           })}
         </nav>
-        <div className="px-4 py-5 border-t border-white/10">
+        <div className="relative px-4 py-5 border-t border-white/10" style={{ zIndex: 1 }}>
           <button
             onClick={handleLogoutConDespedida}
             className="w-full flex items-center justify-center gap-2 text-sm font-semibold rounded-xl py-2.5 transition hover:opacity-90"
@@ -199,7 +201,12 @@ export default function EstudianteDashboard() {
         </header>
 
         {/* Contenido */}
-        <main className="flex-1 p-6 md:p-10">
+        <main
+          className="relative flex-1 p-6 md:p-10 overflow-hidden"
+          style={{ background: 'linear-gradient(180deg, #FFFFFF 0%, #FAFBFD 35%, #F5F7FB 70%, #F2F5FA 100%)' }}
+        >
+          <FondoEstrellas variante="claro" />
+          <div className="relative" style={{ zIndex: 1 }}>
           <ErrorBoundary key={activeSection}>
             <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
               {activeSection === 'inicio' && <PanelInicioEstudiante onNavegar={function (tab) { setActiveSection(tab) }} />}
@@ -214,6 +221,7 @@ export default function EstudianteDashboard() {
               )}
             </Suspense>
           </ErrorBoundary>
+          </div>
         </main>
       </div>
     </div>
