@@ -63,11 +63,11 @@ export default function DocenteDashboard() {
   const menuItems = [
     { id: 'inicio', label: 'Inicio', icon: HomeIcon },
     { id: 'cursos', label: 'Mis Asignaturas', icon: BookIcon },
-    { id: 'horario', label: 'Mi Horario', icon: CalendarIcon },
     { id: 'tareas', label: 'Mis Tareas', icon: ClipboardIcon },
+    { id: 'mensajes', label: 'Mensajes', icon: MessageIcon },
+    { id: 'horario', label: 'Mi Horario', icon: CalendarIcon },
     { id: 'conducta', label: 'Registro de Conducta', icon: AlertIcon },
     { id: 'comunicados', label: 'Comunicados', icon: MegaphoneIcon },
-    { id: 'mensajes', label: 'Mensajes', icon: MessageIcon },
   ]
 
   const initials = (profile?.full_name || 'DO')
