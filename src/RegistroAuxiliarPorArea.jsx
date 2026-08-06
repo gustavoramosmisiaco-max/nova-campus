@@ -481,10 +481,10 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
           cap.instancias.forEach(function (inst) {
             const ausente = estuvoAusente(s.id, inst.fechaClase)
             const nota = ausente ? null : notaTarea(s.id, inst.assignmentId, cap.id)
-            const letra = ausente ? 'F' : (nota != null ? getLetterGrade(nota) : '—')
+            const letra = ausente ? '—' : (nota != null ? getLetterGrade(nota) : '—')
             const cell = row.getCell(c)
             cell.value = letra
-            cell.font = { bold: true, color: { argb: ausente ? 'FFB91C1C' : (nota != null ? NIVEL_COLOR_ARGB[letra] : 'FF94A3B8') } }
+            cell.font = { bold: true, color: { argb: nota != null && !ausente ? NIVEL_COLOR_ARGB[letra] : 'FF94A3B8' } }
             cell.alignment = { horizontal: 'center' }
             c++
           })
@@ -881,7 +881,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
                                 return (
                                   <td key={inst.assignmentId + '_' + s.id} className="p-2 text-center" style={{ border: '1px solid #E5E9F0' }}>
                                     {ausente ? (
-                                      <span className="font-semibold" style={{ color: '#B91C1C' }} title="Ausente ese día, no se evalúa">F</span>
+                                      <span style={{ color: '#CBD5E1' }} title="Ausente ese día, no se evalúa">—</span>
                                     ) : nota != null ? (
                                       <span className={'font-semibold ' + getLetterColor(nota)}>{getLetterGrade(nota)}</span>
                                     ) : (
