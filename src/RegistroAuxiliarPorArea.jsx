@@ -139,7 +139,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
     if (unidadIds.length > 0) {
       const actResult = await supabase
         .from('actividades')
-        .select('id, nombre, numero_actividad, unidad_id, course_id, actividad_capacidades(capacidad_id, criterio, desempeno)')
+        .select('id, nombre, numero_actividad, unidad_id, course_id, fecha_clase, actividad_capacidades(capacidad_id, criterio, desempeno)')
         .in('unidad_id', unidadIds)
       actividades = actResult.error ? [] : actResult.data
 
@@ -173,6 +173,25 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
       }
     }
     setStudents(studentsList)
+
+    // Inasistencias sin justificar (para dejar en blanco las casillas de esos días)
+    let ausenciaMap = {} // studentId__fecha -> true
+    if (studentsList.length > 0) {
+      const studentIds = studentsList.map(function (s) { return s.id })
+      const asisResult = await supabase
+        .from('asistencias')
+        .select('student_id, fecha')
+        .eq('area_id', areaId)
+        .eq('grado', grado)
+        .eq('grupo', grupo)
+        .eq('estado', 'ausente')
+        .in('student_id', studentIds)
+      if (!asisResult.error) {
+        asisResult.data.forEach(function (a) {
+          ausenciaMap[`${a.student_id}__${a.fecha}`] = true
+        })
+      }
+    }
 
     // Notas de tareas (publicadas)
     const assignmentIds = assignments.map(function (a) { return a.id })
@@ -236,6 +255,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
               tituloTarea: a.titulo,
               actividadNombre: actividad?.nombre,
               actividadNumero: actividad?.numero_actividad,
+              fechaClase: actividad?.fecha_clase || null,
               asignaturaAbrev: mapaAbreviaturas[actividad?.course_id] || '',
               criterio: detalleCap?.criterio || '',
               desempeno: detalleCap?.desempeno || '',
@@ -261,6 +281,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
       totalEstudiantes: studentsList.length,
       cierreMap: cierreMap,
       notaTareaMap: notaTareaMap,
+      ausenciaMap: ausenciaMap,
     })
 
     setLoading(false)
@@ -271,13 +292,21 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
     return v != null ? v : null
   }
 
+  function estuvoAusente(studentId, fechaClase) {
+    if (!fechaClase) return false
+    return !!ficha?.ausenciaMap?.[`${studentId}__${fechaClase}`]
+  }
+
   function notaCierre(studentId, competenciaId) {
     const arr = ficha?.cierreMap?.[`${studentId}__${competenciaId}`]
     return arr ? average(arr) : null
   }
 
   function promedioCapacidad(studentId, cap) {
-    const notas = cap.instancias.map(function (inst) { return notaTarea(studentId, inst.assignmentId, cap.id) })
+    const notas = cap.instancias.map(function (inst) {
+      if (estuvoAusente(studentId, inst.fechaClase)) return null
+      return notaTarea(studentId, inst.assignmentId, cap.id)
+    })
     return average(notas)
   }
 
@@ -450,11 +479,12 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
         comp.capacidades.forEach(function (cap) {
           if (cap.instancias.length === 0) { c++; c++; return }
           cap.instancias.forEach(function (inst) {
-            const nota = notaTarea(s.id, inst.assignmentId, cap.id)
-            const letra = nota != null ? getLetterGrade(nota) : '—'
+            const ausente = estuvoAusente(s.id, inst.fechaClase)
+            const nota = ausente ? null : notaTarea(s.id, inst.assignmentId, cap.id)
+            const letra = ausente ? 'F' : (nota != null ? getLetterGrade(nota) : '—')
             const cell = row.getCell(c)
             cell.value = letra
-            cell.font = { bold: true, color: { argb: nota != null ? NIVEL_COLOR_ARGB[letra] : 'FF94A3B8' } }
+            cell.font = { bold: true, color: { argb: ausente ? 'FFB91C1C' : (nota != null ? NIVEL_COLOR_ARGB[letra] : 'FF94A3B8') } }
             cell.alignment = { horizontal: 'center' }
             c++
           })
@@ -845,11 +875,14 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
                             const provCap = promedioCapacidad(s.id, cap)
                             const celdasActividad = cap.instancias.length === 0
                               ? [<td key={cap.id + '_' + s.id} style={{ border: '1px solid #E5E9F0' }}></td>]
-                              : cap.instancias.map(function (inst) {
-                                const nota = notaTarea(s.id, inst.assignmentId, cap.id)
+                                              : cap.instancias.map(function (inst) {
+                                const ausente = estuvoAusente(s.id, inst.fechaClase)
+                                const nota = ausente ? null : notaTarea(s.id, inst.assignmentId, cap.id)
                                 return (
                                   <td key={inst.assignmentId + '_' + s.id} className="p-2 text-center" style={{ border: '1px solid #E5E9F0' }}>
-                                    {nota != null ? (
+                                    {ausente ? (
+                                      <span className="font-semibold" style={{ color: '#B91C1C' }} title="Ausente ese día, no se evalúa">F</span>
+                                    ) : nota != null ? (
                                       <span className={'font-semibold ' + getLetterColor(nota)}>{getLetterGrade(nota)}</span>
                                     ) : (
                                       <span style={{ color: '#CBD5E1' }}>—</span>

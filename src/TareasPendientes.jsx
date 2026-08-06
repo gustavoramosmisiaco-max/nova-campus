@@ -60,7 +60,7 @@ export default function TareasPendientes() {
 
     const assignResult = await supabase
       .from('assignments')
-      .select('id, titulo, tema, fecha_entrega, course_id, actividad_id, tipo_entrega, actividad:actividades(nombre, numero_actividad, unidad:unidades(tipo, numero, finalizada))')
+      .select('id, titulo, tema, fecha_entrega, course_id, actividad_id, tipo_entrega, actividad:actividades(nombre, numero_actividad, unidad:unidades(id, tipo, numero, finalizada))')
       .in('course_id', courseIds)
       .order('fecha_entrega', { ascending: true })
 
@@ -94,6 +94,13 @@ export default function TareasPendientes() {
       }
     }
 
+    const asisResult = await supabase
+      .from('asistencias')
+      .select('unidad_id')
+      .eq('student_id', session.user.id)
+      .eq('estado', 'justificado')
+    const unidadesConAsistenciaJustificada = new Set((asisResult.data || []).map(function (a) { return a.unidad_id }).filter(Boolean))
+
     const now = new Date()
     const pend = []
     const venc = []
@@ -114,8 +121,8 @@ export default function TareasPendientes() {
         return
       }
 
-      if (justificacion?.estado === 'aprobada') {
-        hab.push({ ...item, justificacion })
+      if (justificacion?.estado === 'aprobada' || unidadesConAsistenciaJustificada.has(a.actividad?.unidad?.id)) {
+        hab.push({ ...item, justificacion: justificacion || { estado: 'aprobada', motivo: 'Inasistencia justificada en esta Unidad' } })
       } else if (justificacion?.estado === 'pendiente') {
         rev.push({ ...item, justificacion })
       } else {

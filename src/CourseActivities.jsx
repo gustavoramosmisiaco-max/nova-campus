@@ -360,6 +360,7 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
   const [editingId, setEditingId] = useState(null)
 
   const [nombre, setNombre] = useState('')
+  const [fechaClase, setFechaClase] = useState('')
   const [tipoInstrumento, setTipoInstrumento] = useState('Lista de cotejo')
   const [proposito, setProposito] = useState('')
   const [competenciaId, setCompetenciaId] = useState('')
@@ -404,6 +405,7 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
   function resetForm() {
     setEditingId(null)
     setNombre('')
+    setFechaClase('')
     setTipoInstrumento('Lista de cotejo')
     setProposito('')
     setCompetenciaId('')
@@ -419,6 +421,7 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
   async function openEdit(a) {
     setEditingId(a.id)
     setNombre(a.nombre)
+    setFechaClase(a.fecha_clase || '')
     setTipoInstrumento(a.tipo_instrumento || 'Lista de cotejo')
     setProposito(a.proposito || '')
     const compId = a.competencia ? competencias.find(function (c) { return c.nombre === a.competencia.nombre })?.id : ''
@@ -461,6 +464,7 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
       numero_unidad: String(unidad.numero),
       numero_actividad: numeroActividad,
       nombre: nombre,
+      fecha_clase: fechaClase || null,
       tipo_instrumento: tipoInstrumento,
       proposito: proposito,
       competencia_id: competenciaId || null,
@@ -561,6 +565,12 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
             <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Nombre de la actividad</label>
             <input type="text" value={nombre} onChange={function (e) { setNombre(e.target.value) }} required
               placeholder="Ej: La célula y sus funciones" className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Fecha de clase (opcional)</label>
+            <input type="date" value={fechaClase} onChange={function (e) { setFechaClase(e.target.value) }}
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
+            <p className="text-xs text-slate-400 mt-1">Si el estudiante faltó ese día (sin justificar), su casilla en el Registro Auxiliar queda en blanco.</p>
           </div>
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Instrumento de evaluación</label>
