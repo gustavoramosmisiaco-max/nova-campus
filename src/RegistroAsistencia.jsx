@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 import { useDocenteContextoActivo } from './DocenteContextoActivo'
 import { compararPorApellido } from './gradeUtils'
+import jsPDF from 'jspdf'
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
@@ -25,7 +26,7 @@ export default function RegistroAsistencia() {
 
   const [loading, setLoading] = useState(true)
   const [misCursos, setMisCursos] = useState([])
-  const [tab, setTab] = useState('registrar') // 'registrar' | 'justificaciones'
+  const [tab, setTab] = useState('registrar') // 'registrar' | 'justificaciones' | 'reporte'
 
   const [unidades, setUnidades] = useState([])
   const [feriados, setFeriados] = useState([])
@@ -39,6 +40,10 @@ export default function RegistroAsistencia() {
 
   const [pendientes, setPendientes] = useState([])
   const [loadingPendientes, setLoadingPendientes] = useState(false)
+
+  const [reporteData, setReporteData] = useState([])
+  const [loadingReporte, setLoadingReporte] = useState(false)
+  const [busquedaEstudiante, setBusquedaEstudiante] = useState('')
 
   useEffect(function () {
     cargarMisCursos()
@@ -59,6 +64,12 @@ export default function RegistroAsistencia() {
   useEffect(function () {
     if (tab === 'justificaciones' && aulaSel && areaId) {
       cargarPendientes()
+    }
+  }, [tab, aulaSel, areaId])
+
+  useEffect(function () {
+    if (tab === 'reporte' && aulaSel && areaId) {
+      cargarReporte()
     }
   }, [tab, aulaSel, areaId])
 
@@ -141,6 +152,97 @@ export default function RegistroAsistencia() {
       .order('fecha', { ascending: false })
     if (!result.error) setPendientes(result.data)
     setLoadingPendientes(false)
+  }
+
+  async function cargarReporte() {
+    setLoadingReporte(true)
+    const [grado, grupo] = aulaSel.split('__')
+
+    const enrollResult = await supabase
+      .from('enrollments')
+      .select('student:profiles(id, full_name), course:courses!inner(grado, grupo, asignaturas!inner(area_id))')
+      .eq('status', 'activo')
+      .eq('course.grado', grado)
+      .eq('course.grupo', grupo)
+      .eq('course.asignaturas.area_id', areaId)
+    const listaEstudiantes = enrollResult.error ? [] : [...new Map(
+      enrollResult.data.map(function (e) { return [e.student.id, e.student] })
+    ).values()]
+    listaEstudiantes.sort(function (a, b) { return compararPorApellido(a.full_name, b.full_name) })
+
+    const asisResult = await supabase
+      .from('asistencias')
+      .select('student_id, fecha, estado')
+      .eq('area_id', areaId)
+      .eq('grado', grado)
+      .eq('grupo', grupo)
+
+    const porEstudiante = {}
+    listaEstudiantes.forEach(function (s) {
+      porEstudiante[s.id] = { nombre: s.full_name, ausentes: 0, justificadas: 0 }
+    })
+    ;(asisResult.data || []).forEach(function (a) {
+      if (!porEstudiante[a.student_id]) return
+      if (a.estado === 'justificado') porEstudiante[a.student_id].justificadas++
+      else porEstudiante[a.student_id].ausentes++
+    })
+
+    const data = Object.values(porEstudiante).map(function (e) {
+      const totalFaltas = e.ausentes + e.justificadas
+      return { ...e, totalFaltas: totalFaltas }
+    })
+    data.sort(function (a, b) { return b.totalFaltas - a.totalFaltas })
+    setReporteData(data)
+    setLoadingReporte(false)
+  }
+
+  function handleExportarPDF() {
+    const doc = new jsPDF({ format: 'a4', unit: 'mm' })
+    const pageWidth = doc.internal.pageSize.getWidth()
+    let y = 15
+
+    doc.setFontSize(13)
+    doc.setFont(undefined, 'bold')
+    doc.text('Reporte de Asistencia', pageWidth / 2, y, { align: 'center' })
+    y += 7
+    doc.setFontSize(10)
+    doc.setFont(undefined, 'normal')
+    doc.text(`${areaNombre} — ${gradoLabel(aulaSel.split('__')[0])}, Sección ${aulaSel.split('__')[1]}`, pageWidth / 2, y, { align: 'center' })
+    y += 5
+    doc.text(new Date().toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' }), pageWidth / 2, y, { align: 'center' })
+    y += 10
+
+    const maxFaltas = Math.max(1, ...reporteData.map(function (e) { return e.totalFaltas }))
+    const barMaxWidth = pageWidth - 100
+
+    reporteData.forEach(function (e) {
+      if (y > 265) { doc.addPage(); y = 15 }
+      doc.setFontSize(9)
+      doc.setFont(undefined, 'normal')
+      doc.text(e.nombre, 14, y + 3)
+
+      const anchoAusentes = (e.ausentes / maxFaltas) * barMaxWidth
+      const anchoJustif = (e.justificadas / maxFaltas) * barMaxWidth
+      doc.setFillColor(185, 28, 28)
+      if (anchoAusentes > 0) doc.rect(75, y, anchoAusentes, 4, 'F')
+      doc.setFillColor(180, 83, 9)
+      if (anchoJustif > 0) doc.rect(75 + anchoAusentes, y, anchoJustif, 4, 'F')
+
+      doc.setFontSize(8)
+      doc.text(`${e.totalFaltas}`, 75 + barMaxWidth + 4, y + 3.5)
+      y += 8
+    })
+
+    y += 6
+    doc.setFontSize(8)
+    doc.setFillColor(185, 28, 28)
+    doc.rect(14, y, 4, 4, 'F')
+    doc.text('Sin justificar', 20, y + 3.5)
+    doc.setFillColor(180, 83, 9)
+    doc.rect(60, y, 4, 4, 'F')
+    doc.text('Justificada', 66, y + 3.5)
+
+    doc.save(`Asistencia_${areaNombre.replace(/[^a-zA-Z0-9]+/g, '_')}.pdf`)
   }
 
   function toggleAusente(studentId) {
@@ -250,6 +352,9 @@ export default function RegistroAsistencia() {
             <button onClick={function () { setTab('justificaciones') }} className="px-4 py-2.5 text-sm font-semibold border-b-2 transition" style={tab === 'justificaciones' ? { borderColor: GREEN, color: NAVY_DARK } : { borderColor: 'transparent', color: '#94A3B8' }}>
               Justificaciones {pendientes.length > 0 ? `(${pendientes.length})` : ''}
             </button>
+            <button onClick={function () { setTab('reporte') }} className="px-4 py-2.5 text-sm font-semibold border-b-2 transition" style={tab === 'reporte' ? { borderColor: GREEN, color: NAVY_DARK } : { borderColor: 'transparent', color: '#94A3B8' }}>
+              Reporte de Asistencia
+            </button>
           </div>
 
           {tab === 'registrar' && (
@@ -339,6 +444,113 @@ export default function RegistroAsistencia() {
                 })}
               </ul>
             )
+          )}
+
+          {tab === 'reporte' && (
+            loadingReporte ? (
+              <p className="text-slate-400 text-sm">Cargando reporte...</p>
+            ) : reporteData.length === 0 ? (
+              <p className="text-slate-400 text-sm">No hay estudiantes matriculados en esta aula.</p>
+            ) : (function () {
+              const totalEstudiantes = reporteData.length
+              const totalAusentes = reporteData.reduce(function (a, e) { return a + e.ausentes }, 0)
+              const totalJustificadas = reporteData.reduce(function (a, e) { return a + e.justificadas }, 0)
+              const sinFaltas = reporteData.filter(function (e) { return e.totalFaltas === 0 }).length
+              const maxFaltas = Math.max(1, ...reporteData.map(function (e) { return e.totalFaltas }))
+              const totalFaltasGeneral = totalAusentes + totalJustificadas
+
+              return (
+                <div>
+                  <div className="flex justify-between items-center flex-wrap gap-3 mb-5">
+                    <p className="text-sm text-slate-400">{areaNombre} — {gradoLabel(aulaSel.split('__')[0])}, Sección {aulaSel.split('__')[1]}</p>
+                    <button
+                      onClick={handleExportarPDF}
+                      className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+                      style={{ background: `linear-gradient(90deg, ${NAVY}, ${GREEN})`, boxShadow: '0 8px 20px rgba(37,99,235,0.3)' }}
+                    >
+                      📄 Exportar PDF (A4)
+                    </button>
+                  </div>
+
+                  {/* Tarjetas de resumen */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                    <div className="bg-white rounded-2xl p-4" style={{ border: '1px solid #E5E9F0' }}>
+                      <p className="text-2xl font-semibold" style={{ color: NAVY_DARK }}>{totalEstudiantes}</p>
+                      <p className="text-xs text-slate-400">Estudiantes</p>
+                    </div>
+                    <div className="bg-white rounded-2xl p-4" style={{ border: '1px solid #E5E9F0' }}>
+                      <p className="text-2xl font-semibold" style={{ color: '#16A34A' }}>{sinFaltas}</p>
+                      <p className="text-xs text-slate-400">Sin faltas</p>
+                    </div>
+                    <div className="bg-white rounded-2xl p-4" style={{ border: '1px solid #E5E9F0' }}>
+                      <p className="text-2xl font-semibold" style={{ color: '#B91C1C' }}>{totalAusentes}</p>
+                      <p className="text-xs text-slate-400">Sin justificar</p>
+                    </div>
+                    <div className="bg-white rounded-2xl p-4" style={{ border: '1px solid #E5E9F0' }}>
+                      <p className="text-2xl font-semibold" style={{ color: '#B45309' }}>{totalJustificadas}</p>
+                      <p className="text-xs text-slate-400">Justificadas</p>
+                    </div>
+                  </div>
+
+                  <div className="grid lg:grid-cols-3 gap-5">
+                    {/* Gráfico de barras por estudiante */}
+                    <div className="lg:col-span-2 bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
+                      <p className="text-sm font-bold mb-4" style={{ color: NAVY_DARK }}>Faltas por estudiante</p>
+                      <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
+                        {reporteData.map(function (e) {
+                          const pctAusentes = (e.ausentes / maxFaltas) * 100
+                          const pctJustif = (e.justificadas / maxFaltas) * 100
+                          return (
+                            <div key={e.nombre}>
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-xs font-medium truncate" style={{ color: NAVY_DARK, maxWidth: '65%' }}>{e.nombre}</span>
+                                <span className="text-xs font-semibold" style={{ color: e.totalFaltas > 0 ? '#B91C1C' : '#16A34A' }}>{e.totalFaltas}</span>
+                              </div>
+                              <div className="h-3 rounded-full overflow-hidden flex" style={{ backgroundColor: '#F4F6F9' }}>
+                                {e.ausentes > 0 && <div style={{ width: `${pctAusentes}%`, backgroundColor: '#B91C1C' }} />}
+                                {e.justificadas > 0 && <div style={{ width: `${pctJustif}%`, backgroundColor: '#EF9F27' }} />}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <div className="flex gap-4 mt-4 pt-3 border-t" style={{ borderColor: '#E5E9F0' }}>
+                        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ backgroundColor: '#B91C1C' }} /><span className="text-xs text-slate-500">Sin justificar</span></div>
+                        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ backgroundColor: '#EF9F27' }} /><span className="text-xs text-slate-500">Justificada</span></div>
+                      </div>
+                    </div>
+
+                    {/* Dona de proporción general */}
+                    <div className="bg-white rounded-2xl p-5 flex flex-col items-center justify-center" style={{ border: '1px solid #E5E9F0' }}>
+                      <p className="text-sm font-bold mb-4 self-start" style={{ color: NAVY_DARK }}>Proporción general</p>
+                      {totalFaltasGeneral === 0 ? (
+                        <p className="text-xs text-slate-400 text-center py-8">Sin inasistencias registradas todavía.</p>
+                      ) : (function () {
+                        const pctJustif = (totalJustificadas / totalFaltasGeneral) * 100
+                        const circunferencia = 2 * Math.PI * 45
+                        const largoJustif = (pctJustif / 100) * circunferencia
+                        return (
+                          <>
+                            <svg width="160" height="160" viewBox="0 0 120 120">
+                              <circle cx="60" cy="60" r="45" fill="none" stroke="#B91C1C" strokeWidth="16" />
+                              <circle
+                                cx="60" cy="60" r="45" fill="none" stroke="#EF9F27" strokeWidth="16"
+                                strokeDasharray={`${largoJustif} ${circunferencia}`}
+                                strokeDashoffset="0"
+                                transform="rotate(-90 60 60)"
+                              />
+                              <text x="60" y="55" textAnchor="middle" fontSize="20" fontWeight="600" fill={NAVY_DARK}>{totalFaltasGeneral}</text>
+                              <text x="60" y="72" textAnchor="middle" fontSize="9" fill="#94A3B8">faltas totales</text>
+                            </svg>
+                            <p className="text-xs text-slate-400 mt-3 text-center">{Math.round(pctJustif)}% de las faltas ya están justificadas</p>
+                          </>
+                        )
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              )
+            })()
           )}
         </>
       )}
