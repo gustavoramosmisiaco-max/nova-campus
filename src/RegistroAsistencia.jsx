@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext'
 import { useDocenteContextoActivo } from './DocenteContextoActivo'
 import { compararPorApellido } from './gradeUtils'
 import jsPDF from 'jspdf'
+import ExcelJS from 'exceljs'
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
@@ -42,6 +43,8 @@ export default function RegistroAsistencia() {
   const [loadingPendientes, setLoadingPendientes] = useState(false)
 
   const [reporteData, setReporteData] = useState([])
+  const [estudiantesReporte, setEstudiantesReporte] = useState([])
+  const [unidadReporteId, setUnidadReporteId] = useState('')
   const [loadingReporte, setLoadingReporte] = useState(false)
   const [busquedaEstudiante, setBusquedaEstudiante] = useState('')
 
@@ -71,7 +74,7 @@ export default function RegistroAsistencia() {
     if (tab === 'reporte' && aulaSel && areaId) {
       cargarReporte()
     }
-  }, [tab, aulaSel, areaId])
+  }, [tab, aulaSel, areaId, unidadReporteId])
 
   async function cargarMisCursos() {
     setLoading(true)
@@ -170,12 +173,16 @@ export default function RegistroAsistencia() {
     ).values()]
     listaEstudiantes.sort(function (a, b) { return compararPorApellido(a.full_name, b.full_name) })
 
-    const asisResult = await supabase
+    let asisQuery = supabase
       .from('asistencias')
       .select('student_id, fecha, estado')
       .eq('area_id', areaId)
       .eq('grado', grado)
       .eq('grupo', grupo)
+    if (unidadReporteId) asisQuery = asisQuery.eq('unidad_id', unidadReporteId)
+    const asisResult = await asisQuery
+
+    setEstudiantesReporte(listaEstudiantes)
 
     const porEstudiante = {}
     listaEstudiantes.forEach(function (s) {
@@ -205,6 +212,7 @@ export default function RegistroAsistencia() {
     const doc = new jsPDF({ format: 'a4', unit: 'mm', orientation: 'landscape' })
     const pageWidth = doc.internal.pageSize.getWidth()
     let y = 15
+    const unidadSel = unidades.find(function (u) { return u.id === unidadReporteId })
 
     doc.setFontSize(14)
     doc.setFont(undefined, 'bold')
@@ -213,6 +221,13 @@ export default function RegistroAsistencia() {
     doc.setFontSize(10)
     doc.setFont(undefined, 'normal')
     doc.text(`${areaNombre} — ${gradoLabel(aulaSel.split('__')[0])}, Sección ${aulaSel.split('__')[1]}`, pageWidth / 2, y, { align: 'center' })
+    y += 5
+    doc.text(
+      unidadSel
+        ? `${unidadSel.tipo} ${unidadSel.numero}${unidadSel.nombre ? ' — ' + unidadSel.nombre : ''} · Bimestre ${Math.ceil(unidadSel.numero / 2)}`
+        : 'Todas las Unidades / todo el periodo',
+      pageWidth / 2, y, { align: 'center' }
+    )
     y += 5
     doc.text(`Generado el ${new Date().toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' })}`, pageWidth / 2, y, { align: 'center' })
     y += 10
@@ -270,6 +285,116 @@ export default function RegistroAsistencia() {
     })
 
     doc.save(`Asistencia_${areaNombre.replace(/[^a-zA-Z0-9]+/g, '_')}.pdf`)
+  }
+
+  async function handleExportarExcel() {
+    const unidadSel = unidades.find(function (u) { return u.id === unidadReporteId })
+    const workbook = new ExcelJS.Workbook()
+    const ws = workbook.addWorksheet('Asistencia')
+
+    const tituloUnidad = unidadSel
+      ? `${unidadSel.tipo} ${unidadSel.numero}${unidadSel.nombre ? ' — ' + unidadSel.nombre : ''} · Bimestre ${Math.ceil(unidadSel.numero / 2)}`
+      : 'Todas las Unidades / todo el periodo'
+
+    ws.mergeCells('A1:D1')
+    ws.getCell('A1').value = 'Reporte de Asistencia'
+    ws.getCell('A1').font = { bold: true, size: 14 }
+    ws.mergeCells('A2:D2')
+    ws.getCell('A2').value = `${areaNombre} — ${gradoLabel(aulaSel.split('__')[0])}, Sección ${aulaSel.split('__')[1]}`
+    ws.mergeCells('A3:D3')
+    ws.getCell('A3').value = tituloUnidad
+    ws.mergeCells('A4:D4')
+    ws.getCell('A4').value = `Generado el ${new Date().toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' })}`
+    ws.getCell('A4').font = { italic: true, size: 9, color: { argb: 'FF64748B' } }
+
+    if (unidadSel && unidadSel.fecha_inicio && unidadSel.fecha_fin) {
+      // Cuadrícula día por día dentro de la Unidad seleccionada
+      const fechasClase = []
+      let cursor = new Date(unidadSel.fecha_inicio + 'T00:00:00')
+      const fin = new Date(unidadSel.fecha_fin + 'T00:00:00')
+      while (cursor <= fin) {
+        const fStr = cursor.toISOString().slice(0, 10)
+        const esFeriado = feriados.some(function (f) { return f.fecha === fStr })
+        if (!esFinDeSemana(fStr) && !esFeriado) fechasClase.push(fStr)
+        cursor.setDate(cursor.getDate() + 1)
+      }
+
+      const filaEncabezado = ws.getRow(6)
+      filaEncabezado.getCell(1).value = 'Estudiante'
+      fechasClase.forEach(function (f, i) {
+        filaEncabezado.getCell(2 + i).value = new Date(f + 'T00:00:00').toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit' })
+        filaEncabezado.getCell(2 + i).alignment = { textRotation: 90, horizontal: 'center' }
+      })
+      filaEncabezado.getCell(2 + fechasClase.length).value = 'Total'
+      filaEncabezado.eachCell(function (cell) {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } }
+        cell.alignment = { ...(cell.alignment || {}), vertical: 'middle' }
+      })
+      ws.getColumn(1).width = 30
+      for (let i = 0; i < fechasClase.length; i++) ws.getColumn(2 + i).width = 4
+      ws.getColumn(2 + fechasClase.length).width = 8
+      filaEncabezado.height = 46
+
+      const mapaAsistenciaPorFecha = {}
+      reporteData.forEach(function (e) {
+        mapaAsistenciaPorFecha[e.nombre] = {}
+        e.fechasAusente.forEach(function (f) { mapaAsistenciaPorFecha[e.nombre][f] = 'F' })
+        e.fechasJustificadas.forEach(function (f) { mapaAsistenciaPorFecha[e.nombre][f] = 'J' })
+      })
+
+      reporteData.forEach(function (e, idx) {
+        const row = ws.getRow(7 + idx)
+        row.getCell(1).value = e.nombre
+        fechasClase.forEach(function (f, i) {
+          const marca = mapaAsistenciaPorFecha[e.nombre]?.[f] || 'P'
+          const cell = row.getCell(2 + i)
+          cell.value = marca
+          cell.alignment = { horizontal: 'center' }
+          if (marca === 'F') cell.font = { bold: true, color: { argb: 'FFB91C1C' } }
+          else if (marca === 'J') cell.font = { bold: true, color: { argb: 'FFB45309' } }
+          else cell.font = { color: { argb: 'FF16A34A' } }
+        })
+        row.getCell(2 + fechasClase.length).value = e.totalFaltas
+        row.getCell(2 + fechasClase.length).font = { bold: true }
+        row.getCell(2 + fechasClase.length).alignment = { horizontal: 'center' }
+      })
+
+      ws.getRow(7 + reporteData.length + 2).getCell(1).value = 'P = Presente   F = Falta sin justificar   J = Falta justificada'
+      ws.getRow(7 + reporteData.length + 2).getCell(1).font = { italic: true, size: 9, color: { argb: 'FF64748B' } }
+    } else {
+      // Sin Unidad específica: tabla resumen con fechas en texto
+      const filaEncabezado = ws.getRow(6)
+      ;['Estudiante', 'Total faltas', 'Fechas sin justificar', 'Fechas justificadas'].forEach(function (t, i) {
+        filaEncabezado.getCell(1 + i).value = t
+        filaEncabezado.getCell(1 + i).font = { bold: true, color: { argb: 'FFFFFFFF' } }
+        filaEncabezado.getCell(1 + i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } }
+      })
+      ws.getColumn(1).width = 30
+      ws.getColumn(2).width = 12
+      ws.getColumn(3).width = 40
+      ws.getColumn(4).width = 40
+
+      reporteData.forEach(function (e, idx) {
+        const row = ws.getRow(7 + idx)
+        row.getCell(1).value = e.nombre
+        row.getCell(2).value = e.totalFaltas
+        row.getCell(2).alignment = { horizontal: 'center' }
+        row.getCell(3).value = e.fechasAusente.slice().sort().map(function (f) { return new Date(f + 'T00:00:00').toLocaleDateString('es-PE') }).join(', ') || '—'
+        row.getCell(3).font = { color: { argb: 'FFB91C1C' } }
+        row.getCell(4).value = e.fechasJustificadas.slice().sort().map(function (f) { return new Date(f + 'T00:00:00').toLocaleDateString('es-PE') }).join(', ') || '—'
+        row.getCell(4).font = { color: { argb: 'FFB45309' } }
+      })
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Asistencia_${areaNombre.replace(/[^a-zA-Z0-9]+/g, '_')}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   function toggleAusente(studentId) {
@@ -489,14 +614,31 @@ export default function RegistroAsistencia() {
               return (
                 <div>
                   <div className="flex justify-between items-center flex-wrap gap-3 mb-5">
-                    <p className="text-sm text-slate-400">{areaNombre} — {gradoLabel(aulaSel.split('__')[0])}, Sección {aulaSel.split('__')[1]}</p>
-                    <button
-                      onClick={handleExportarPDF}
-                      className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
-                      style={{ background: `linear-gradient(90deg, ${NAVY}, ${GREEN})`, boxShadow: '0 8px 20px rgba(37,99,235,0.3)' }}
-                    >
-                      📄 Exportar PDF (A4)
-                    </button>
+                    <div>
+                      <p className="text-sm text-slate-400 mb-2">{areaNombre} — {gradoLabel(aulaSel.split('__')[0])}, Sección {aulaSel.split('__')[1]}</p>
+                      <select value={unidadReporteId} onChange={function (e) { setUnidadReporteId(e.target.value) }} className="rounded-lg px-3 py-1.5 text-xs outline-none" style={inputStyle}>
+                        <option value="">Todas las Unidades / todo el periodo</option>
+                        {unidades.map(function (u) {
+                          return <option key={u.id} value={u.id}>{u.tipo} {u.numero}{u.nombre ? ' — ' + u.nombre : ''} · Bimestre {Math.ceil(u.numero / 2)}</option>
+                        })}
+                      </select>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleExportarExcel}
+                        className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+                        style={{ backgroundColor: '#16A34A' }}
+                      >
+                        📊 Exportar Excel
+                      </button>
+                      <button
+                        onClick={handleExportarPDF}
+                        className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+                        style={{ background: `linear-gradient(90deg, ${NAVY}, ${GREEN})`, boxShadow: '0 8px 20px rgba(37,99,235,0.3)' }}
+                      >
+                        📄 Exportar PDF (A4)
+                      </button>
+                    </div>
                   </div>
 
                   {/* Tarjetas de resumen */}
