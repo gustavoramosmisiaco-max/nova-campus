@@ -179,12 +179,17 @@ export default function RegistroAsistencia() {
 
     const porEstudiante = {}
     listaEstudiantes.forEach(function (s) {
-      porEstudiante[s.id] = { nombre: s.full_name, ausentes: 0, justificadas: 0 }
+      porEstudiante[s.id] = { nombre: s.full_name, ausentes: 0, justificadas: 0, fechasAusente: [], fechasJustificadas: [] }
     })
     ;(asisResult.data || []).forEach(function (a) {
       if (!porEstudiante[a.student_id]) return
-      if (a.estado === 'justificado') porEstudiante[a.student_id].justificadas++
-      else porEstudiante[a.student_id].ausentes++
+      if (a.estado === 'justificado') {
+        porEstudiante[a.student_id].justificadas++
+        porEstudiante[a.student_id].fechasJustificadas.push(a.fecha)
+      } else {
+        porEstudiante[a.student_id].ausentes++
+        porEstudiante[a.student_id].fechasAusente.push(a.fecha)
+      }
     })
 
     const data = Object.values(porEstudiante).map(function (e) {
@@ -197,50 +202,72 @@ export default function RegistroAsistencia() {
   }
 
   function handleExportarPDF() {
-    const doc = new jsPDF({ format: 'a4', unit: 'mm' })
+    const doc = new jsPDF({ format: 'a4', unit: 'mm', orientation: 'landscape' })
     const pageWidth = doc.internal.pageSize.getWidth()
     let y = 15
 
-    doc.setFontSize(13)
+    doc.setFontSize(14)
     doc.setFont(undefined, 'bold')
     doc.text('Reporte de Asistencia', pageWidth / 2, y, { align: 'center' })
-    y += 7
+    y += 6
     doc.setFontSize(10)
     doc.setFont(undefined, 'normal')
     doc.text(`${areaNombre} — ${gradoLabel(aulaSel.split('__')[0])}, Sección ${aulaSel.split('__')[1]}`, pageWidth / 2, y, { align: 'center' })
     y += 5
-    doc.text(new Date().toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' }), pageWidth / 2, y, { align: 'center' })
+    doc.text(`Generado el ${new Date().toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' })}`, pageWidth / 2, y, { align: 'center' })
     y += 10
 
-    const maxFaltas = Math.max(1, ...reporteData.map(function (e) { return e.totalFaltas }))
-    const barMaxWidth = pageWidth - 100
+    // Encabezados de la tabla
+    const colNombre = 14, colTotal = 90, colSinJustificar = 115, colJustificadas = 205
+    doc.setFillColor(15, 23, 42)
+    doc.rect(14, y, pageWidth - 28, 7, 'F')
+    doc.setFontSize(9)
+    doc.setFont(undefined, 'bold')
+    doc.setTextColor(255, 255, 255)
+    doc.text('Estudiante', colNombre + 2, y + 5)
+    doc.text('Total', colTotal, y + 5)
+    doc.text('Fechas sin justificar', colSinJustificar, y + 5)
+    doc.text('Fechas justificadas', colJustificadas, y + 5)
+    doc.setTextColor(0, 0, 0)
+    y += 9
 
-    reporteData.forEach(function (e) {
-      if (y > 265) { doc.addPage(); y = 15 }
+    function formatFechas(fechas) {
+      if (fechas.length === 0) return '—'
+      return fechas
+        .slice()
+        .sort()
+        .map(function (f) { return new Date(f + 'T00:00:00').toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit' }) })
+        .join('  ·  ')
+    }
+
+    reporteData.forEach(function (e, idx) {
+      const textoSinJustificar = doc.splitTextToSize(formatFechas(e.fechasAusente), 88)
+      const textoJustificadas = doc.splitTextToSize(formatFechas(e.fechasJustificadas), 85)
+      const lineas = Math.max(textoSinJustificar.length, textoJustificadas.length, 1)
+      const alturaFila = lineas * 4.2 + 2
+
+      if (y + alturaFila > 200) { doc.addPage('a4', 'landscape'); y = 15 }
+
+      if (idx % 2 === 0) {
+        doc.setFillColor(248, 250, 252)
+        doc.rect(14, y - 1, pageWidth - 28, alturaFila, 'F')
+      }
+
       doc.setFontSize(9)
       doc.setFont(undefined, 'normal')
-      doc.text(e.nombre, 14, y + 3)
+      doc.text(e.nombre, colNombre + 2, y + 3)
+      doc.setFont(undefined, 'bold')
+      doc.setTextColor(e.totalFaltas > 0 ? 185 : 22, e.totalFaltas > 0 ? 28 : 163, e.totalFaltas > 0 ? 28 : 74)
+      doc.text(String(e.totalFaltas), colTotal, y + 3)
+      doc.setTextColor(185, 28, 28)
+      doc.setFont(undefined, 'normal')
+      doc.text(textoSinJustificar, colSinJustificar, y + 3)
+      doc.setTextColor(180, 83, 9)
+      doc.text(textoJustificadas, colJustificadas, y + 3)
+      doc.setTextColor(0, 0, 0)
 
-      const anchoAusentes = (e.ausentes / maxFaltas) * barMaxWidth
-      const anchoJustif = (e.justificadas / maxFaltas) * barMaxWidth
-      doc.setFillColor(185, 28, 28)
-      if (anchoAusentes > 0) doc.rect(75, y, anchoAusentes, 4, 'F')
-      doc.setFillColor(180, 83, 9)
-      if (anchoJustif > 0) doc.rect(75 + anchoAusentes, y, anchoJustif, 4, 'F')
-
-      doc.setFontSize(8)
-      doc.text(`${e.totalFaltas}`, 75 + barMaxWidth + 4, y + 3.5)
-      y += 8
+      y += alturaFila
     })
-
-    y += 6
-    doc.setFontSize(8)
-    doc.setFillColor(185, 28, 28)
-    doc.rect(14, y, 4, 4, 'F')
-    doc.text('Sin justificar', 20, y + 3.5)
-    doc.setFillColor(180, 83, 9)
-    doc.rect(60, y, 4, 4, 'F')
-    doc.text('Justificada', 66, y + 3.5)
 
     doc.save(`Asistencia_${areaNombre.replace(/[^a-zA-Z0-9]+/g, '_')}.pdf`)
   }

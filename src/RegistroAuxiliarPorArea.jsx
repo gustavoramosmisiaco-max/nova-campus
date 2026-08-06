@@ -147,7 +147,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
       if (actIds.length > 0) {
         const assignResult = await supabase
           .from('assignments')
-          .select('id, titulo, actividad_id, assignment_capacidades(capacidad_id)')
+          .select('id, titulo, fecha_entrega, actividad_id, assignment_capacidades(capacidad_id)')
           .in('actividad_id', actIds)
         assignments = assignResult.error ? [] : assignResult.data
       }
@@ -256,6 +256,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
               actividadNombre: actividad?.nombre,
               actividadNumero: actividad?.numero_actividad,
               fechaClase: actividad?.fecha_clase || null,
+              fechaEntrega: a.fecha_entrega || null,
               asignaturaAbrev: mapaAbreviaturas[actividad?.course_id] || '',
               criterio: detalleCap?.criterio || '',
               desempeno: detalleCap?.desempeno || '',
@@ -297,16 +298,26 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
     return !!ficha?.ausenciaMap?.[`${studentId}__${fechaClase}`]
   }
 
+  // Combina asistencia + nota real + vencimiento:
+  // - Ausente sin justificar ese día → no se evalúa (null)
+  // - Tiene nota real (calificada) → esa nota
+  // - Asistió, no entregó, y la tarea ya venció → C automático (0)
+  // - Asistió, no entregó, pero la tarea aún no vence → sin evaluar todavía (null)
+  function notaTareaFinal(studentId, inst, capacidadId) {
+    if (estuvoAusente(studentId, inst.fechaClase)) return null
+    const real = notaTarea(studentId, inst.assignmentId, capacidadId)
+    if (real != null) return real
+    if (inst.fechaEntrega && new Date(inst.fechaEntrega) < new Date()) return 0
+    return null
+  }
+
   function notaCierre(studentId, competenciaId) {
     const arr = ficha?.cierreMap?.[`${studentId}__${competenciaId}`]
     return arr ? average(arr) : null
   }
 
   function promedioCapacidad(studentId, cap) {
-    const notas = cap.instancias.map(function (inst) {
-      if (estuvoAusente(studentId, inst.fechaClase)) return null
-      return notaTarea(studentId, inst.assignmentId, cap.id)
-    })
+    const notas = cap.instancias.map(function (inst) { return notaTareaFinal(studentId, inst, cap.id) })
     return average(notas)
   }
 
@@ -480,7 +491,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
           if (cap.instancias.length === 0) { c++; c++; return }
           cap.instancias.forEach(function (inst) {
             const ausente = estuvoAusente(s.id, inst.fechaClase)
-            const nota = ausente ? null : notaTarea(s.id, inst.assignmentId, cap.id)
+            const nota = notaTareaFinal(s.id, inst, cap.id)
             const letra = ausente ? '—' : (nota != null ? getLetterGrade(nota) : '—')
             const cell = row.getCell(c)
             cell.value = letra
@@ -877,13 +888,13 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
                               ? [<td key={cap.id + '_' + s.id} style={{ border: '1px solid #E5E9F0' }}></td>]
                                               : cap.instancias.map(function (inst) {
                                 const ausente = estuvoAusente(s.id, inst.fechaClase)
-                                const nota = ausente ? null : notaTarea(s.id, inst.assignmentId, cap.id)
+                                const nota = notaTareaFinal(s.id, inst, cap.id)
                                 return (
                                   <td key={inst.assignmentId + '_' + s.id} className="p-2 text-center" style={{ border: '1px solid #E5E9F0' }}>
                                     {ausente ? (
                                       <span style={{ color: '#CBD5E1' }} title="Ausente ese día, no se evalúa">—</span>
                                     ) : nota != null ? (
-                                      <span className={'font-semibold ' + getLetterColor(nota)}>{getLetterGrade(nota)}</span>
+                                      <span className={'font-semibold ' + getLetterColor(nota)} title={nota === 0 ? 'Asistió pero no entregó, tarea vencida' : ''}>{getLetterGrade(nota)}</span>
                                     ) : (
                                       <span style={{ color: '#CBD5E1' }}>—</span>
                                     )}
