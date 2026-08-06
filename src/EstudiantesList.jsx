@@ -92,10 +92,10 @@ export default function EstudiantesList() {
     if (sinCodigo.length === 0) return
     if (!confirm(`¿Generar código para los ${sinCodigo.length} estudiante(s) que aún no tienen?`)) return
 
-    for (const s of sinCodigo) {
+    await Promise.all(sinCodigo.map(function (s) {
       const codigo = crypto.randomUUID().replace(/-/g, '').slice(0, 6).toUpperCase()
-      await supabase.from('profiles').update({ codigo_padre: codigo }).eq('id', s.id)
-    }
+      return supabase.from('profiles').update({ codigo_padre: codigo }).eq('id', s.id)
+    }))
     loadStudents()
   }
 

@@ -73,7 +73,7 @@ export default function EnrollmentsManager() {
 
     let totalAgregadas = 0
 
-    for (const key of Object.keys(aulasUnicas)) {
+    async function sincronizarAula(key) {
       const courseIdsDeAula = aulasUnicas[key]
 
       const enrollResult = await supabase
@@ -81,7 +81,7 @@ export default function EnrollmentsManager() {
         .select('student_id, course_id')
         .in('course_id', courseIdsDeAula)
         .eq('status', 'activo')
-      if (enrollResult.error) continue
+      if (enrollResult.error) return 0
 
       const estudiantesDeAula = [...new Set(enrollResult.data.map(function (e) { return e.student_id }))]
       const yaMatriculado = new Set(enrollResult.data.map(function (e) { return `${e.student_id}__${e.course_id}` }))
@@ -98,9 +98,13 @@ export default function EnrollmentsManager() {
 
       if (faltantes.length > 0) {
         const insertResult = await supabase.from('enrollments').insert(faltantes)
-        if (!insertResult.error) totalAgregadas += faltantes.length
+        if (!insertResult.error) return faltantes.length
       }
+      return 0
     }
+
+    const resultadosSync = await Promise.all(Object.keys(aulasUnicas).map(sincronizarAula))
+    totalAgregadas = resultadosSync.reduce(function (a, b) { return a + b }, 0)
 
     setMensajeSync(`Listo — se completaron ${totalAgregadas} matrícula(s) que faltaban.`)
     setSincronizando(false)

@@ -53,24 +53,18 @@ export default function ReportesManager() {
     const gradoAcc = {}
     let total = { aprobados: 0, desaprobados: 0, sinNota: 0 }
 
-    for (const course of courses) {
-      setProgreso(`Procesando ${course.nombre} ${course.grado}°${course.grupo}...`)
+    async function procesarCurso(course) {
       const areaNombre = course.asignaturas?.areas_curriculares?.nombre || 'Sin área'
 
-      const enrollResult = await supabase
-        .from('enrollments')
-        .select('student_id')
-        .eq('course_id', course.id)
-        .eq('status', 'activo')
+      const [enrollResult, assignResult] = await Promise.all([
+        supabase.from('enrollments').select('student_id').eq('course_id', course.id).eq('status', 'activo'),
+        supabase.from('assignments').select('id, fecha_entrega').eq('course_id', course.id),
+      ])
       const studentIds = enrollResult.error ? [] : enrollResult.data.map(function (e) { return e.student_id })
-      if (studentIds.length === 0) continue
-
-      const assignResult = await supabase
-        .from('assignments')
-        .select('id, fecha_entrega')
-        .eq('course_id', course.id)
       const assignments = assignResult.error ? [] : assignResult.data
       const assignmentIds = assignments.map(function (a) { return a.id })
+
+      if (studentIds.length === 0) return { areaNombre: areaNombre, grado: course.grado, resultados: [] }
 
       let subsByStudent = {}
       if (assignmentIds.length > 0) {
@@ -87,7 +81,7 @@ export default function ReportesManager() {
       }
 
       const now = new Date()
-      studentIds.forEach(function (studentId) {
+      const resultados = studentIds.map(function (studentId) {
         const scores = assignments.map(function (a) {
           const raw = subsByStudent[studentId]?.[a.id]
           const isPastDue = new Date(a.fecha_entrega) < now
@@ -96,32 +90,28 @@ export default function ReportesManager() {
           return null
         }).filter(function (s) { return s != null })
 
-        if (scores.length === 0) {
-          total.sinNota++
-          if (!areaAcc[areaNombre]) areaAcc[areaNombre] = { aprobados: 0, desaprobados: 0, sinNota: 0 }
-          areaAcc[areaNombre].sinNota++
-          const gKey = `${course.grado}`
-          if (!gradoAcc[gKey]) gradoAcc[gKey] = { aprobados: 0, desaprobados: 0, sinNota: 0 }
-          gradoAcc[gKey].sinNota++
-          return
-        }
-
+        if (scores.length === 0) return 'sinNota'
         const prom = average(scores)
-        const aprobado = prom >= 11
-
-        if (!areaAcc[areaNombre]) areaAcc[areaNombre] = { aprobados: 0, desaprobados: 0, sinNota: 0 }
-        if (aprobado) areaAcc[areaNombre].aprobados++
-        else areaAcc[areaNombre].desaprobados++
-
-        const gKey = `${course.grado}`
-        if (!gradoAcc[gKey]) gradoAcc[gKey] = { aprobados: 0, desaprobados: 0, sinNota: 0 }
-        if (aprobado) gradoAcc[gKey].aprobados++
-        else gradoAcc[gKey].desaprobados++
-
-        if (aprobado) total.aprobados++
-        else total.desaprobados++
+        return prom >= 11 ? 'aprobados' : 'desaprobados'
       })
+
+      return { areaNombre: areaNombre, grado: course.grado, resultados: resultados }
     }
+
+    setProgreso('Procesando todos los cursos...')
+    const resultadosPorCurso = await Promise.all(courses.map(procesarCurso))
+
+    resultadosPorCurso.forEach(function (r) {
+      if (!areaAcc[r.areaNombre]) areaAcc[r.areaNombre] = { aprobados: 0, desaprobados: 0, sinNota: 0 }
+      const gKey = `${r.grado}`
+      if (!gradoAcc[gKey]) gradoAcc[gKey] = { aprobados: 0, desaprobados: 0, sinNota: 0 }
+
+      r.resultados.forEach(function (estado) {
+        areaAcc[r.areaNombre][estado]++
+        gradoAcc[gKey][estado]++
+        total[estado]++
+      })
+    })
 
     const areasArr = Object.keys(areaAcc).map(function (nombre) {
       return { nombre: nombre, ...areaAcc[nombre] }

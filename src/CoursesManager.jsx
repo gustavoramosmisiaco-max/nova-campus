@@ -434,7 +434,7 @@ export default function CoursesManager() {
     }
 
     // Matricular automáticamente a quien ya esté en cada una de esas aulas
-    for (const nuevoCurso of insertResult.data) {
+    await Promise.all(insertResult.data.map(async function (nuevoCurso) {
       const otrosResult = await supabase
         .from('courses')
         .select('id')
@@ -442,7 +442,7 @@ export default function CoursesManager() {
         .eq('grupo', nuevoCurso.grupo)
         .neq('id', nuevoCurso.id)
       const otrosIds = (otrosResult.data || []).map(function (c) { return c.id })
-      if (otrosIds.length === 0) continue
+      if (otrosIds.length === 0) return
 
       const enrolResult = await supabase
         .from('enrollments')
@@ -450,13 +450,13 @@ export default function CoursesManager() {
         .in('course_id', otrosIds)
         .eq('status', 'activo')
       const estudiantesUnicos = [...new Set((enrolResult.data || []).map(function (e) { return e.student_id }))]
-      if (estudiantesUnicos.length === 0) continue
+      if (estudiantesUnicos.length === 0) return
 
       const matriculas = estudiantesUnicos.map(function (studentId) {
         return { course_id: nuevoCurso.id, student_id: studentId, status: 'activo' }
       })
       await supabase.from('enrollments').insert(matriculas)
-    }
+    }))
 
     setMasivoMsg(`Se crearon ${payloads.length} curso(s) nuevos, con sus alumnos ya matriculados donde correspondía.`)
     setMasivoAsignaturaIds(new Set())
