@@ -147,7 +147,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
       if (actIds.length > 0) {
         const assignResult = await supabase
           .from('assignments')
-          .select('id, titulo, fecha_entrega, actividad_id, assignment_capacidades(capacidad_id)')
+          .select('id, titulo, fecha_entrega, actividad_id, habilitar_notas_clase, assignment_capacidades(capacidad_id)')
           .in('actividad_id', actIds)
         assignments = assignResult.error ? [] : assignResult.data
       }
@@ -189,6 +189,21 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
       if (!asisResult.error) {
         asisResult.data.forEach(function (a) {
           ausenciaMap[`${a.student_id}__${a.fecha}`] = true
+        })
+      }
+    }
+
+    // Notas de clase (de tareas con esa opción habilitada)
+    let notaClaseMap = {} // studentId__assignmentId -> nota
+    const assignmentIdsConNotaClase = assignments.filter(function (a) { return a.habilitar_notas_clase }).map(function (a) { return a.id })
+    if (assignmentIdsConNotaClase.length > 0) {
+      const notasClaseResult = await supabase
+        .from('notas_clase')
+        .select('student_id, assignment_id, nota')
+        .in('assignment_id', assignmentIdsConNotaClase)
+      if (!notasClaseResult.error) {
+        notasClaseResult.data.forEach(function (n) {
+          notaClaseMap[`${n.student_id}__${n.assignment_id}`] = n.nota
         })
       }
     }
@@ -257,6 +272,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
               actividadNumero: actividad?.numero_actividad,
               fechaClase: actividad?.fecha_clase || null,
               fechaEntrega: a.fecha_entrega || null,
+              habilitarNotasClase: !!a.habilitar_notas_clase,
               asignaturaAbrev: mapaAbreviaturas[actividad?.course_id] || '',
               criterio: detalleCap?.criterio || '',
               desempeno: detalleCap?.desempeno || '',
@@ -283,6 +299,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
       cierreMap: cierreMap,
       notaTareaMap: notaTareaMap,
       ausenciaMap: ausenciaMap,
+      notaClaseMap: notaClaseMap,
     })
 
     setLoading(false)
@@ -298,17 +315,28 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
     return !!ficha?.ausenciaMap?.[`${studentId}__${fechaClase}`]
   }
 
+  function notaClase(studentId, assignmentId) {
+    const v = ficha?.notaClaseMap?.[`${studentId}__${assignmentId}`]
+    return v != null ? v : null
+  }
+
   // Combina asistencia + nota real + vencimiento:
   // - Ausente sin justificar ese día → no se evalúa (null)
-  // - Tiene nota real (calificada) → esa nota
-  // - Asistió, no entregó, y la tarea ya venció → C automático (0)
-  // - Asistió, no entregó, pero la tarea aún no vence → sin evaluar todavía (null)
+  // - Si la tarea tiene notas de clase habilitadas: promedia nota de clase + nota de tarea (la que exista de cada una)
+  // - Sin notas de clase: solo la nota de tarea, como antes
+  // - Asistió, no entregó, y la tarea ya venció → C automático (0) para la parte de "nota de tarea"
   function notaTareaFinal(studentId, inst, capacidadId) {
     if (estuvoAusente(studentId, inst.fechaClase)) return null
-    const real = notaTarea(studentId, inst.assignmentId, capacidadId)
-    if (real != null) return real
-    if (inst.fechaEntrega && new Date(inst.fechaEntrega) < new Date()) return 0
-    return null
+
+    let notaTareaEfectiva = notaTarea(studentId, inst.assignmentId, capacidadId)
+    if (notaTareaEfectiva == null && inst.fechaEntrega && new Date(inst.fechaEntrega) < new Date()) {
+      notaTareaEfectiva = 0
+    }
+
+    if (!inst.habilitarNotasClase) return notaTareaEfectiva
+
+    const nClase = notaClase(studentId, inst.assignmentId)
+    return average([nClase, notaTareaEfectiva])
   }
 
   function notaCierre(studentId, competenciaId) {

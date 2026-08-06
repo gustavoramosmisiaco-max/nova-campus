@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 import { getLetterGrade, getLetterColor } from './gradeUtils'
+import { compararPorApellido } from './gradeUtils'
 import PreviewModal from './PreviewModal'
 import CourseMaterials from './CourseMaterials'
 import EvaluacionCierre from './EvaluacionCierre'
@@ -728,6 +729,7 @@ function ActividadTareas({ actividad }) {
   const [instrumento, setInstrumento] = useState('')
   const [tipoEntrega, setTipoEntrega] = useState('individual')
   const [linkDrive, setLinkDrive] = useState('')
+  const [habilitarNotasClase, setHabilitarNotasClase] = useState(false)
 
   const [selectedAssignment, setSelectedAssignment] = useState(null)
   const [assignmentCapacidades, setAssignmentCapacidades] = useState([])
@@ -798,6 +800,7 @@ function ActividadTareas({ actividad }) {
     setInstrumento('')
     setTipoEntrega('individual')
     setLinkDrive('')
+    setHabilitarNotasClase(false)
   }
 
   function openNew() {
@@ -816,6 +819,7 @@ function ActividadTareas({ actividad }) {
     setInstrumento(a.instrumento_evaluacion || '')
     setTipoEntrega(a.tipo_entrega || 'individual')
     setLinkDrive(a.link_url || '')
+    setHabilitarNotasClase(!!a.habilitar_notas_clase)
     const acResult = await supabase.from('assignment_capacidades').select('capacidad_id').eq('assignment_id', a.id)
     setSelectedCapacidades(!acResult.error ? acResult.data.map(function (x) { return x.capacidad_id }) : [])
     setShowForm(true)
@@ -855,6 +859,7 @@ function ActividadTareas({ actividad }) {
       tema: actividad.nombre,
       desempeno: desempenoTexto,
       link_url: linkDrive.trim() || null,
+      habilitar_notas_clase: habilitarNotasClase,
     }
 
     let assignmentId = editingId
@@ -1130,6 +1135,10 @@ function ActividadTareas({ actividad }) {
             {publicandoNotas ? 'Publicando...' : hayNotasSinPublicar ? 'Subir notas (hay cambios sin publicar)' : 'Subir notas'}
           </button>
         </div>
+
+        {selectedAssignment.habilitar_notas_clase && (
+          <NotasClaseSeccion assignmentId={selectedAssignment.id} courseId={actividad.course_id} />
+        )}
 
         {justificaciones.filter(function (j) { return j.estado === 'pendiente' }).length > 0 && (
           <div className="mb-5 rounded-xl p-4" style={{ backgroundColor: '#FFF7E6', border: '1px solid #F5D98A' }}>
@@ -1422,6 +1431,10 @@ function ActividadTareas({ actividad }) {
             <input type="datetime-local" value={fechaEntrega} onChange={function (e) { setFechaEntrega(e.target.value) }} required className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
             <input type="number" value={puntajeMax} onChange={function (e) { setPuntajeMax(e.target.value) }} max={20} min={0} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
           </div>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" checked={habilitarNotasClase} onChange={function (e) { setHabilitarNotasClase(e.target.checked) }} className="w-4 h-4 rounded" style={{ accentColor: GREEN }} />
+            <span className="text-sm" style={{ color: NAVY_DARK }}>Habilitar notas de clase (se promedia con la nota de la tarea)</span>
+          </label>
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <button type="submit" className="font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90" style={{ background: `linear-gradient(90deg, ${NAVY}, ${GREEN})`, boxShadow: '0 8px 20px rgba(37,99,235,0.3)' }}>
             {editingId ? 'Guardar cambios' : 'Crear tarea'}
@@ -1480,5 +1493,80 @@ function FolderIcon({ big }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
     </svg>
+  )
+}
+
+function NotasClaseSeccion({ assignmentId, courseId }) {
+  const [loading, setLoading] = useState(true)
+  const [estudiantes, setEstudiantes] = useState([])
+  const [notas, setNotas] = useState({}) // studentId -> nota
+  const [guardandoId, setGuardandoId] = useState(null)
+
+  useEffect(function () {
+    cargar()
+  }, [assignmentId])
+
+  async function cargar() {
+    setLoading(true)
+    const enrollResult = await supabase
+      .from('enrollments')
+      .select('student:profiles(id, full_name)')
+      .eq('course_id', courseId)
+      .eq('status', 'activo')
+    const lista = enrollResult.error ? [] : enrollResult.data.map(function (e) { return e.student }).filter(Boolean)
+    lista.sort(function (a, b) { return compararPorApellido(a.full_name, b.full_name) })
+    setEstudiantes(lista)
+
+    const notasResult = await supabase.from('notas_clase').select('student_id, nota').eq('assignment_id', assignmentId)
+    const mapa = {}
+    ;(notasResult.data || []).forEach(function (n) { mapa[n.student_id] = n.nota })
+    setNotas(mapa)
+    setLoading(false)
+  }
+
+  async function guardarNota(studentId, valorStr) {
+    const valor = valorStr === '' ? null : Number(valorStr)
+    if (valor != null && (isNaN(valor) || valor < 0 || valor > 20)) return
+    setGuardandoId(studentId)
+
+    if (valor == null) {
+      await supabase.from('notas_clase').delete().eq('assignment_id', assignmentId).eq('student_id', studentId)
+    } else {
+      await supabase.from('notas_clase').upsert(
+        { assignment_id: assignmentId, student_id: studentId, nota: valor, updated_at: new Date().toISOString() },
+        { onConflict: 'assignment_id,student_id' }
+      )
+    }
+    setNotas(function (prev) { return { ...prev, [studentId]: valor } })
+    setGuardandoId(null)
+  }
+
+  if (loading) return <p className="text-slate-400 text-sm mb-5">Cargando notas de clase...</p>
+
+  return (
+    <div className="mb-5 rounded-xl p-4" style={{ backgroundColor: '#F0F6E4', border: '1px solid #C0DD97' }}>
+      <h4 className="text-sm font-bold mb-1" style={{ color: '#173404' }}>Notas de clase</h4>
+      <p className="text-xs mb-3" style={{ color: '#3B6D11' }}>Esta nota se promedia con la nota de la tarea entregada para dar la nota final de la actividad. Déjala vacía si no aplica para un estudiante.</p>
+      <div className="grid sm:grid-cols-2 gap-2">
+        {estudiantes.map(function (s) {
+          return (
+            <div key={s.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2" style={{ border: '1px solid #DCEBC4' }}>
+              <span className="text-xs font-medium truncate" style={{ color: NAVY_DARK, maxWidth: '70%' }}>{s.full_name}</span>
+              <input
+                type="number"
+                min={0}
+                max={20}
+                defaultValue={notas[s.id] != null ? notas[s.id] : ''}
+                onBlur={function (e) { guardarNota(s.id, e.target.value) }}
+                placeholder="—"
+                disabled={guardandoId === s.id}
+                className="w-14 text-center rounded-lg px-2 py-1 text-sm outline-none"
+                style={inputStyle}
+              />
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
