@@ -47,7 +47,32 @@ export default function NotificationBell({ onNavigate }) {
   const [open, setOpen] = useState(false)
   const [notificaciones, setNotificaciones] = useState([])
   const [loading, setLoading] = useState(true)
+  const [sonando, setSonando] = useState(false)
   const containerRef = useRef(null)
+  const audioCtxRef = useRef(null)
+
+  function reproducirSonido() {
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)()
+      }
+      const ctx = audioCtxRef.current
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(880, ctx.currentTime)
+      osc.frequency.setValueAtTime(1180, ctx.currentTime + 0.08)
+      gain.gain.setValueAtTime(0.001, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35)
+      osc.start(ctx.currentTime)
+      osc.stop(ctx.currentTime + 0.35)
+    } catch (e) {
+      // navegador sin soporte de audio, silenciosamente no suena
+    }
+  }
 
   useEffect(function () {
     cargar()
@@ -56,6 +81,9 @@ export default function NotificationBell({ onNavigate }) {
       .channel(`notificaciones-${session.user.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notificaciones', filter: `user_id=eq.${session.user.id}` }, function (payload) {
         setNotificaciones(function (prev) { return [payload.new, ...prev] })
+        reproducirSonido()
+        setSonando(true)
+        setTimeout(function () { setSonando(false) }, 900)
       })
       .subscribe()
 
@@ -100,11 +128,17 @@ export default function NotificationBell({ onNavigate }) {
       <button
         onClick={function () { setOpen(!open) }}
         className="relative w-10 h-10 rounded-full flex items-center justify-center transition hover:opacity-80"
-        style={{ backgroundColor: '#F4F6F9' }}
+        style={{ backgroundColor: '#EDF9F1' }}
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={NAVY_DARK} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        <style>{`
+          @keyframes nexoris-campanear { 0%,100% { transform: rotate(0deg); } 20% { transform: rotate(-14deg); } 40% { transform: rotate(10deg); } 60% { transform: rotate(-7deg); } 80% { transform: rotate(4deg); } }
+          .nexoris-bell-sonando { animation: nexoris-campanear 0.6s ease-in-out; transform-origin: 50% 15%; }
+        `}</style>
+        <svg width="22" height="22" viewBox="0 0 60 60" className={sonando ? 'nexoris-bell-sonando' : ''}>
+          <path d="M30 10c-7 0-11 5.5-11 13v8l-4 8h30l-4-8v-8c0-7.5-4-13-11-13z" fill="#3B6D11" />
+          <path d="M30 8c-7 0-11 5.5-11 13v8l-4 8h30l-4-8v-8c0-7.5-4-13-11-13z" fill="#639922" />
+          <circle cx="30" cy="9" r="3" fill="#27500A" />
+          <path d="M25 39a5 5 0 0 0 10 0z" fill="#27500A" />
         </svg>
         {noLeidas > 0 && (
           <span
