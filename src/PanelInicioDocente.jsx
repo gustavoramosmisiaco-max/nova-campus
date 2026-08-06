@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
+import IconoAsignatura from './IconoAsignatura'
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
@@ -154,19 +155,17 @@ export default function PanelInicioDocente({ onNavegar }) {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {courses.map(function (c, idx) {
+          {courses.map(function (c) {
             const areaNombre = c.asignaturas?.areas_curriculares?.nombre || ''
             return (
               <button
                 key={c.id}
                 onClick={function () { if (onNavegar) onNavegar('cursos') }}
-                className="text-left bg-white rounded-2xl overflow-hidden transition hover:-translate-y-0.5"
+                className="text-left bg-white rounded-2xl overflow-hidden transition hover:-translate-y-0.5 flex gap-3 p-3"
                 style={{ border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}
               >
-                <div className="h-11 flex items-center px-4" style={{ background: `linear-gradient(135deg, ${NAVY}, ${idx % 2 === 0 ? GREEN : NAVY_DARK})` }}>
-                  <IconoLibro />
-                </div>
-                <div className="p-4">
+                <IconoAsignatura nombre={c.nombre} size={40} />
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{c.nombre}</p>
                   <p className="text-xs text-slate-400 mb-3">{gradoLabel(c.grado)} — Sección {c.grupo}{areaNombre ? ` · ${areaNombre}` : ''}</p>
                   <div className="flex justify-between items-center mb-1">
@@ -211,15 +210,6 @@ function IconoGrupos() {
       <circle cx="9" cy="7" r="4" />
       <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  )
-}
-
-function IconoLibro() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.9">
-      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
     </svg>
   )
 }
