@@ -396,7 +396,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
             cellAct.value = `${inst.asignaturaAbrev ? inst.asignaturaAbrev + '.' : ''}Act.${inst.actividadNumero}`
             cellAct.font = { size: 8 }
             cellAct.alignment = { horizontal: 'center', vertical: 'middle', textRotation: 90 }
-            cellAct.note = `Tarea: ${inst.tituloTarea}\n\nCriterio: ${inst.criterio || '—'}\n\nDesempeño: ${inst.desempeno || '—'}`
+            cellAct.note = `Tarea: ${inst.tituloTarea}\n\nDesempeño: ${inst.desempeno || '—'}\n\nCriterio: ${inst.criterio || '—'}`
           })
         }
         colCapCursor += span
@@ -785,26 +785,6 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
               <tr>
                 {competenciasData.map(function (comp) {
                   return comp.capacidades.map(function (cap) {
-                    if (cap.instancias.length === 0) return <td key={cap.id + '_c0'} style={{ border: '1px solid #E5E9F0', backgroundColor: '#FAFAF8' }}></td>
-                    return cap.instancias.map(function (inst) {
-                      const key = 'c_' + inst.assignmentId
-                      return (
-                        <td
-                          key={key}
-                          onClick={function () { toggle(key) }}
-                          className="p-1 text-center cursor-pointer"
-                          style={{ backgroundColor: '#FAFAF8', border: '1px solid #E5E9F0', fontSize: 10, color: '#164a72', minWidth: 28 }}
-                        >
-                          <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap', textDecoration: 'underline dotted' }}>Criterio</span>
-                        </td>
-                      )
-                    })
-                  })
-                })}
-              </tr>
-              <tr>
-                {competenciasData.map(function (comp) {
-                  return comp.capacidades.map(function (cap) {
                     if (cap.instancias.length === 0) return <td key={cap.id + '_d0'} style={{ border: '1px solid #E5E9F0', backgroundColor: '#FAFAF8' }}></td>
                     return cap.instancias.map(function (inst) {
                       const key = 'd_' + inst.assignmentId
@@ -816,6 +796,26 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
                           style={{ backgroundColor: '#FAFAF8', border: '1px solid #E5E9F0', fontSize: 10, color: '#8a5cb0', minWidth: 28 }}
                         >
                           <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap', textDecoration: 'underline dotted' }}>Desempeño</span>
+                        </td>
+                      )
+                    })
+                  })
+                })}
+              </tr>
+              <tr>
+                {competenciasData.map(function (comp) {
+                  return comp.capacidades.map(function (cap) {
+                    if (cap.instancias.length === 0) return <td key={cap.id + '_c0'} style={{ border: '1px solid #E5E9F0', backgroundColor: '#FAFAF8' }}></td>
+                    return cap.instancias.map(function (inst) {
+                      const key = 'c_' + inst.assignmentId
+                      return (
+                        <td
+                          key={key}
+                          onClick={function () { toggle(key) }}
+                          className="p-1 text-center cursor-pointer"
+                          style={{ backgroundColor: '#FAFAF8', border: '1px solid #E5E9F0', fontSize: 10, color: '#164a72', minWidth: 28 }}
+                        >
+                          <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap', textDecoration: 'underline dotted' }}>Criterio</span>
                         </td>
                       )
                     })
