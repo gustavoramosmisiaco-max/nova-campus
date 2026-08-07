@@ -18,6 +18,8 @@ const HabilitarCursos = lazy(function () { return import('./HabilitarCursos') })
 const VaciarPeriodo = lazy(function () { return import('./VaciarPeriodo') })
 const RecreosManager = lazy(function () { return import('./RecreosManager') })
 const FeriadosManager = lazy(function () { return import('./FeriadosManager') })
+const TalleresVeranoManager = lazy(function () { return import('./TalleresVeranoManager') })
+const PromotoresManager = lazy(function () { return import('./PromotoresManager') })
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
@@ -48,6 +50,8 @@ export default function AdminDashboard() {
     { id: 'vaciar-periodo', label: 'Vaciar Periodo', icon: TrashIcon },
     { id: 'recreos', label: 'Recreos', icon: CoffeeIcon },
     { id: 'feriados', label: 'Feriados', icon: CalendarIcon },
+    { id: 'verano', label: 'Cursos de Verano', icon: SunIcon },
+    { id: 'promotores', label: 'Promotores', icon: UserCheckIcon },
     { id: 'periodo', label: 'Cierre de Periodo', icon: CalendarIcon },
   ]
 
@@ -221,6 +225,8 @@ export default function AdminDashboard() {
               {tab === 'vaciar-periodo' && <VaciarPeriodo />}
               {tab === 'recreos' && <RecreosManager />}
             {tab === 'feriados' && <FeriadosManager />}
+            {tab === 'verano' && <TalleresVeranoManager />}
+            {tab === 'promotores' && <PromotoresManager />}
               {tab === 'periodo' && <CierrePeriodo />}
             </Suspense>
           </ErrorBoundary>
@@ -351,6 +357,22 @@ function CalendarIcon() {
       <line x1="16" y1="2" x2="16" y2="6" />
       <line x1="8" y1="2" x2="8" y2="6" />
       <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  )
+}
+
+function SunIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="5" />
+      <line x1="12" y1="1" x2="12" y2="3" />
+      <line x1="12" y1="21" x2="12" y2="23" />
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+      <line x1="1" y1="12" x2="3" y2="12" />
+      <line x1="21" y1="12" x2="23" y2="12" />
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
     </svg>
   )
 }
