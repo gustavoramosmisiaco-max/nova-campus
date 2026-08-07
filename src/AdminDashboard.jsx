@@ -77,6 +77,7 @@ export default function AdminDashboard() {
           <div>
             <p className="text-white font-bold leading-tight">Nexoris Academy</p>
             <p className="text-xs" style={{ color: GREEN }}>Panel Admin</p>
+            <p className="text-[9px]" style={{ color: '#EF4444' }}>v-verano-promotores-01</p>
           </div>
         </div>
         <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
