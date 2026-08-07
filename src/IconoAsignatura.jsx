@@ -8,6 +8,10 @@ const ESTILOS = [
   { claves: ['arte', 'musica', 'música'], bg: '#FCEDF3', color: '#4B1528' },
   { claves: ['educacion fisica', 'educación física', 'deporte'], bg: '#F0F6E4', color: '#173404' },
   { claves: ['computacion', 'computación', 'tecnologia', 'tecnología'], bg: '#F1EFE8', color: '#2C2C2A' },
+  { claves: ['historia', 'geografia', 'geografía', 'economia', 'economía', 'sociales', 'hge'], bg: '#FBF3E2', color: '#6B4A0A' },
+  { claves: ['ciudadania', 'ciudadanía', 'dpcc', 'desarrollo personal'], bg: '#E9F5F5', color: '#0F4C4C' },
+  { claves: ['religion', 'religión'], bg: '#F5F0E8', color: '#5C4A2E' },
+  { claves: ['tutoria', 'tutoría', 'tutoria y orientacion'], bg: '#EAF6EF', color: '#0B5A38' },
 ]
 
 function detectarEstilo(nombre) {
@@ -34,6 +38,10 @@ export default function IconoAsignatura({ nombre, size = 60 }) {
   else if (n.includes('arte') || n.includes('musica')) Icono = IconoArte
   else if (n.includes('educacion fisica') || n.includes('deporte')) Icono = IconoEducacionFisica
   else if (n.includes('computacion') || n.includes('tecnologia')) Icono = IconoComputacion
+  else if (n.includes('historia') || n.includes('geografia') || n.includes('economia') || n.includes('sociales') || n === 'hge') Icono = IconoHistoria
+  else if (n.includes('ciudadania') || n.includes('dpcc') || n.includes('desarrollo personal')) Icono = IconoCiudadania
+  else if (n.includes('religion')) Icono = IconoReligion
+  else if (n.includes('tutoria')) Icono = IconoTutoria
 
   return (
     <div
@@ -207,6 +215,88 @@ function IconoAnatomia({ size }) {
           <path d="M30 47C16 38 8 29 8 19a11 11 0 0 1 20-6 11 11 0 0 1 20 6c0 10-8 19-18 28z" fill="#7A1030" />
           <path d="M30 45C17 36 9 27 9 18a11 11 0 0 1 20-6 11 11 0 0 1 20 6c0 9-8 18-18 27z" fill="#C23458" />
           <path d="M14 22h6l3-6 4 10 3-6h5" stroke="#FCEDF0" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+      </svg>
+    </>
+  )
+}
+
+function IconoHistoria({ size }) {
+  return (
+    <>
+      <style>{`
+        @keyframes nexoris-girarlento { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @media (prefers-reduced-motion: reduce) { .nexoris-globo-cls { animation: none !important; } }
+      `}</style>
+      <svg width={size} height={size} viewBox="0 0 60 60">
+        <defs>
+          <radialGradient id="nexoris-mundo" cx="35%" cy="30%">
+            <stop offset="0%" stopColor="#FBD98A" />
+            <stop offset="100%" stopColor="#B4780F" />
+          </radialGradient>
+        </defs>
+        <circle cx="30" cy="30" r="18" fill="url(#nexoris-mundo)" />
+        <g className="nexoris-globo-cls" style={{ animation: 'nexoris-girarlento 14s linear infinite', transformOrigin: '30px 30px' }}>
+          <ellipse cx="30" cy="30" rx="18" ry="7" fill="none" stroke="#6B4A0A" strokeWidth="1.2" opacity="0.6" />
+          <ellipse cx="30" cy="30" rx="7" ry="18" fill="none" stroke="#6B4A0A" strokeWidth="1.2" opacity="0.4" />
+          <path d="M16 24c3 2 5-2 8 0s4 4 8 2 6-4 8 0" stroke="#6B4A0A" strokeWidth="1.2" fill="none" opacity="0.5" />
+        </g>
+      </svg>
+    </>
+  )
+}
+
+function IconoCiudadania({ size }) {
+  return (
+    <div style={{ animation: 'nexoris-flotar 3s ease-in-out infinite 0.3s' }}>
+      <svg width={size} height={size} viewBox="0 0 60 60">
+        <circle cx="20" cy="18" r="7" fill="#0F4C4C" />
+        <circle cx="20" cy="17" r="7" fill="#1B8F8F" />
+        <circle cx="40" cy="18" r="7" fill="#0F4C4C" />
+        <circle cx="40" cy="17" r="7" fill="#1B8F8F" />
+        <path d="M8 42c0-8 6-13 12-13s12 5 12 13z" fill="#0F4C4C" />
+        <path d="M8 40c0-8 6-13 12-13s12 5 12 13z" fill="#1B8F8F" />
+        <path d="M28 42c0-8 6-13 12-13s12 5 12 13z" fill="#0F4C4C" />
+        <path d="M28 40c0-8 6-13 12-13s12 5 12 13z" fill="#1B8F8F" />
+      </svg>
+    </div>
+  )
+}
+
+function IconoReligion({ size }) {
+  return (
+    <>
+      <style>{`
+        @keyframes nexoris-flama { 0%,100% { transform: scaleY(1) scaleX(1); } 50% { transform: scaleY(1.15) scaleX(0.9); } }
+        @media (prefers-reduced-motion: reduce) { .nexoris-flama-cls { animation: none !important; } }
+      `}</style>
+      <svg width={size} height={size} viewBox="0 0 60 60">
+        <rect x="26" y="30" width="8" height="18" rx="2" fill="#8C7550" />
+        <rect x="25" y="29" width="8" height="18" rx="2" fill="#B89968" />
+        <ellipse cx="29" cy="48" rx="12" ry="3" fill="#5C4A2E" opacity="0.3" />
+        <g className="nexoris-flama-cls" style={{ animation: 'nexoris-flama 1.6s ease-in-out infinite', transformOrigin: '29px 22px' }}>
+          <path d="M29 8c-4 6-6 9-6 13a6 6 0 0 0 12 0c0-4-2-7-6-13z" fill="#D9860F" />
+          <path d="M29 12c-2.5 4-4 6-4 9a4 4 0 0 0 8 0c0-3-1.5-5-4-9z" fill="#FFD37A" />
+        </g>
+      </svg>
+    </>
+  )
+}
+
+function IconoTutoria({ size }) {
+  return (
+    <>
+      <style>{`
+        @keyframes nexoris-brujula { 0%,100% { transform: rotate(-15deg); } 50% { transform: rotate(15deg); } }
+        @media (prefers-reduced-motion: reduce) { .nexoris-aguja-cls { animation: none !important; } }
+      `}</style>
+      <svg width={size} height={size} viewBox="0 0 60 60">
+        <circle cx="30" cy="30" r="18" fill="#0B5A38" />
+        <circle cx="30" cy="30" r="16" fill="#2FA872" />
+        <circle cx="30" cy="30" r="12" fill="#EAF6EF" />
+        <g className="nexoris-aguja-cls" style={{ animation: 'nexoris-brujula 2.6s ease-in-out infinite', transformOrigin: '30px 30px' }}>
+          <path d="M30 20l4 10-4 10-4-10z" fill="#0B5A38" />
+          <path d="M30 20l4 10-4-2-4 2z" fill="#D85A30" />
         </g>
       </svg>
     </>
