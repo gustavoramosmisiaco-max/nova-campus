@@ -1,6 +1,7 @@
 const ESTILOS = [
   { claves: ['quimica', 'química'], bg: '#FFF8ED', color: '#412402' },
   { claves: ['biologia', 'biología', 'ciencia'], bg: '#EDF9F1', color: '#173404' },
+  { claves: ['anatomia', 'anatomía'], bg: '#FCEDF0', color: '#7A1030' },
   { claves: ['fisica', 'física'], bg: '#EAF2FB', color: '#042C53' },
   { claves: ['matematica', 'matemática', 'algebra', 'geometria'], bg: '#FBEEE8', color: '#4A1B0C' },
   { claves: ['comunicacion', 'comunicación', 'lenguaje', 'ingles', 'inglés'], bg: '#F2F0FE', color: '#26215C' },
@@ -26,6 +27,7 @@ export default function IconoAsignatura({ nombre, size = 60 }) {
   let Icono = IconoLibro
   if (n.includes('quimica')) Icono = IconoQuimica
   else if (n.includes('biologia') || n.includes('ciencia')) Icono = IconoBiologia
+  else if (n.includes('anatomia')) Icono = IconoAnatomia
   else if (n.includes('fisica')) Icono = IconoFisica
   else if (n.includes('matematica') || n.includes('algebra') || n.includes('geometria')) Icono = IconoMatematica
   else if (n.includes('comunicacion') || n.includes('lenguaje') || n.includes('ingles')) Icono = IconoComunicacion
@@ -188,6 +190,24 @@ function IconoComputacion({ size }) {
         <rect className="nexoris-cursor-cls" style={{ animation: 'nexoris-parpadeo 1.1s steps(1) infinite' }} x="16" y="25" width="6" height="2.2" rx="1" fill="#EEEDFE" />
         <rect x="24" y="41" width="12" height="4" fill="#3F3E3B" />
         <rect x="18" y="45" width="24" height="3" rx="1.5" fill="#5F5E5A" />
+      </svg>
+    </>
+  )
+}
+
+function IconoAnatomia({ size }) {
+  return (
+    <>
+      <style>{`
+        @keyframes nexoris-latido { 0%,100% { transform: scale(1); } 15% { transform: scale(1.12); } 30% { transform: scale(1); } 45% { transform: scale(1.08); } 60% { transform: scale(1); } }
+        @media (prefers-reduced-motion: reduce) { .nexoris-corazon-cls { animation: none !important; } }
+      `}</style>
+      <svg width={size} height={size} viewBox="0 0 60 60">
+        <g className="nexoris-corazon-cls" style={{ animation: 'nexoris-latido 1.8s ease-in-out infinite', transformOrigin: '30px 30px' }}>
+          <path d="M30 47C16 38 8 29 8 19a11 11 0 0 1 20-6 11 11 0 0 1 20 6c0 10-8 19-18 28z" fill="#7A1030" />
+          <path d="M30 45C17 36 9 27 9 18a11 11 0 0 1 20-6 11 11 0 0 1 20 6c0 9-8 18-18 27z" fill="#C23458" />
+          <path d="M14 22h6l3-6 4 10 3-6h5" stroke="#FCEDF0" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
       </svg>
     </>
   )
