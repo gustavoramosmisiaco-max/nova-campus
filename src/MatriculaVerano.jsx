@@ -44,7 +44,7 @@ export default function MatriculaVerano() {
     e.preventDefault()
     setError('')
     if (!tallerSel && !paqueteSel) { setError('Elige un curso, taller, o paquete.'); return }
-    if (!nombreApoderado.trim() || !dniApoderado.trim() || !telefonoApoderado.trim() || !nombreEstudiante.trim()) {
+    if (!nombreApoderado.trim() || !dniApoderado.trim() || !telefonoApoderado.trim() || !nombreEstudiante.trim() || !edadGrado) {
       setError('Completa todos los campos obligatorios.')
       return
     }
@@ -216,7 +216,16 @@ export default function MatriculaVerano() {
                 <p className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>Datos del estudiante</p>
                 <div className="space-y-3">
                   <input type="text" value={nombreEstudiante} onChange={function (e) { setNombreEstudiante(e.target.value) }} placeholder="Nombre completo del estudiante" required className="w-full rounded-lg px-3 py-2.5 text-sm outline-none" style={inputStyle} />
-                  <input type="text" value={edadGrado} onChange={function (e) { setEdadGrado(e.target.value) }} placeholder="Edad o grado (opcional)" className="w-full rounded-lg px-3 py-2.5 text-sm outline-none" style={inputStyle} />
+                  <select value={edadGrado} onChange={function (e) { setEdadGrado(e.target.value) }} required className="w-full rounded-lg px-3 py-2.5 text-sm outline-none" style={inputStyle}>
+                    <option value="">-- Grado del estudiante --</option>
+                    <option value="5º Primaria">5º Primaria</option>
+                    <option value="6º Primaria">6º Primaria</option>
+                    <option value="1º Secundaria">1º Secundaria</option>
+                    <option value="2º Secundaria">2º Secundaria</option>
+                    <option value="3º Secundaria">3º Secundaria</option>
+                    <option value="4º Secundaria">4º Secundaria</option>
+                    <option value="5º Secundaria / Pre-U">5º Secundaria / Pre-U</option>
+                  </select>
                 </div>
               </div>
 
