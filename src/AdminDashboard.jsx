@@ -20,6 +20,7 @@ const RecreosManager = lazy(function () { return import('./RecreosManager') })
 const FeriadosManager = lazy(function () { return import('./FeriadosManager') })
 const TalleresVeranoManager = lazy(function () { return import('./TalleresVeranoManager') })
 const PromotoresManager = lazy(function () { return import('./PromotoresManager') })
+const FinancieroVerano = lazy(function () { return import('./FinancieroVerano') })
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
@@ -52,6 +53,7 @@ export default function AdminDashboard() {
     { id: 'feriados', label: 'Feriados', icon: CalendarIcon },
     { id: 'verano', label: 'Cursos de Verano', icon: SunIcon },
     { id: 'promotores', label: 'Promotores', icon: UserCheckIcon },
+    { id: 'financiero-verano', label: 'Panel Financiero', icon: ChartBarIcon },
     { id: 'periodo', label: 'Cierre de Periodo', icon: CalendarIcon },
   ]
 
@@ -228,6 +230,7 @@ export default function AdminDashboard() {
             {tab === 'feriados' && <FeriadosManager />}
             {tab === 'verano' && <TalleresVeranoManager />}
             {tab === 'promotores' && <PromotoresManager />}
+            {tab === 'financiero-verano' && <FinancieroVerano />}
               {tab === 'periodo' && <CierrePeriodo />}
             </Suspense>
           </ErrorBoundary>
