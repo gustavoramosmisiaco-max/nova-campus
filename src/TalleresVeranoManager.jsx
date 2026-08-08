@@ -24,6 +24,10 @@ export default function TalleresVeranoManager() {
   const [fechaFin, setFechaFin] = useState('')
   const [horario, setHorario] = useState('')
   const [institucionId, setInstitucionId] = useState('')
+  const [docenteId, setDocenteId] = useState('')
+  const [pagoPorHora, setPagoPorHora] = useState('')
+  const [horasTotales, setHorasTotales] = useState('')
+  const [docentes, setDocentes] = useState([])
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
 
@@ -33,15 +37,17 @@ export default function TalleresVeranoManager() {
 
   async function cargar() {
     setLoading(true)
-    const [talleresResult, instResult] = await Promise.all([
-      supabase.from('talleres_verano').select('*').order('created_at', { ascending: false }),
+    const [talleresResult, instResult, docentesResult] = await Promise.all([
+      supabase.from('talleres_verano').select('*, docente:profiles!talleres_verano_docente_id_fkey(full_name)').order('created_at', { ascending: false }),
       supabase.from('instituciones_educativas').select('id, nombre').order('nombre'),
+      supabase.from('profiles').select('id, full_name').eq('role', 'docente').order('full_name'),
     ])
     if (!talleresResult.error) setTalleres(talleresResult.data)
     if (!instResult.error) {
       setInstituciones(instResult.data)
       if (instResult.data.length === 1) setInstitucionId(instResult.data[0].id)
     }
+    if (!docentesResult.error) setDocentes(docentesResult.data)
     setLoading(false)
   }
 
@@ -56,6 +62,9 @@ export default function TalleresVeranoManager() {
     setFechaInicio('')
     setFechaFin('')
     setHorario('')
+    setDocenteId('')
+    setPagoPorHora('')
+    setHorasTotales('')
     setError('')
   }
 
@@ -71,6 +80,9 @@ export default function TalleresVeranoManager() {
     setFechaFin(t.fecha_fin || '')
     setHorario(t.horario || '')
     setInstitucionId(t.institucion_id || '')
+    setDocenteId(t.docente_id || '')
+    setPagoPorHora(t.pago_por_hora != null ? String(t.pago_por_hora) : '')
+    setHorasTotales(t.horas_totales != null ? String(t.horas_totales) : '')
     setShowForm(true)
   }
 
@@ -91,6 +103,9 @@ export default function TalleresVeranoManager() {
       fecha_inicio: fechaInicio || null,
       fecha_fin: fechaFin || null,
       horario: horario.trim() || null,
+      docente_id: docenteId || null,
+      pago_por_hora: pagoPorHora ? Number(pagoPorHora) : null,
+      horas_totales: horasTotales ? Number(horasTotales) : null,
     }
 
     let result
@@ -181,6 +196,28 @@ export default function TalleresVeranoManager() {
             <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Horario (opcional)</label>
             <input type="text" value={horario} onChange={function (e) { setHorario(e.target.value) }} placeholder="Ej: Lunes a viernes, 9:00 - 11:00 am" className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
           </div>
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Docente a cargo (opcional)</label>
+            <select value={docenteId} onChange={function (e) { setDocenteId(e.target.value) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+              <option value="">-- Sin asignar --</option>
+              {docentes.map(function (d) { return <option key={d.id} value={d.id}>{d.full_name}</option> })}
+            </select>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Pago por hora S/ (opcional)</label>
+              <input type="number" min={0} step="0.01" value={pagoPorHora} onChange={function (e) { setPagoPorHora(e.target.value) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Horas totales del ciclo (opcional)</label>
+              <input type="number" min={0} step="0.5" value={horasTotales} onChange={function (e) { setHorasTotales(e.target.value) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
+            </div>
+          </div>
+          {pagoPorHora && horasTotales && (
+            <p className="text-sm rounded-lg p-3" style={{ backgroundColor: '#FFF7E6', color: '#B45309' }}>
+              💰 Costo total del docente en este ciclo: <strong>S/ {(Number(pagoPorHora) * Number(horasTotales)).toFixed(2)}</strong>
+            </p>
+          )}
           {instituciones.length > 1 && (
             <div>
               <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Institución</label>
@@ -217,6 +254,14 @@ export default function TalleresVeranoManager() {
                       {t.precio != null ? ` · S/ ${t.precio}` : ''}
                       {t.cupo_maximo != null ? ` · Cupo: ${t.cupo_maximo}` : ''}
                     </p>
+                    {t.docente && (
+                      <p className="text-xs mt-1" style={{ color: NAVY }}>
+                        👤 {t.docente.full_name}
+                        {t.pago_por_hora != null && t.horas_totales != null && (
+                          <span style={{ color: '#B45309' }}> · Costo docente: S/ {(t.pago_por_hora * t.horas_totales).toFixed(2)}</span>
+                        )}
+                      </p>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <button onClick={function () { openEdit(t) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg transition" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #D6DCE5' }}>
