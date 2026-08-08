@@ -21,6 +21,7 @@ const FeriadosManager = lazy(function () { return import('./FeriadosManager') })
 const TalleresVeranoManager = lazy(function () { return import('./TalleresVeranoManager') })
 const PaquetesVeranoManager = lazy(function () { return import('./PaquetesVeranoManager') })
 const AulasVerano = lazy(function () { return import('./AulasVerano') })
+const HorarioVerano = lazy(function () { return import('./HorarioVerano') })
 const PromotoresManager = lazy(function () { return import('./PromotoresManager') })
 const FinancieroVerano = lazy(function () { return import('./FinancieroVerano') })
 const CalificacionesVerano = lazy(function () { return import('./CalificacionesVerano') })
@@ -57,6 +58,7 @@ export default function AdminDashboard() {
     { id: 'verano', label: 'Cursos de Verano', icon: SunIcon },
     { id: 'paquetes-verano', label: 'Paquetes Verano', icon: LayersIcon },
     { id: 'aulas-verano', label: 'Aulas Verano', icon: UsersIcon },
+    { id: 'horario-verano', label: 'Horario Verano', icon: CalendarIcon },
     { id: 'promotores', label: 'Promotores', icon: UserCheckIcon },
     { id: 'financiero-verano', label: 'Panel Financiero', icon: ChartBarIcon },
     { id: 'calificaciones-verano', label: 'Calificaciones Verano', icon: ClipboardIcon },
@@ -237,6 +239,7 @@ export default function AdminDashboard() {
             {tab === 'verano' && <TalleresVeranoManager />}
             {tab === 'paquetes-verano' && <PaquetesVeranoManager />}
             {tab === 'aulas-verano' && <AulasVerano />}
+            {tab === 'horario-verano' && <HorarioVerano />}
             {tab === 'promotores' && <PromotoresManager />}
             {tab === 'financiero-verano' && <FinancieroVerano />}
             {tab === 'calificaciones-verano' && <CalificacionesVerano />}
