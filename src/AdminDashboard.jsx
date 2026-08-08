@@ -21,6 +21,7 @@ const FeriadosManager = lazy(function () { return import('./FeriadosManager') })
 const TalleresVeranoManager = lazy(function () { return import('./TalleresVeranoManager') })
 const PromotoresManager = lazy(function () { return import('./PromotoresManager') })
 const FinancieroVerano = lazy(function () { return import('./FinancieroVerano') })
+const CalificacionesVerano = lazy(function () { return import('./CalificacionesVerano') })
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
@@ -54,6 +55,7 @@ export default function AdminDashboard() {
     { id: 'verano', label: 'Cursos de Verano', icon: SunIcon },
     { id: 'promotores', label: 'Promotores', icon: UserCheckIcon },
     { id: 'financiero-verano', label: 'Panel Financiero', icon: ChartBarIcon },
+    { id: 'calificaciones-verano', label: 'Calificaciones Verano', icon: ClipboardIcon },
     { id: 'periodo', label: 'Cierre de Periodo', icon: CalendarIcon },
   ]
 
@@ -231,6 +233,7 @@ export default function AdminDashboard() {
             {tab === 'verano' && <TalleresVeranoManager />}
             {tab === 'promotores' && <PromotoresManager />}
             {tab === 'financiero-verano' && <FinancieroVerano />}
+            {tab === 'calificaciones-verano' && <CalificacionesVerano />}
               {tab === 'periodo' && <CierrePeriodo />}
             </Suspense>
           </ErrorBoundary>
