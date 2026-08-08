@@ -10,7 +10,9 @@ const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', colo
 export default function MatriculaVerano() {
   const [loading, setLoading] = useState(true)
   const [talleres, setTalleres] = useState([])
+  const [paquetes, setPaquetes] = useState([])
   const [tallerSel, setTallerSel] = useState(null)
+  const [paqueteSel, setPaqueteSel] = useState(null)
 
   const [nombreApoderado, setNombreApoderado] = useState('')
   const [dniApoderado, setDniApoderado] = useState('')
@@ -29,34 +31,52 @@ export default function MatriculaVerano() {
 
   async function cargarTalleres() {
     setLoading(true)
-    const result = await supabase
-      .from('talleres_verano')
-      .select('*')
-      .eq('activo', true)
-      .order('tipo')
-      .order('nombre')
-    if (!result.error) setTalleres(result.data)
+    const [talleresResult, paquetesResult] = await Promise.all([
+      supabase.from('talleres_verano').select('*').eq('activo', true).order('tipo').order('nombre'),
+      supabase.from('paquetes_verano').select('*, paquete_talleres(taller_id, taller:talleres_verano(nombre))').eq('activo', true).order('created_at'),
+    ])
+    if (!talleresResult.error) setTalleres(talleresResult.data)
+    if (!paquetesResult.error) setPaquetes(paquetesResult.data)
     setLoading(false)
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    if (!tallerSel) { setError('Elige un curso o taller.'); return }
+    if (!tallerSel && !paqueteSel) { setError('Elige un curso, taller, o paquete.'); return }
     if (!nombreApoderado.trim() || !dniApoderado.trim() || !telefonoApoderado.trim() || !nombreEstudiante.trim()) {
       setError('Completa todos los campos obligatorios.')
       return
     }
     setEnviando(true)
-    const result = await supabase.from('matriculas_verano').insert({
-      taller_id: tallerSel.id,
-      nombre_apoderado: nombreApoderado.trim(),
-      dni_apoderado: dniApoderado.trim(),
-      telefono_apoderado: telefonoApoderado.trim(),
-      email_apoderado: emailApoderado.trim() || null,
-      nombre_estudiante: nombreEstudiante.trim(),
-      edad_grado_estudiante: edadGrado.trim() || null,
-    })
+
+    let result
+    if (paqueteSel) {
+      const filas = paqueteSel.paquete_talleres.map(function (pt) {
+        return {
+          taller_id: pt.taller_id,
+          paquete_id: paqueteSel.id,
+          nombre_apoderado: nombreApoderado.trim(),
+          dni_apoderado: dniApoderado.trim(),
+          telefono_apoderado: telefonoApoderado.trim(),
+          email_apoderado: emailApoderado.trim() || null,
+          nombre_estudiante: nombreEstudiante.trim(),
+          edad_grado_estudiante: edadGrado.trim() || null,
+        }
+      })
+      result = await supabase.from('matriculas_verano').insert(filas)
+    } else {
+      result = await supabase.from('matriculas_verano').insert({
+        taller_id: tallerSel.id,
+        nombre_apoderado: nombreApoderado.trim(),
+        dni_apoderado: dniApoderado.trim(),
+        telefono_apoderado: telefonoApoderado.trim(),
+        email_apoderado: emailApoderado.trim() || null,
+        nombre_estudiante: nombreEstudiante.trim(),
+        edad_grado_estudiante: edadGrado.trim() || null,
+      })
+    }
+
     if (result.error) {
       setError('No se pudo enviar tu matrícula: ' + result.error.message)
     } else {
@@ -84,7 +104,7 @@ export default function MatriculaVerano() {
           </div>
           <h2 className="text-xl font-bold mb-2" style={{ color: NAVY_DARK }}>¡Solicitud enviada!</h2>
           <p className="text-sm text-slate-500 mb-1">
-            Registramos la matrícula de <strong>{nombreEstudiante}</strong> en <strong>{tallerSel.nombre}</strong>.
+            Registramos la matrícula de <strong>{nombreEstudiante}</strong> en <strong>{paqueteSel ? paqueteSel.nombre : tallerSel.nombre}</strong>.
           </p>
           <p className="text-sm text-slate-500">
             Para confirmarla, realiza el depósito o transferencia según las indicaciones que te compartió el asesor. En cuanto se valide el pago, quedará habilitado.
@@ -105,10 +125,32 @@ export default function MatriculaVerano() {
           </div>
         </div>
 
-        {!tallerSel ? (
+        {!tallerSel && !paqueteSel ? (
           <>
-            <h2 className="text-lg font-bold mb-1" style={{ color: NAVY_DARK }}>Elige un curso o taller</h2>
+            <h2 className="text-lg font-bold mb-1" style={{ color: NAVY_DARK }}>Elige un curso, taller, o paquete</h2>
             <p className="text-sm text-slate-400 mb-5">Selecciona la opción en la que deseas matricular a tu hijo(a).</p>
+
+            {paquetes.length > 0 && (
+              <div className="space-y-3 mb-6">
+                {paquetes.map(function (p) {
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={function () { setPaqueteSel(p) }}
+                      className="w-full text-left rounded-2xl p-4 transition hover:-translate-y-0.5"
+                      style={{ background: `linear-gradient(135deg, ${NAVY}, ${GREEN})`, boxShadow: '0 4px 14px rgba(37,99,235,0.25)' }}
+                    >
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/20 text-white">📦 PAQUETE</span>
+                      <p className="text-sm font-bold text-white mt-1.5">{p.nombre}</p>
+                      {p.descripcion && <p className="text-xs text-white/80 mt-0.5">{p.descripcion}</p>}
+                      <p className="text-xs text-white/70 mt-1">Incluye: {p.paquete_talleres.map(function (pt) { return pt.taller?.nombre }).join(' · ')}</p>
+                      {p.precio_sugerido != null && <p className="text-sm font-bold text-white mt-2">S/ {p.precio_sugerido}</p>}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
             {talleres.length === 0 ? (
               <p className="text-sm text-slate-400">Todavía no hay cursos de verano publicados. Vuelve a intentarlo más adelante.</p>
             ) : (
@@ -142,10 +184,21 @@ export default function MatriculaVerano() {
           </>
         ) : (
           <>
-            <button onClick={function () { setTallerSel(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Elegir otro curso</button>
+            <button onClick={function () { setTallerSel(null); setPaqueteSel(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Elegir otra opción</button>
             <div className="bg-white rounded-2xl p-4 mb-5" style={{ border: '1px solid #E5E9F0' }}>
-              <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>{tallerSel.nombre}</p>
-              <p className="text-xs text-slate-400">{tallerSel.modalidad === 'virtual' ? '💻 Virtual' : '🏫 Presencial'}{tallerSel.precio != null ? ` · S/ ${tallerSel.precio}` : ''}</p>
+              {paqueteSel ? (
+                <>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#E7F3E4', color: '#16A34A' }}>📦 PAQUETE</span>
+                  <p className="text-sm font-bold mt-1" style={{ color: NAVY_DARK }}>{paqueteSel.nombre}</p>
+                  <p className="text-xs text-slate-400">Incluye: {paqueteSel.paquete_talleres.map(function (pt) { return pt.taller?.nombre }).join(' · ')}</p>
+                  {paqueteSel.precio_sugerido != null && <p className="text-sm font-bold mt-1" style={{ color: GREEN }}>S/ {paqueteSel.precio_sugerido}</p>}
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>{tallerSel.nombre}</p>
+                  <p className="text-xs text-slate-400">{tallerSel.modalidad === 'virtual' ? '💻 Virtual' : '🏫 Presencial'}{tallerSel.precio != null ? ` · S/ ${tallerSel.precio}` : ''}</p>
+                </>
+              )}
             </div>
 
             <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-5 space-y-4" style={{ border: '1px solid #E5E9F0' }}>
