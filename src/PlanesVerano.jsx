@@ -29,7 +29,7 @@ const PLANES = [
 ]
 
 const REGLAS = [
-  { min: 1, max: 8, plan: 'C', comentario: 'Por debajo de 7-8 alumnos el ciclo pierde dinero. Evalúa posponer o buscar más matrículas.' },
+  { min: 0, max: 8, plan: 'C', comentario: 'Por debajo de 7-8 alumnos el ciclo pierde dinero. Evalúa posponer o buscar más matrículas.' },
   { min: 9, max: 20, plan: 'B', comentario: 'Zona más común si la matrícula es despareja entre grados.' },
   { min: 21, max: 23, plan: null, comentario: 'Zona de transición: supera el aforo de B (20) pero aún no cubre cómodo el breakeven de A. Evalúa caso a caso.' },
   { min: 24, max: 999, plan: 'A', comentario: 'Cubre gastos desde 24-28 alumnos. El margen mejora conforme te acercas a 37-40.' },
@@ -56,7 +56,7 @@ export default function PlanesVerano() {
 
   if (loading) return <p className="text-slate-400 text-sm">Cargando...</p>
 
-  const regla = REGLAS.find(function (r) { return totalMatriculados >= r.min && totalMatriculados <= r.max })
+  const regla = REGLAS.find(function (r) { return totalMatriculados >= r.min && totalMatriculados <= r.max }) || REGLAS[REGLAS.length - 1]
   const planActivo = regla?.plan ? PLANES.find(function (p) { return p.codigo === regla.plan }) : null
   const breakeven = planActivo ? (precio === 525 ? planActivo.breakeven525 : planActivo.breakeven600) : null
   const ingresoBruto = totalMatriculados * precio
