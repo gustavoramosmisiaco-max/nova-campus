@@ -56,6 +56,8 @@ export default function AdminDashboard() {
     { id: 'vaciar-periodo', label: 'Vaciar Periodo', icon: TrashIcon },
     { id: 'recreos', label: 'Recreos', icon: CoffeeIcon },
     { id: 'feriados', label: 'Feriados', icon: CalendarIcon },
+    { id: 'periodo', label: 'Cierre de Periodo', icon: CalendarIcon },
+    { divider: true, label: 'Cursos de Verano' },
     { id: 'verano', label: 'Cursos de Verano', icon: SunIcon },
     { id: 'paquetes-verano', label: 'Paquetes Verano', icon: LayersIcon },
     { id: 'aulas-verano', label: 'Aulas Verano', icon: UsersIcon },
@@ -64,7 +66,6 @@ export default function AdminDashboard() {
     { id: 'promotores', label: 'Promotores', icon: UserCheckIcon },
     { id: 'financiero-verano', label: 'Panel Financiero', icon: ChartBarIcon },
     { id: 'calificaciones-verano', label: 'Calificaciones Verano', icon: ClipboardIcon },
-    { id: 'periodo', label: 'Cierre de Periodo', icon: CalendarIcon },
   ]
 
   const initials = (profile?.full_name || 'AD')
@@ -89,11 +90,18 @@ export default function AdminDashboard() {
           <div>
             <p className="text-white font-bold leading-tight">Nexoris Academy</p>
             <p className="text-xs" style={{ color: GREEN }}>Panel Admin</p>
-            <p className="text-[9px]" style={{ color: '#EF4444' }}>v-verano-promotores-01</p>
           </div>
         </div>
         <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
-          {menuItems.map(function (item) {
+          {menuItems.map(function (item, i) {
+            if (item.divider) {
+              return (
+                <div key={'divider-' + i} className="pt-4 pb-1 px-4">
+                  <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#EF9F27' }}>☀️ {item.label}</p>
+                  <div className="h-px mt-2" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }} />
+                </div>
+              )
+            }
             const Icon = item.icon
             const active = tab === item.id
             return (
@@ -140,7 +148,15 @@ export default function AdminDashboard() {
               </div>
             </div>
             <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
-              {menuItems.map(function (item) {
+              {menuItems.map(function (item, i) {
+                if (item.divider) {
+                  return (
+                    <div key={'divider-m-' + i} className="pt-4 pb-1 px-4">
+                      <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#EF9F27' }}>☀️ {item.label}</p>
+                      <div className="h-px mt-2" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }} />
+                    </div>
+                  )
+                }
                 const Icon = item.icon
                 const active = tab === item.id
                 return (
