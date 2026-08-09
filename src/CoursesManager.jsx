@@ -56,13 +56,40 @@ export default function CoursesManager() {
     descripcion: '',
   })
   const [schedules, setSchedules] = useState([{ ...emptyBlock }])
+  const [gradosPorInstitucion, setGradosPorInstitucion] = useState({}) // { institucionId: [{numero, nombre}] }
 
   useEffect(function () {
     loadCourses()
     loadDocentes()
     loadAreas()
     loadInstituciones()
+    loadGradosPorInstitucion()
   }, [])
+
+  async function loadGradosPorInstitucion() {
+    const result = await supabase.from('grados_institucion').select('institucion_id, numero, nombre').order('orden')
+    if (result.error) return
+    const mapa = {}
+    result.data.forEach(function (g) {
+      if (!mapa[g.institucion_id]) mapa[g.institucion_id] = []
+      mapa[g.institucion_id].push({ numero: g.numero, nombre: g.nombre })
+    })
+    setGradosPorInstitucion(mapa)
+  }
+
+  // Lista combinada de todos los grados de todas las instituciones (sin repetir), para cuando aún no se eligió institución
+  function gradosUnion() {
+    const vistos = new Map()
+    Object.values(gradosPorInstitucion).forEach(function (lista) {
+      lista.forEach(function (g) { if (!vistos.has(g.numero)) vistos.set(g.numero, g) })
+    })
+    return [...vistos.values()].sort(function (a, b) { return a.numero - b.numero })
+  }
+
+  function gradosParaInstitucion(institucionId) {
+    if (institucionId && gradosPorInstitucion[institucionId]) return gradosPorInstitucion[institucionId]
+    return gradosUnion().length > 0 ? gradosUnion() : GRADOS.map(function (n) { return { numero: n, nombre: n + '°' } })
+  }
 
   async function loadCourses() {
     setLoading(true)
@@ -504,7 +531,7 @@ export default function CoursesManager() {
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Grado</label>
             <select value={bulkGrado} onChange={function (e) { setBulkGrado(Number(e.target.value)) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
-              {GRADOS.map(function (g) { return <option key={g} value={g}>{g}°</option> })}
+              {gradosUnion().map(function (g) { return <option key={g.numero} value={g.numero}>{g.nombre}</option> })}
             </select>
           </div>
           <div>
@@ -577,13 +604,13 @@ export default function CoursesManager() {
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Grados</label>
             <div className="flex flex-wrap gap-1.5">
-              {GRADOS.map(function (g) {
-                const checked = masivoGrados.has(g)
+              {gradosParaInstitucion(masivoInstitucion).map(function (g) {
+                const checked = masivoGrados.has(g.numero)
                 return (
-                  <button key={g} type="button" onClick={function () { toggleSetValue(setMasivoGrados, g) }}
+                  <button key={g.numero} type="button" onClick={function () { toggleSetValue(setMasivoGrados, g.numero) }}
                     className="w-9 h-9 rounded-lg text-sm font-semibold transition"
                     style={checked ? { backgroundColor: NAVY, color: 'white' } : { backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }}>
-                    {g}°
+                    {g.nombre}
                   </button>
                 )
               })}
@@ -745,8 +772,8 @@ export default function CoursesManager() {
                   className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                   style={inputStyle}
                 >
-                  {GRADOS.map(function (g) {
-                    return <option key={g} value={g}>{g}°</option>
+                  {gradosParaInstitucion(form.institucion_id).map(function (g) {
+                    return <option key={g.numero} value={g.numero}>{g.nombre}</option>
                   })}
                 </select>
               </div>
@@ -773,7 +800,12 @@ export default function CoursesManager() {
               <label className="block text-sm font-medium mb-1" style={{ color: NAVY_DARK }}>Institución educativa</label>
               <select
                 value={form.institucion_id}
-                onChange={function (e) { setForm({ ...form, institucion_id: e.target.value }) }}
+                onChange={function (e) {
+                  const nuevaInstitucion = e.target.value
+                  const listaGrados = gradosParaInstitucion(nuevaInstitucion)
+                  const gradoValido = listaGrados.some(function (g) { return g.numero === form.grado })
+                  setForm({ ...form, institucion_id: nuevaInstitucion, grado: gradoValido ? form.grado : (listaGrados[0]?.numero || form.grado) })
+                }}
                 className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                 style={inputStyle}
               >
