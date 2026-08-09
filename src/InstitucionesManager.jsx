@@ -19,6 +19,11 @@ export default function InstitucionesManager() {
   const [dre, setDre] = useState('')
   const [director, setDirector] = useState('')
 
+  const [gradosAbiertoPara, setGradosAbiertoPara] = useState(null) // id de la institución
+  const [gradosDeInstitucion, setGradosDeInstitucion] = useState([])
+  const [nuevoGradoNombre, setNuevoGradoNombre] = useState('')
+  const [nuevoGradoNumero, setNuevoGradoNumero] = useState('')
+
   useEffect(function () {
     loadInstituciones()
   }, [])
@@ -82,6 +87,44 @@ export default function InstitucionesManager() {
     const result = await supabase.from('instituciones_educativas').delete().eq('id', id)
     if (result.error) alert('Error: ' + result.error.message)
     else loadInstituciones()
+  }
+
+  async function abrirGrados(institucionId) {
+    if (gradosAbiertoPara === institucionId) {
+      setGradosAbiertoPara(null)
+      return
+    }
+    setGradosAbiertoPara(institucionId)
+    setNuevoGradoNombre('')
+    setNuevoGradoNumero('')
+    const result = await supabase.from('grados_institucion').select('*').eq('institucion_id', institucionId).order('orden')
+    if (!result.error) setGradosDeInstitucion(result.data)
+  }
+
+  async function agregarGrado(institucionId) {
+    if (!nuevoGradoNombre.trim() || !nuevoGradoNumero) return
+    const maxOrden = gradosDeInstitucion.reduce(function (a, g) { return Math.max(a, g.orden) }, 0)
+    const result = await supabase.from('grados_institucion').insert({
+      institucion_id: institucionId,
+      numero: Number(nuevoGradoNumero),
+      nombre: nuevoGradoNombre.trim(),
+      orden: maxOrden + 1,
+    })
+    if (result.error) {
+      alert('No se pudo agregar: ' + result.error.message)
+      return
+    }
+    setNuevoGradoNombre('')
+    setNuevoGradoNumero('')
+    abrirGrados(institucionId)
+    setGradosAbiertoPara(institucionId)
+  }
+
+  async function eliminarGrado(gradoId, institucionId) {
+    if (!confirm('¿Quitar este grado de la institución? Las aulas que ya lo usen no se ven afectadas.')) return
+    await supabase.from('grados_institucion').delete().eq('id', gradoId)
+    const result = await supabase.from('grados_institucion').select('*').eq('institucion_id', institucionId).order('orden')
+    if (!result.error) setGradosDeInstitucion(result.data)
   }
 
   return (
@@ -148,10 +191,36 @@ export default function InstitucionesManager() {
                     <p className="text-xs text-slate-500">Director(a): {inst.director || '—'}</p>
                   </div>
                   <div className="flex gap-2">
+                    <button onClick={function () { abrirGrados(inst.id) }} className="text-xs font-semibold px-2 py-1 rounded-lg transition" style={{ backgroundColor: 'white', color: '#B45309', border: '1px solid #D6DCE5' }}>Grados</button>
                     <button onClick={function () { openEdit(inst) }} className="text-xs font-semibold px-2 py-1 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>Editar</button>
                     <button onClick={function () { handleDelete(inst.id) }} className="text-xs font-semibold px-2 py-1 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: '#B91C1C' }}>Eliminar</button>
                   </div>
                 </div>
+
+                {gradosAbiertoPara === inst.id && (
+                  <div className="mt-3 pt-3" style={{ borderTop: '1px solid #F4F6F9' }}>
+                    <p className="text-xs font-bold mb-2" style={{ color: NAVY_DARK }}>Grados de esta institución</p>
+                    {gradosDeInstitucion.length === 0 ? (
+                      <p className="text-xs text-slate-400 mb-2">Sin grados todavía.</p>
+                    ) : (
+                      <ul className="space-y-1 mb-3">
+                        {gradosDeInstitucion.map(function (g) {
+                          return (
+                            <li key={g.id} className="flex justify-between items-center text-xs rounded-lg px-2 py-1" style={{ backgroundColor: '#F4F6F9' }}>
+                              <span style={{ color: NAVY_DARK }}>{g.nombre} (nº {g.numero})</span>
+                              <button onClick={function () { eliminarGrado(g.id, inst.id) }} className="text-[10px] font-semibold px-2 py-0.5 rounded text-white" style={{ backgroundColor: '#B91C1C' }}>Quitar</button>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                    <div className="flex gap-2">
+                      <input type="number" value={nuevoGradoNumero} onChange={function (e) { setNuevoGradoNumero(e.target.value) }} placeholder="Nº (ej: 6)" className="w-20 rounded-lg px-2 py-1.5 text-xs outline-none" style={inputStyle} />
+                      <input type="text" value={nuevoGradoNombre} onChange={function (e) { setNuevoGradoNombre(e.target.value) }} placeholder="Nombre (ej: 6°)" className="flex-1 rounded-lg px-2 py-1.5 text-xs outline-none" style={inputStyle} />
+                      <button onClick={function () { agregarGrado(inst.id) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: GREEN }}>+ Agregar</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}
