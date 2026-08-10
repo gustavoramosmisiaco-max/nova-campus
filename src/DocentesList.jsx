@@ -5,14 +5,19 @@ import { estaEnLinea } from './PresenceHeartbeat'
 import { usePresence } from './PresenceContext'
 
 const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
+const GREEN = '#22C55E'
 const GREEN_DARK = '#16A34A'
 
 export default function DocentesList() {
   const { isOnline } = usePresence()
   const [docentes, setDocentes] = useState([])
+  const [instituciones, setInstituciones] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [deletingId, setDeletingId] = useState(null)
+  const [editandoInstId, setEditandoInstId] = useState(null)
+  const [guardandoInst, setGuardandoInst] = useState(false)
 
   useEffect(function () {
     loadDocentes()
@@ -22,11 +27,12 @@ export default function DocentesList() {
     setLoading(true)
     setError('')
 
-    const profilesResult = await supabase
-      .from('profiles')
-      .select('id, full_name, whatsapp, last_active_at')
-      .eq('role', 'docente')
-      .order('full_name', { ascending: true })
+    const [profilesResult, instResult, relResult, coursesResult] = await Promise.all([
+      supabase.from('profiles').select('id, full_name, whatsapp, last_active_at').eq('role', 'docente').order('full_name'),
+      supabase.from('instituciones_educativas').select('id, nombre').order('nombre'),
+      supabase.from('docente_instituciones').select('docente_id, institucion_id'),
+      supabase.from('courses').select('docente_id, nombre, grado, grupo, asignaturas(areas_curriculares(nombre))').not('docente_id', 'is', null),
+    ])
 
     if (profilesResult.error) {
       setError(profilesResult.error.message)
@@ -34,18 +40,21 @@ export default function DocentesList() {
       return
     }
 
-    const coursesResult = await supabase
-      .from('courses')
-      .select('docente_id, nombre, grado, grupo, asignaturas(areas_curriculares(nombre))')
-      .not('docente_id', 'is', null)
+    setInstituciones(instResult.error ? [] : instResult.data)
+
+    const institucionesPorDocente = {} // docenteId -> [institucionId, ...]
+    if (!relResult.error) {
+      relResult.data.forEach(function (r) {
+        if (!institucionesPorDocente[r.docente_id]) institucionesPorDocente[r.docente_id] = []
+        institucionesPorDocente[r.docente_id].push(r.institucion_id)
+      })
+    }
 
     const areaMap = {}
     const cursosMap = {}
     if (!coursesResult.error) {
       coursesResult.data.forEach(function (c) {
-        if (!areaMap[c.docente_id]) {
-          areaMap[c.docente_id] = c.asignaturas?.areas_curriculares?.nombre || null
-        }
+        if (!areaMap[c.docente_id]) areaMap[c.docente_id] = c.asignaturas?.areas_curriculares?.nombre || null
         if (!cursosMap[c.docente_id]) cursosMap[c.docente_id] = []
         cursosMap[c.docente_id].push(`${c.nombre} ${c.grado}°${c.grupo}`)
       })
@@ -56,10 +65,11 @@ export default function DocentesList() {
         ...d,
         area: areaMap[d.id] || null,
         cursos: cursosMap[d.id] || [],
+        institucionIds: institucionesPorDocente[d.id] || [],
       }
     })
-
     enriched.sort(function (a, b) { return compararPorApellido(a.full_name, b.full_name) })
+
     setDocentes(enriched)
     setLoading(false)
   }
@@ -67,7 +77,18 @@ export default function DocentesList() {
   async function guardarWhatsapp(id, valor) {
     const result = await supabase.from('profiles').update({ whatsapp: valor }).eq('id', id)
     if (result.error) alert('Error: ' + result.error.message)
-    else setDocentes(function (prev) { return prev.map(function (d) { return d.id === id ? { ...d, whatsapp: valor } : d }) })
+    else setDocentes(function (prev) { return prev.map(function (d) { return d.id === id ? { ...d, whatsapp: valor } : d } ) })
+  }
+
+  async function toggleInstitucionDocente(docenteId, institucionId, yaLaTiene) {
+    setGuardandoInst(true)
+    if (yaLaTiene) {
+      await supabase.from('docente_instituciones').delete().eq('docente_id', docenteId).eq('institucion_id', institucionId)
+    } else {
+      await supabase.from('docente_instituciones').insert({ docente_id: docenteId, institucion_id: institucionId })
+    }
+    await loadDocentes()
+    setGuardandoInst(false)
   }
 
   async function handleDelete(id, nombre) {
@@ -90,11 +111,7 @@ export default function DocentesList() {
   if (loading) return <p className="text-slate-400 text-sm">Cargando docentes...</p>
   if (error) return <p className="text-red-500 text-sm">Error: {error}</p>
 
-  const areasUnicas = [...new Set(docentes.map(function (d) { return d.area }).filter(Boolean))].sort()
-  const grupos = areasUnicas.map(function (area) {
-    return { area: area, items: docentes.filter(function (d) { return d.area === area }) }
-  })
-  const sinArea = docentes.filter(function (d) { return !d.area })
+  const sinInstitucion = docentes.filter(function (d) { return d.institucionIds.length === 0 })
 
   function renderTable(items) {
     return (
@@ -111,16 +128,41 @@ export default function DocentesList() {
           {items.map(function (d) {
             return (
               <tr key={d.id} style={{ borderBottom: '1px solid #F4F6F9' }}>
-                <td className="py-2 pr-3" style={{ color: NAVY_DARK }}>
+                <td className="py-2 pr-3 align-top" style={{ color: NAVY_DARK }}>
                   <span className="flex items-center gap-1.5">
                     {isOnline(d.id) && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#22C55E' }} title="En línea" />}
                     {d.full_name}
                   </span>
+                  <button
+                    onClick={function () { setEditandoInstId(editandoInstId === d.id ? null : d.id) }}
+                    className="text-[11px] font-semibold hover:underline mt-0.5 block"
+                    style={{ color: NAVY }}
+                  >
+                    {editandoInstId === d.id ? 'Cerrar' : 'Editar instituciones'}
+                  </button>
+                  {editandoInstId === d.id && (
+                    <div className="mt-2 p-2 rounded-lg space-y-1" style={{ backgroundColor: '#F4F6F9' }}>
+                      {instituciones.map(function (inst) {
+                        const marcado = d.institucionIds.includes(inst.id)
+                        return (
+                          <label key={inst.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={marcado}
+                              disabled={guardandoInst}
+                              onChange={function () { toggleInstitucionDocente(d.id, inst.id, marcado) }}
+                            />
+                            <span style={{ color: NAVY_DARK }}>{inst.nombre}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
                 </td>
-                <td className="py-2 pr-3 text-slate-500 text-xs">
+                <td className="py-2 pr-3 text-slate-500 text-xs align-top">
                   {d.cursos.length > 0 ? d.cursos.join(' · ') : '—'}
                 </td>
-                <td className="py-2 pr-3">
+                <td className="py-2 pr-3 align-top">
                   <input
                     type="text"
                     defaultValue={d.whatsapp || ''}
@@ -130,7 +172,7 @@ export default function DocentesList() {
                     onBlur={function (e) { if (e.target.value !== (d.whatsapp || '')) guardarWhatsapp(d.id, e.target.value) }}
                   />
                 </td>
-                <td className="py-2 text-right">
+                <td className="py-2 text-right align-top">
                   <button
                     onClick={function () { handleDelete(d.id, d.full_name) }}
                     disabled={deletingId === d.id}
@@ -151,35 +193,39 @@ export default function DocentesList() {
   return (
     <div>
       <h2 className="text-2xl font-bold mb-2" style={{ color: NAVY_DARK }}>Docentes</h2>
-      <p className="text-sm text-slate-400 mb-6">{docentes.length} docente(s) registrado(s) en total.</p>
+      <p className="text-sm text-slate-400 mb-6">
+        {docentes.length} docente(s) registrado(s) en total. Un docente puede estar marcado en varias instituciones — ahí aparecerá en cada una.
+      </p>
 
       {docentes.length === 0 ? (
         <p className="text-slate-400 text-sm">Aún no hay docentes registrados.</p>
       ) : (
         <div className="space-y-6">
-          {grupos.map(function (grupo) {
+          {instituciones.map(function (inst) {
+            const items = docentes.filter(function (d) { return d.institucionIds.includes(inst.id) })
+            if (items.length === 0) return null
             return (
-              <div key={grupo.area} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
+              <div key={inst.id} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
                 <h3
                   className="text-xs font-bold uppercase tracking-wide mb-3 px-3 py-1.5 rounded-lg inline-block"
                   style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}
                 >
-                  {grupo.area} ({grupo.items.length})
+                  {inst.nombre} ({items.length})
                 </h3>
-                {renderTable(grupo.items)}
+                {renderTable(items)}
               </div>
             )
           })}
 
-          {sinArea.length > 0 && (
+          {sinInstitucion.length > 0 && (
             <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
               <h3
                 className="text-xs font-bold uppercase tracking-wide mb-3 px-3 py-1.5 rounded-lg inline-block"
                 style={{ backgroundColor: '#FDECEC', color: '#B91C1C' }}
               >
-                Sin curso asignado ({sinArea.length})
+                Sin institución asignada ({sinInstitucion.length})
               </h3>
-              {renderTable(sinArea)}
+              {renderTable(sinInstitucion)}
             </div>
           )}
         </div>
