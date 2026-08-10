@@ -9,41 +9,30 @@ const NAVY = '#2563EB'
 const GREEN = '#22C55E'
 const GREEN_DARK = '#16A34A'
 
-const GRADOS = [1, 2, 3, 4, 5]
-const SECCIONES = ['A', 'B', 'C', 'D', 'E']
-
-function FolderIcon({ color, big }) {
-  const size = big ? 26 : 18
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color || GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-    </svg>
-  )
-}
-
-export default function EstudiantesList() {
+export default function DocentesList() {
   const { isOnline } = usePresence()
-  const [students, setStudents] = useState([])
+  const [docentes, setDocentes] = useState([])
+  const [instituciones, setInstituciones] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [deletingId, setDeletingId] = useState(null)
-  const [selectedInst, setSelectedInst] = useState(null)
-  const [selectedAula, setSelectedAula] = useState(null)
-  const [eliminandoAula, setEliminandoAula] = useState(false)
+  const [editandoInstId, setEditandoInstId] = useState(null)
+  const [guardandoInst, setGuardandoInst] = useState(false)
 
   useEffect(function () {
-    loadStudents()
+    loadDocentes()
   }, [])
 
-  async function loadStudents() {
+  async function loadDocentes() {
     setLoading(true)
     setError('')
 
-    const profilesResult = await supabase
-      .from('profiles')
-      .select('id, full_name, codigo_padre, last_active_at, grado, grupo, institucion_id, institucion:instituciones_educativas!profiles_institucion_id_fkey(nombre)')
-      .eq('role', 'estudiante')
-      .order('full_name', { ascending: true })
+    const [profilesResult, instResult, relResult, coursesResult] = await Promise.all([
+      supabase.from('profiles').select('id, full_name, whatsapp, last_active_at').eq('role', 'docente').order('full_name'),
+      supabase.from('instituciones_educativas').select('id, nombre').order('nombre'),
+      supabase.from('docente_instituciones').select('docente_id, institucion_id'),
+      supabase.from('courses').select('id, docente_id, nombre, grado, grupo, asignaturas(areas_curriculares(nombre))').not('docente_id', 'is', null),
+    ])
 
     if (profilesResult.error) {
       setError(profilesResult.error.message)
@@ -51,60 +40,69 @@ export default function EstudiantesList() {
       return
     }
 
-    // Solo se usa como respaldo para estudiantes viejos que aún no tengan institucion_id guardada en su perfil
-    const enrollResult = await supabase
-      .from('enrollments')
-      .select('student_id, course:courses(grado, grupo, institucion:instituciones_educativas(nombre))')
-      .eq('status', 'activo')
+    setInstituciones(instResult.error ? [] : instResult.data)
 
-    const aulaMapRespaldo = {}
-    if (!enrollResult.error) {
-      enrollResult.data.forEach(function (e) {
-        if (!aulaMapRespaldo[e.student_id] && e.course) {
-          aulaMapRespaldo[e.student_id] = {
-            grado: e.course.grado,
-            grupo: e.course.grupo,
-            institucion: e.course.institucion?.nombre || null,
-          }
-        }
+    const institucionesPorDocente = {} // docenteId -> [institucionId, ...]
+    if (!relResult.error) {
+      relResult.data.forEach(function (r) {
+        if (!institucionesPorDocente[r.docente_id]) institucionesPorDocente[r.docente_id] = []
+        institucionesPorDocente[r.docente_id].push(r.institucion_id)
       })
     }
 
-    const enriched = profilesResult.data.map(function (s) {
-      // Prioridad: lo que está guardado directo en el perfil del estudiante
-      if (s.institucion_id && s.grado && s.grupo) {
-        return { ...s, aula: { grado: s.grado, grupo: s.grupo, institucion: s.institucion?.nombre || 'Sin institución asignada' } }
+    const areaMap = {}
+    const cursosMap = {}
+    if (!coursesResult.error) {
+      coursesResult.data.forEach(function (c) {
+        if (!areaMap[c.docente_id]) areaMap[c.docente_id] = c.asignaturas?.areas_curriculares?.nombre || null
+        if (!cursosMap[c.docente_id]) cursosMap[c.docente_id] = []
+        cursosMap[c.docente_id].push({ id: c.id, texto: `${c.nombre} ${c.grado}°${c.grupo}` })
+      })
+    }
+
+    const enriched = profilesResult.data.map(function (d) {
+      return {
+        ...d,
+        area: areaMap[d.id] || null,
+        cursos: cursosMap[d.id] || [],
+        institucionIds: institucionesPorDocente[d.id] || [],
       }
-      // Respaldo: inferido de sus cursos (para estudiantes creados antes de este cambio)
-      const respaldo = aulaMapRespaldo[s.id]
-      return { ...s, aula: respaldo && respaldo.institucion ? respaldo : { grado: s.grado || null, grupo: s.grupo || null, institucion: 'Sin institución asignada' } }
     })
     enriched.sort(function (a, b) { return compararPorApellido(a.full_name, b.full_name) })
 
-    setStudents(enriched)
+    setDocentes(enriched)
     setLoading(false)
   }
 
-  async function handleGenerarCodigo(studentId) {
-    const codigo = crypto.randomUUID().replace(/-/g, '').slice(0, 6).toUpperCase()
-    const result = await supabase.from('profiles').update({ codigo_padre: codigo }).eq('id', studentId)
+  const [quitandoCursoId, setQuitandoCursoId] = useState(null)
+
+  async function quitarDeAsignatura(docenteId, cursoId, textoAsignatura) {
+    if (!confirm(`¿Quitar al docente de "${textoAsignatura}"? La Asignatura queda sin docente, no se borra nada más.`)) return
+    setQuitandoCursoId(cursoId)
+    const result = await supabase.from('courses').update({ docente_id: null }).eq('id', cursoId)
     if (result.error) {
-      alert('Error al generar el código: ' + result.error.message)
+      alert('Error: ' + result.error.message)
     } else {
-      loadStudents()
+      await loadDocentes()
     }
+    setQuitandoCursoId(null)
   }
 
-  async function handleGenerarTodosLosCodigos(items) {
-    const sinCodigo = items.filter(function (s) { return !s.codigo_padre })
-    if (sinCodigo.length === 0) return
-    if (!confirm(`¿Generar código para los ${sinCodigo.length} estudiante(s) que aún no tienen?`)) return
+  async function guardarWhatsapp(id, valor) {
+    const result = await supabase.from('profiles').update({ whatsapp: valor }).eq('id', id)
+    if (result.error) alert('Error: ' + result.error.message)
+    else setDocentes(function (prev) { return prev.map(function (d) { return d.id === id ? { ...d, whatsapp: valor } : d } ) })
+  }
 
-    await Promise.all(sinCodigo.map(function (s) {
-      const codigo = crypto.randomUUID().replace(/-/g, '').slice(0, 6).toUpperCase()
-      return supabase.from('profiles').update({ codigo_padre: codigo }).eq('id', s.id)
-    }))
-    loadStudents()
+  async function toggleInstitucionDocente(docenteId, institucionId, yaLaTiene) {
+    setGuardandoInst(true)
+    if (yaLaTiene) {
+      await supabase.from('docente_instituciones').delete().eq('docente_id', docenteId).eq('institucion_id', institucionId)
+    } else {
+      await supabase.from('docente_instituciones').insert({ docente_id: docenteId, institucion_id: institucionId })
+    }
+    await loadDocentes()
+    setGuardandoInst(false)
   }
 
   async function handleDelete(id, nombre) {
@@ -119,224 +117,179 @@ export default function EstudiantesList() {
     } else if (data.error) {
       alert('Error al eliminar: ' + data.error)
     } else {
-      setStudents(function (prev) { return prev.filter(function (s) { return s.id !== id }) })
+      setDocentes(function (prev) { return prev.filter(function (d) { return d.id !== id }) })
     }
     setDeletingId(null)
   }
 
-  async function handleEliminarAulaCompleta(items) {
-    const confirmText = prompt(`Vas a eliminar las cuentas de los ${items.length} estudiante(s) de esta aula. Esta acción NO se puede deshacer.\n\nEscribe ELIMINAR (en mayúsculas) para confirmar:`)
-    if (confirmText !== 'ELIMINAR') return
+  const [reseteandoId, setReseteandoId] = useState(null)
 
-    setEliminandoAula(true)
+  async function handleResetPassword(id, nombre) {
+    if (!confirm(`¿Resetear la contraseña de "${nombre}"? Se va a generar una contraseña nueva.`)) return
+    setReseteandoId(id)
+    const { data, error: fnError } = await supabase.functions.invoke('reset-password', {
+      body: { userId: id },
+    })
 
-    const resultados = await Promise.all(items.map(async function (s) {
-      try {
-        const { data, error: fnError } = await supabase.functions.invoke('delete-user', { body: { userId: s.id } })
-        return !fnError && !data?.error
-      } catch (_e) {
-        return false
-      }
-    }))
-
-    const exitosos = resultados.filter(Boolean).length
-    const fallidos = resultados.length - exitosos
-
-    setEliminandoAula(false)
-    alert(`Listo: ${exitosos} eliminado(s) correctamente${fallidos > 0 ? `, ${fallidos} con error` : ''}.`)
-    setSelectedAula(null)
-    loadStudents()
+    if (fnError) {
+      alert('Error al resetear: ' + fnError.message)
+    } else if (data.error) {
+      alert('Error al resetear: ' + data.error)
+    } else {
+      alert(`Nueva contraseña de ${nombre}:\n\n${data.password}\n\nCópiala ahora — no se va a volver a mostrar.`)
+    }
+    setReseteandoId(null)
   }
 
-  if (loading) return <p className="text-slate-400 text-sm">Cargando estudiantes...</p>
+  if (loading) return <p className="text-slate-400 text-sm">Cargando docentes...</p>
   if (error) return <p className="text-red-500 text-sm">Error: {error}</p>
 
-  // ---------- Nivel 3: tabla de estudiantes de una aula ----------
-  if (selectedAula) {
-    const items = students.filter(function (s) {
-      return s.aula.institucion === selectedInst && s.aula.grado === selectedAula.grado && s.aula.grupo === selectedAula.grupo
-    })
+  const sinInstitucion = docentes.filter(function (d) { return d.institucionIds.length === 0 })
+
+  function renderTable(items) {
     return (
-      <div>
-        <button onClick={function () { setSelectedAula(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>
-          ← Volver a {selectedInst}
-        </button>
-        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-          <h2 className="text-lg font-bold" style={{ color: NAVY_DARK }}>
-            {selectedAula.grado}° Secundaria — Sección {selectedAula.grupo} ({items.length})
-          </h2>
-          <div className="flex gap-2">
-            {items.some(function (s) { return !s.codigo_padre }) && (
-              <button
-                onClick={function () { handleGenerarTodosLosCodigos(items) }}
-                className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
-                style={{ backgroundColor: '#B45309' }}
-              >
-                Generar código para todos los que falten
-              </button>
-            )}
-            {items.length > 0 && (
-              <button
-                onClick={function () { handleEliminarAulaCompleta(items) }}
-                disabled={eliminandoAula}
-                className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
-                style={{ backgroundColor: '#B91C1C' }}
-              >
-                {eliminandoAula ? 'Eliminando...' : `Eliminar los ${items.length} de esta aula`}
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl p-4" style={{ border: '1px solid #E5E9F0' }}>
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: '1px solid #E5E9F0' }}>
-                <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Nombre</th>
-                <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Código de padre</th>
-                <th className="text-right py-2 font-semibold" style={{ color: NAVY_DARK }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map(function (s) {
-                return (
-                  <tr key={s.id} style={{ borderBottom: '1px solid #F4F6F9' }}>
-                    <td className="py-2 pr-3" style={{ color: NAVY_DARK }}>
-                      <span className="flex items-center gap-1.5">
-                        {isOnline(s.id) && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#22C55E' }} title="En línea" />}
-                        {s.full_name}
-                      </span>
-                    </td>
-                    <td className="py-2 pr-3">
-                      {s.codigo_padre ? (
-                        <span className="text-xs font-mono font-semibold px-2 py-1 rounded-lg" style={{ backgroundColor: '#E7F3E4', color: '#16A34A' }}>
-                          {s.codigo_padre}
-                        </span>
-                      ) : (
-                        <button
-                          onClick={function () { handleGenerarCodigo(s.id) }}
-                          className="text-xs font-semibold px-2 py-1 rounded-lg text-white transition hover:opacity-90"
-                          style={{ backgroundColor: '#B45309' }}
-                        >
-                          Generar código
-                        </button>
-                      )}
-                    </td>
-                    <td className="py-2 text-right">
-                      <button
-                        onClick={function () { handleDelete(s.id, s.full_name) }}
-                        disabled={deletingId === s.id}
-                        className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
-                        style={{ backgroundColor: '#B91C1C' }}
-                      >
-                        {deletingId === s.id ? 'Eliminando...' : 'Eliminar'}
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    )
-  }
-
-  // ---------- Nivel 2: carpetas de Grado/Sección dentro de una institución ----------
-  if (selectedInst) {
-    const lista = students.filter(function (s) { return s.aula.institucion === selectedInst })
-    const aulas = []
-    GRADOS.forEach(function (g) {
-      SECCIONES.forEach(function (sec) {
-        const items = lista.filter(function (s) { return s.aula.grado === g && s.aula.grupo === sec })
-        if (items.length > 0) aulas.push({ grado: g, grupo: sec, cantidad: items.length })
-      })
-    })
-    const sinAula = lista.filter(function (s) { return !s.aula.grado })
-
-    return (
-      <div>
-        <button onClick={function () { setSelectedInst(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>
-          ← Volver a Instituciones
-        </button>
-        <h2 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>{selectedInst} ({lista.length})</h2>
-
-        {aulas.length === 0 && sinAula.length === 0 ? (
-          <p className="text-slate-400 text-sm">No hay estudiantes aquí.</p>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {aulas.map(function (aula) {
-              return (
-                <button
-                  key={`${aula.grado}${aula.grupo}`}
-                  onClick={function () { setSelectedAula(aula) }}
-                  className="text-left rounded-xl p-4 transition hover:-translate-y-0.5"
-                  style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <FolderIcon />
-                    <span className="text-xs font-semibold" style={{ color: GREEN_DARK }}>{aula.grado}° "{aula.grupo}"</span>
+      <table className="w-full text-sm">
+        <thead>
+          <tr style={{ borderBottom: '1px solid #E5E9F0' }}>
+            <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Nombre</th>
+            <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Cursos a cargo</th>
+            <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Grupo de WhatsApp (padres)</th>
+            <th className="text-right py-2 font-semibold" style={{ color: NAVY_DARK }}></th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map(function (d) {
+            return (
+              <tr key={d.id} style={{ borderBottom: '1px solid #F4F6F9' }}>
+                <td className="py-2 pr-3 align-top" style={{ color: NAVY_DARK }}>
+                  <span className="flex items-center gap-1.5">
+                    {isOnline(d.id) && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#22C55E' }} title="En línea" />}
+                    {d.full_name}
+                  </span>
+                  <button
+                    onClick={function () { setEditandoInstId(editandoInstId === d.id ? null : d.id) }}
+                    className="text-[11px] font-semibold hover:underline mt-0.5 block"
+                    style={{ color: NAVY }}
+                  >
+                    {editandoInstId === d.id ? 'Cerrar' : 'Editar instituciones'}
+                  </button>
+                  {editandoInstId === d.id && (
+                    <div className="mt-2 p-2 rounded-lg space-y-1" style={{ backgroundColor: '#F4F6F9' }}>
+                      {instituciones.map(function (inst) {
+                        const marcado = d.institucionIds.includes(inst.id)
+                        return (
+                          <label key={inst.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={marcado}
+                              disabled={guardandoInst}
+                              onChange={function () { toggleInstitucionDocente(d.id, inst.id, marcado) }}
+                            />
+                            <span style={{ color: NAVY_DARK }}>{inst.nombre}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                </td>
+                <td className="py-2 pr-3 align-top">
+                  {d.cursos.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {d.cursos.map(function (curso) {
+                        return (
+                          <span key={curso.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #E5E9F0' }}>
+                            {curso.texto}
+                            <button
+                              onClick={function () { quitarDeAsignatura(d.id, curso.id, curso.texto) }}
+                              disabled={quitandoCursoId === curso.id}
+                              title="Quitar de esta Asignatura"
+                              className="w-3.5 h-3.5 rounded-full flex items-center justify-center leading-none disabled:opacity-50"
+                              style={{ backgroundColor: '#B91C1C', color: 'white', fontSize: 9 }}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        )
+                      })}
+                    </div>
+                  ) : '—'}
+                </td>
+                <td className="py-2 pr-3 align-top">
+                  <input
+                    type="text"
+                    defaultValue={d.whatsapp || ''}
+                    placeholder="https://chat.whatsapp.com/..."
+                    className="w-56 rounded-lg px-2 py-1 text-xs outline-none"
+                    style={{ backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }}
+                    onBlur={function (e) { if (e.target.value !== (d.whatsapp || '')) guardarWhatsapp(d.id, e.target.value) }}
+                  />
+                </td>
+                <td className="py-2 text-right align-top">
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      onClick={function () { handleResetPassword(d.id, d.full_name) }}
+                      disabled={reseteandoId === d.id}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+                      style={{ backgroundColor: '#B45309' }}
+                    >
+                      {reseteandoId === d.id ? '...' : 'Resetear contraseña'}
+                    </button>
+                    <button
+                      onClick={function () { handleDelete(d.id, d.full_name) }}
+                      disabled={deletingId === d.id}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+                      style={{ backgroundColor: '#B91C1C' }}
+                    >
+                      {deletingId === d.id ? 'Eliminando...' : 'Eliminar'}
+                    </button>
                   </div>
-                  <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>{aula.grado}° Secundaria — Sección {aula.grupo}</p>
-                  <p className="text-xs text-slate-400 mt-1">{aula.cantidad} estudiante(s)</p>
-                </button>
-              )
-            })}
-
-            {sinAula.length > 0 && (
-              <button
-                onClick={function () { setSelectedAula({ grado: null, grupo: null }) }}
-                className="text-left rounded-xl p-4 transition hover:-translate-y-0.5"
-                style={{ backgroundColor: '#FDECEC', border: '1px solid #F5C6C6' }}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <FolderIcon color="#B91C1C" />
-                  <span className="text-xs font-semibold" style={{ color: '#B91C1C' }}>Sin aula</span>
-                </div>
-                <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>Sin aula asignada</p>
-                <p className="text-xs text-slate-400 mt-1">{sinAula.length} estudiante(s)</p>
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     )
   }
-
-  // ---------- Nivel 1: carpetas de Instituciones ----------
-  const instituciones = [...new Set(students.map(function (s) { return s.aula.institucion }))].sort(function (a, b) {
-    if (a === 'Sin institución asignada') return 1
-    if (b === 'Sin institución asignada') return -1
-    return a.localeCompare(b)
-  })
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-2" style={{ color: NAVY_DARK }}>Estudiantes</h2>
-      <p className="text-sm text-slate-400 mb-6">{students.length} estudiante(s) registrado(s) en total.</p>
+      <h2 className="text-2xl font-bold mb-2" style={{ color: NAVY_DARK }}>Docentes</h2>
+      <p className="text-sm text-slate-400 mb-6">
+        {docentes.length} docente(s) registrado(s) en total. Un docente puede estar marcado en varias instituciones — ahí aparecerá en cada una.
+      </p>
 
-      {students.length === 0 ? (
-        <p className="text-slate-400 text-sm">Aún no hay estudiantes registrados.</p>
+      {docentes.length === 0 ? (
+        <p className="text-slate-400 text-sm">Aún no hay docentes registrados.</p>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <div className="space-y-6">
           {instituciones.map(function (inst) {
-            const cantidad = students.filter(function (s) { return s.aula.institucion === inst }).length
-            const sinInst = inst === 'Sin institución asignada'
+            const items = docentes.filter(function (d) { return d.institucionIds.includes(inst.id) })
+            if (items.length === 0) return null
             return (
-              <button
-                key={inst}
-                onClick={function () { setSelectedInst(inst) }}
-                className="text-left rounded-xl p-4 transition hover:-translate-y-0.5"
-                style={sinInst ? { backgroundColor: '#FDECEC', border: '1px solid #F5C6C6' } : { backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <FolderIcon color={sinInst ? '#B91C1C' : NAVY_DARK} />
-                  <span className="text-xs font-semibold" style={{ color: sinInst ? '#B91C1C' : NAVY }}>Institución</span>
-                </div>
-                <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>{inst}</p>
-                <p className="text-xs text-slate-400 mt-1">{cantidad} estudiante(s)</p>
-              </button>
+              <div key={inst.id} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
+                <h3
+                  className="text-xs font-bold uppercase tracking-wide mb-3 px-3 py-1.5 rounded-lg inline-block"
+                  style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}
+                >
+                  {inst.nombre} ({items.length})
+                </h3>
+                {renderTable(items)}
+              </div>
             )
           })}
+
+          {sinInstitucion.length > 0 && (
+            <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
+              <h3
+                className="text-xs font-bold uppercase tracking-wide mb-3 px-3 py-1.5 rounded-lg inline-block"
+                style={{ backgroundColor: '#FDECEC', color: '#B91C1C' }}
+              >
+                Sin institución asignada ({sinInstitucion.length})
+              </h3>
+              {renderTable(sinInstitucion)}
+            </div>
+          )}
         </div>
       )}
     </div>
