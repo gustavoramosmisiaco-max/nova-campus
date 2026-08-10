@@ -129,14 +129,18 @@ export default function EstudiantesList() {
     if (confirmText !== 'ELIMINAR') return
 
     setEliminandoAula(true)
-    let exitosos = 0
-    let fallidos = 0
 
-    for (const s of items) {
-      const { data, error: fnError } = await supabase.functions.invoke('delete-user', { body: { userId: s.id } })
-      if (fnError || data?.error) fallidos++
-      else exitosos++
-    }
+    const resultados = await Promise.all(items.map(async function (s) {
+      try {
+        const { data, error: fnError } = await supabase.functions.invoke('delete-user', { body: { userId: s.id } })
+        return !fnError && !data?.error
+      } catch (_e) {
+        return false
+      }
+    }))
+
+    const exitosos = resultados.filter(Boolean).length
+    const fallidos = resultados.length - exitosos
 
     setEliminandoAula(false)
     alert(`Listo: ${exitosos} eliminado(s) correctamente${fallidos > 0 ? `, ${fallidos} con error` : ''}.`)
