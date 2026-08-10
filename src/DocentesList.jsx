@@ -31,7 +31,7 @@ export default function DocentesList() {
       supabase.from('profiles').select('id, full_name, whatsapp, last_active_at').eq('role', 'docente').order('full_name'),
       supabase.from('instituciones_educativas').select('id, nombre').order('nombre'),
       supabase.from('docente_instituciones').select('docente_id, institucion_id'),
-      supabase.from('courses').select('docente_id, nombre, grado, grupo, asignaturas(areas_curriculares(nombre))').not('docente_id', 'is', null),
+      supabase.from('courses').select('id, docente_id, nombre, grado, grupo, asignaturas(areas_curriculares(nombre))').not('docente_id', 'is', null),
     ])
 
     if (profilesResult.error) {
@@ -56,7 +56,7 @@ export default function DocentesList() {
       coursesResult.data.forEach(function (c) {
         if (!areaMap[c.docente_id]) areaMap[c.docente_id] = c.asignaturas?.areas_curriculares?.nombre || null
         if (!cursosMap[c.docente_id]) cursosMap[c.docente_id] = []
-        cursosMap[c.docente_id].push(`${c.nombre} ${c.grado}°${c.grupo}`)
+        cursosMap[c.docente_id].push({ id: c.id, texto: `${c.nombre} ${c.grado}°${c.grupo}` })
       })
     }
 
@@ -72,6 +72,20 @@ export default function DocentesList() {
 
     setDocentes(enriched)
     setLoading(false)
+  }
+
+  const [quitandoCursoId, setQuitandoCursoId] = useState(null)
+
+  async function quitarDeAsignatura(docenteId, cursoId, textoAsignatura) {
+    if (!confirm(`¿Quitar al docente de "${textoAsignatura}"? La Asignatura queda sin docente, no se borra nada más.`)) return
+    setQuitandoCursoId(cursoId)
+    const result = await supabase.from('courses').update({ docente_id: null }).eq('id', cursoId)
+    if (result.error) {
+      alert('Error: ' + result.error.message)
+    } else {
+      await loadDocentes()
+    }
+    setQuitandoCursoId(null)
   }
 
   async function guardarWhatsapp(id, valor) {
@@ -159,8 +173,27 @@ export default function DocentesList() {
                     </div>
                   )}
                 </td>
-                <td className="py-2 pr-3 text-slate-500 text-xs align-top">
-                  {d.cursos.length > 0 ? d.cursos.join(' · ') : '—'}
+                <td className="py-2 pr-3 align-top">
+                  {d.cursos.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {d.cursos.map(function (curso) {
+                        return (
+                          <span key={curso.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #E5E9F0' }}>
+                            {curso.texto}
+                            <button
+                              onClick={function () { quitarDeAsignatura(d.id, curso.id, curso.texto) }}
+                              disabled={quitandoCursoId === curso.id}
+                              title="Quitar de esta Asignatura"
+                              className="w-3.5 h-3.5 rounded-full flex items-center justify-center leading-none disabled:opacity-50"
+                              style={{ backgroundColor: '#B91C1C', color: 'white', fontSize: 9 }}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        )
+                      })}
+                    </div>
+                  ) : '—'}
                 </td>
                 <td className="py-2 pr-3 align-top">
                   <input
