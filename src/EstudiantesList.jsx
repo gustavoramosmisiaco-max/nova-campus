@@ -41,7 +41,7 @@ export default function EstudiantesList() {
 
     const profilesResult = await supabase
       .from('profiles')
-      .select('id, full_name, codigo_padre, last_active_at, grado, grupo, institucion_id, institucion:instituciones_educativas(nombre)')
+      .select('id, full_name, codigo_padre, last_active_at, grado, grupo, institucion_id, institucion:instituciones_educativas!profiles_institucion_id_fkey(nombre)')
       .eq('role', 'estudiante')
       .order('full_name', { ascending: true })
 
