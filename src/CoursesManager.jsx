@@ -502,7 +502,53 @@ export default function CoursesManager() {
     setBulkSaving(false)
   }
 
-  const [masivoAreaId, setMasivoAreaId] = useState('')
+  const [asignarDocInst, setAsignarDocInst] = useState('')
+  const [asignarDocGrado, setAsignarDocGrado] = useState(1)
+  const [asignarDocGrupo, setAsignarDocGrupo] = useState('A')
+  const [asignarDocSeleccionadas, setAsignarDocSeleccionadas] = useState(new Set())
+  const [asignarDocDocenteId, setAsignarDocDocenteId] = useState('')
+  const [asignarDocGuardando, setAsignarDocGuardando] = useState(false)
+  const [asignarDocMsg, setAsignarDocMsg] = useState('')
+
+  function cursosDelAulaSeleccionada() {
+    if (!asignarDocInst) return []
+    return courses.filter(function (c) {
+      return c.institucion_id === asignarDocInst && c.grado === asignarDocGrado && c.grupo === asignarDocGrupo
+    })
+  }
+
+  function toggleAsignarDocSeleccion(courseId) {
+    setAsignarDocSeleccionadas(function (prev) {
+      const next = new Set(prev)
+      if (next.has(courseId)) next.delete(courseId); else next.add(courseId)
+      return next
+    })
+  }
+
+  function seleccionarTodasAsignarDoc() {
+    setAsignarDocSeleccionadas(new Set(cursosDelAulaSeleccionada().map(function (c) { return c.id })))
+  }
+
+  async function handleAsignarDocenteMasivo() {
+    setAsignarDocMsg('')
+    if (asignarDocSeleccionadas.size === 0) { setAsignarDocMsg('Marca al menos una Asignatura.'); return }
+    setAsignarDocGuardando(true)
+    const result = await supabase
+      .from('courses')
+      .update({ docente_id: asignarDocDocenteId || null })
+      .in('id', [...asignarDocSeleccionadas])
+      .select('id')
+
+    if (result.error) {
+      setAsignarDocMsg('Error: ' + result.error.message)
+    } else {
+      const nombreDocente = docentes.find(function (d) { return d.id === asignarDocDocenteId })?.full_name || 'Sin asignar'
+      setAsignarDocMsg(`${result.data.length} Asignatura(s) actualizada(s) con docente: ${nombreDocente}.`)
+      setAsignarDocSeleccionadas(new Set())
+      loadCourses()
+    }
+    setAsignarDocGuardando(false)
+  }
   const [masivoAsignaturaIds, setMasivoAsignaturaIds] = useState(new Set())
   const [masivoGrados, setMasivoGrados] = useState(new Set())
   const [masivoSecciones, setMasivoSecciones] = useState(new Set())
@@ -794,6 +840,68 @@ export default function CoursesManager() {
       >
         {mostrarAvanzado ? '▾' : '▸'} Herramientas avanzadas (poco usadas)
       </button>
+
+      <div className="bg-white rounded-2xl p-4 mb-6" style={{ border: '1px solid #E5E9F0' }}>
+        <p className="text-sm font-bold mb-1" style={{ color: NAVY_DARK }}>Asignar Docente a varias Asignaturas</p>
+        <p className="text-xs text-slate-400 mb-3">
+          Elige el aula, marca las Asignaturas que quieras (todas, o solo algunas), y ponles el mismo docente de un solo golpe — sin abrir cada una por separado.
+        </p>
+
+        <div className="grid sm:grid-cols-3 gap-3 mb-3 max-w-2xl">
+          <select value={asignarDocInst} onChange={function (e) { setAsignarDocInst(e.target.value); setAsignarDocSeleccionadas(new Set()) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+            <option value="">-- Institución --</option>
+            {instituciones.map(function (i) { return <option key={i.id} value={i.id}>{i.nombre}</option> })}
+          </select>
+          <select value={asignarDocGrado} onChange={function (e) { setAsignarDocGrado(Number(e.target.value)); setAsignarDocSeleccionadas(new Set()) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+            {gradosParaInstitucion(asignarDocInst).map(function (g) { return <option key={g.numero} value={g.numero}>{g.nombre}</option> })}
+          </select>
+          <select value={asignarDocGrupo} onChange={function (e) { setAsignarDocGrupo(e.target.value); setAsignarDocSeleccionadas(new Set()) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+            {SECCIONES.map(function (s) { return <option key={s} value={s}>Sección {s}</option> })}
+          </select>
+        </div>
+
+        {asignarDocInst && cursosDelAulaSeleccionada().length > 0 && (
+          <>
+            <div className="flex justify-between items-center mb-2">
+              <p className="text-xs font-semibold" style={{ color: NAVY_DARK }}>Asignaturas de esta aula ({cursosDelAulaSeleccionada().length})</p>
+              <button onClick={seleccionarTodasAsignarDoc} className="text-xs font-semibold hover:underline" style={{ color: NAVY }}>Marcar todas</button>
+            </div>
+            <div className="rounded-xl overflow-hidden mb-3" style={{ border: '1px solid #E5E9F0' }}>
+              {cursosDelAulaSeleccionada().map(function (c) {
+                const marcado = asignarDocSeleccionadas.has(c.id)
+                return (
+                  <label key={c.id} className="flex items-center justify-between gap-3 px-3 py-2 cursor-pointer" style={{ borderBottom: '1px solid #F4F6F9', backgroundColor: marcado ? '#EAF2FB' : 'white' }}>
+                    <span className="flex items-center gap-2">
+                      <input type="checkbox" checked={marcado} onChange={function () { toggleAsignarDocSeleccion(c.id) }} />
+                      <span className="text-sm" style={{ color: NAVY_DARK }}>{c.nombre}</span>
+                    </span>
+                    <span className="text-xs text-slate-400">{c.docente?.full_name || 'Sin asignar'}</span>
+                  </label>
+                )
+              })}
+            </div>
+
+            <div className="flex gap-2 items-center flex-wrap">
+              <select value={asignarDocDocenteId} onChange={function (e) { setAsignarDocDocenteId(e.target.value) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ ...inputStyle, minWidth: 220 }}>
+                <option value="">Sin asignar</option>
+                {docentes.map(function (d) { return <option key={d.id} value={d.id}>{d.full_name}</option> })}
+              </select>
+              <button
+                onClick={handleAsignarDocenteMasivo}
+                disabled={asignarDocGuardando || asignarDocSeleccionadas.size === 0}
+                className="text-sm font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: GREEN }}
+              >
+                {asignarDocGuardando ? 'Aplicando...' : `Asignar a las ${asignarDocSeleccionadas.size} seleccionada(s)`}
+              </button>
+            </div>
+          </>
+        )}
+        {asignarDocInst && cursosDelAulaSeleccionada().length === 0 && (
+          <p className="text-xs text-slate-400">Esa aula no tiene ninguna Asignatura todavía.</p>
+        )}
+        {asignarDocMsg && <p className="text-xs mt-3" style={{ color: asignarDocMsg.startsWith('Error') ? '#B91C1C' : '#16A34A' }}>{asignarDocMsg}</p>}
+      </div>
 
       {mostrarAvanzado && (
         <div className="bg-white rounded-2xl p-4 mb-6" style={{ border: '1px solid #E5E9F0' }}>
