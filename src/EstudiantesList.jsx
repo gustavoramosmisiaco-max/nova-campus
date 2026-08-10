@@ -29,6 +29,7 @@ export default function EstudiantesList() {
   const [deletingId, setDeletingId] = useState(null)
   const [selectedInst, setSelectedInst] = useState(null)
   const [selectedAula, setSelectedAula] = useState(null)
+  const [eliminandoAula, setEliminandoAula] = useState(false)
 
   useEffect(function () {
     loadStudents()
@@ -40,7 +41,7 @@ export default function EstudiantesList() {
 
     const profilesResult = await supabase
       .from('profiles')
-      .select('id, full_name, codigo_padre, last_active_at')
+      .select('id, full_name, codigo_padre, last_active_at, grado, grupo, institucion_id, institucion:instituciones_educativas(nombre)')
       .eq('role', 'estudiante')
       .order('full_name', { ascending: true })
 
@@ -50,26 +51,33 @@ export default function EstudiantesList() {
       return
     }
 
+    // Solo se usa como respaldo para estudiantes viejos que aún no tengan institucion_id guardada en su perfil
     const enrollResult = await supabase
       .from('enrollments')
       .select('student_id, course:courses(grado, grupo, institucion:instituciones_educativas(nombre))')
       .eq('status', 'activo')
 
-    const aulaMap = {}
+    const aulaMapRespaldo = {}
     if (!enrollResult.error) {
       enrollResult.data.forEach(function (e) {
-        if (!aulaMap[e.student_id] && e.course) {
-          aulaMap[e.student_id] = {
+        if (!aulaMapRespaldo[e.student_id] && e.course) {
+          aulaMapRespaldo[e.student_id] = {
             grado: e.course.grado,
             grupo: e.course.grupo,
-            institucion: e.course.institucion?.nombre || 'Sin institución asignada',
+            institucion: e.course.institucion?.nombre || null,
           }
         }
       })
     }
 
     const enriched = profilesResult.data.map(function (s) {
-      return { ...s, aula: aulaMap[s.id] || { grado: null, grupo: null, institucion: 'Sin institución asignada' } }
+      // Prioridad: lo que está guardado directo en el perfil del estudiante
+      if (s.institucion_id && s.grado && s.grupo) {
+        return { ...s, aula: { grado: s.grado, grupo: s.grupo, institucion: s.institucion?.nombre || 'Sin institución asignada' } }
+      }
+      // Respaldo: inferido de sus cursos (para estudiantes creados antes de este cambio)
+      const respaldo = aulaMapRespaldo[s.id]
+      return { ...s, aula: respaldo && respaldo.institucion ? respaldo : { grado: s.grado || null, grupo: s.grupo || null, institucion: 'Sin institución asignada' } }
     })
     enriched.sort(function (a, b) { return compararPorApellido(a.full_name, b.full_name) })
 
@@ -116,6 +124,26 @@ export default function EstudiantesList() {
     setDeletingId(null)
   }
 
+  async function handleEliminarAulaCompleta(items) {
+    const confirmText = prompt(`Vas a eliminar las cuentas de los ${items.length} estudiante(s) de esta aula. Esta acción NO se puede deshacer.\n\nEscribe ELIMINAR (en mayúsculas) para confirmar:`)
+    if (confirmText !== 'ELIMINAR') return
+
+    setEliminandoAula(true)
+    let exitosos = 0
+    let fallidos = 0
+
+    for (const s of items) {
+      const { data, error: fnError } = await supabase.functions.invoke('delete-user', { body: { userId: s.id } })
+      if (fnError || data?.error) fallidos++
+      else exitosos++
+    }
+
+    setEliminandoAula(false)
+    alert(`Listo: ${exitosos} eliminado(s) correctamente${fallidos > 0 ? `, ${fallidos} con error` : ''}.`)
+    setSelectedAula(null)
+    loadStudents()
+  }
+
   if (loading) return <p className="text-slate-400 text-sm">Cargando estudiantes...</p>
   if (error) return <p className="text-red-500 text-sm">Error: {error}</p>
 
@@ -133,15 +161,27 @@ export default function EstudiantesList() {
           <h2 className="text-lg font-bold" style={{ color: NAVY_DARK }}>
             {selectedAula.grado}° Secundaria — Sección {selectedAula.grupo} ({items.length})
           </h2>
-          {items.some(function (s) { return !s.codigo_padre }) && (
-            <button
-              onClick={function () { handleGenerarTodosLosCodigos(items) }}
-              className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
-              style={{ backgroundColor: '#B45309' }}
-            >
-              Generar código para todos los que falten
-            </button>
-          )}
+          <div className="flex gap-2">
+            {items.some(function (s) { return !s.codigo_padre }) && (
+              <button
+                onClick={function () { handleGenerarTodosLosCodigos(items) }}
+                className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+                style={{ backgroundColor: '#B45309' }}
+              >
+                Generar código para todos los que falten
+              </button>
+            )}
+            {items.length > 0 && (
+              <button
+                onClick={function () { handleEliminarAulaCompleta(items) }}
+                disabled={eliminandoAula}
+                className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: '#B91C1C' }}
+              >
+                {eliminandoAula ? 'Eliminando...' : `Eliminar los ${items.length} de esta aula`}
+              </button>
+            )}
+          </div>
         </div>
         <div className="bg-white rounded-2xl p-4" style={{ border: '1px solid #E5E9F0' }}>
           <table className="w-full text-sm">
