@@ -309,8 +309,11 @@ export default function MyTeachingCourses() {
       ) : !aulaSel ? (
         <>
           {institucionesUnicas.length > 1 && (
-            <button onClick={function () { elegirInstitucion('') }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Instituciones</button>
+            <button onClick={function () { elegirInstitucion('') }} className="text-sm font-semibold mb-2 hover:underline" style={{ color: NAVY }}>← Volver a Instituciones</button>
           )}
+          <p className="text-xs font-bold uppercase tracking-wide mb-1" style={{ color: GREEN_DARK }}>
+            {institucionesUnicas.find(function (i) { return i[0] === institucionSel })?.[1] || ''}
+          </p>
           <p className="text-sm text-slate-400 mb-5">Elige el Grado y Sección</p>
           {(function () {
             const cursosInst = courses.filter(function (c) { return (c.institucion_id || 'sin-institucion') === institucionSel })
@@ -354,7 +357,10 @@ export default function MyTeachingCourses() {
         </>
       ) : !areaId ? (
         <>
-          <button onClick={function () { elegirAula('') }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Grados y Secciones</button>
+          <button onClick={function () { elegirAula('') }} className="text-sm font-semibold mb-2 hover:underline" style={{ color: NAVY }}>← Volver a Grados y Secciones</button>
+          <p className="text-xs font-bold uppercase tracking-wide mb-1" style={{ color: GREEN_DARK }}>
+            {institucionesUnicas.find(function (i) { return i[0] === institucionSel })?.[1] || ''}
+          </p>
           <p className="text-sm text-slate-400 mb-5">Elige el Área</p>
           {(function () {
             const [grado, grupo] = aulaSel.split('__')
@@ -396,7 +402,10 @@ export default function MyTeachingCourses() {
         </>
       ) : (
         <>
-          <button onClick={function () { elegirArea('', '') }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Áreas</button>
+          <button onClick={function () { elegirArea('', '') }} className="text-sm font-semibold mb-2 hover:underline" style={{ color: NAVY }}>← Volver a Áreas</button>
+          <p className="text-xs font-bold uppercase tracking-wide mb-3" style={{ color: GREEN_DARK }}>
+            {institucionesUnicas.find(function (i) { return i[0] === institucionSel })?.[1] || ''}
+          </p>
           <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
             <p className="text-sm text-slate-400">{areaNombre}</p>
             <div className="flex gap-2 flex-wrap">
