@@ -316,16 +316,18 @@ export default function CoursesManager() {
     }
   }
 
-  // Agrupar: Área > Asignatura > lista de asignaciones (grado/sección/docente)
+  // Agrupar: Área > Asignatura > lista de asignaciones (grado/sección/docente) — filtrado por institución elegida
+  const coursesFiltrados = institucionFiltro == null ? courses : courses.filter(function (c) { return (c.institucion_id || 'sin-institucion') === institucionFiltro })
+
   const arbol = areas.map(function (area) {
     const asignaturasConCursos = area.asignaturas.map(function (asig) {
-      const items = courses.filter(function (c) { return c.asignatura_id === asig.id })
+      const items = coursesFiltrados.filter(function (c) { return c.asignatura_id === asig.id })
       return { asignatura: asig, items: items }
     }).filter(function (a) { return a.items.length > 0 })
     return { area: area, asignaturas: asignaturasConCursos }
   }).filter(function (a) { return a.asignaturas.length > 0 })
 
-  const sinAsignatura = courses.filter(function (c) { return !c.asignatura_id })
+  const sinAsignatura = coursesFiltrados.filter(function (c) { return !c.asignatura_id })
 
   function renderAsignacionCard(c) {
     return (
@@ -665,6 +667,8 @@ export default function CoursesManager() {
     }
   }
 
+  const [institucionFiltro, setInstitucionFiltro] = useState(null) // null = "todas" (sin filtrar)
+
   return (
     <div>
       <div className="flex justify-between items-center mb-1">
@@ -949,7 +953,48 @@ export default function CoursesManager() {
       ) : courses.length === 0 ? (
         <p className="text-slate-400">Aún no hay ninguna asignación creada.</p>
       ) : (
-        <div className="space-y-8">
+        <div>
+          <div className="flex gap-2 mb-5 flex-wrap">
+            <button
+              onClick={function () { setInstitucionFiltro(null) }}
+              className="text-xs font-semibold px-4 py-2 rounded-full transition"
+              style={institucionFiltro == null ? { backgroundColor: NAVY_DARK, color: 'white' } : { backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }}
+            >
+              Todas ({courses.length})
+            </button>
+            {instituciones.map(function (i) {
+              const cantidad = courses.filter(function (c) { return c.institucion_id === i.id }).length
+              if (cantidad === 0) return null
+              return (
+                <button
+                  key={i.id}
+                  onClick={function () { setInstitucionFiltro(i.id) }}
+                  className="text-xs font-semibold px-4 py-2 rounded-full transition"
+                  style={institucionFiltro === i.id ? { backgroundColor: GREEN, color: 'white' } : { backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }}
+                >
+                  {i.nombre} ({cantidad})
+                </button>
+              )
+            })}
+            {(function () {
+              const sinInst = courses.filter(function (c) { return !c.institucion_id }).length
+              if (sinInst === 0) return null
+              return (
+                <button
+                  onClick={function () { setInstitucionFiltro('sin-institucion') }}
+                  className="text-xs font-semibold px-4 py-2 rounded-full transition"
+                  style={institucionFiltro === 'sin-institucion' ? { backgroundColor: '#B91C1C', color: 'white' } : { backgroundColor: '#FDECEC', color: '#B91C1C', border: '1px solid #F5C6C6' }}
+                >
+                  Sin institución ({sinInst})
+                </button>
+              )
+            })()}
+          </div>
+
+          {arbol.length === 0 && sinAsignatura.length === 0 ? (
+            <p className="text-slate-400 text-sm">No hay Asignaturas en esta institución todavía.</p>
+          ) : (
+          <div className="space-y-8">
           {arbol.map(function (grupoArea) {
             return (
               <div key={grupoArea.area.id}>
@@ -996,6 +1041,8 @@ export default function CoursesManager() {
                 {sinAsignatura.map(renderAsignacionCard)}
               </div>
             </div>
+          )}
+          </div>
           )}
         </div>
       )}
