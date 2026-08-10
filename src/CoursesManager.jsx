@@ -383,6 +383,108 @@ export default function CoursesManager() {
   const [bulkSaving, setBulkSaving] = useState(false)
   const [bulkMsg, setBulkMsg] = useState('')
 
+  const [copiarOrigenInst, setCopiarOrigenInst] = useState('')
+  const [copiarOrigenGrado, setCopiarOrigenGrado] = useState(1)
+  const [copiarOrigenGrupo, setCopiarOrigenGrupo] = useState('A')
+  const [copiarDestinoInst, setCopiarDestinoInst] = useState('')
+  const [copiarDestinoGrado, setCopiarDestinoGrado] = useState(1)
+  const [copiarDestinoGrupo, setCopiarDestinoGrupo] = useState('A')
+  const [copiando, setCopiando] = useState(false)
+  const [copiarMsg, setCopiarMsg] = useState('')
+
+  function cursosDelOrigen() {
+    if (!copiarOrigenInst) return []
+    return courses.filter(function (c) {
+      return c.institucion_id === copiarOrigenInst && c.grado === copiarOrigenGrado && c.grupo === copiarOrigenGrupo
+    })
+  }
+
+  async function handleCopiarAula() {
+    setCopiarMsg('')
+    if (!copiarOrigenInst || !copiarDestinoInst) {
+      setCopiarMsg('Elige la institución de origen y la de destino.')
+      return
+    }
+    const origenCursos = cursosDelOrigen()
+    if (origenCursos.length === 0) {
+      setCopiarMsg('El aula de origen no tiene ninguna Asignatura todavía.')
+      return
+    }
+
+    setCopiando(true)
+
+    // No copiar las que ya existan en el destino, para no duplicar
+    const existentesResult = await supabase
+      .from('courses')
+      .select('asignatura_id')
+      .eq('institucion_id', copiarDestinoInst)
+      .eq('grado', copiarDestinoGrado)
+      .eq('grupo', copiarDestinoGrupo)
+    const yaExisten = new Set((existentesResult.data || []).map(function (c) { return c.asignatura_id }))
+
+    const aCrear = origenCursos.filter(function (c) { return c.asignatura_id && !yaExisten.has(c.asignatura_id) })
+    if (aCrear.length === 0) {
+      setCopiarMsg('El aula de destino ya tiene todas esas Asignaturas — no se copió nada nuevo.')
+      setCopiando(false)
+      return
+    }
+
+    const payloads = aCrear.map(function (c) {
+      return {
+        nombre: c.nombre,
+        asignatura_id: c.asignatura_id,
+        grado: copiarDestinoGrado,
+        grupo: copiarDestinoGrupo,
+        docente_id: null,
+        institucion_id: copiarDestinoInst,
+        descripcion: c.descripcion || '',
+      }
+    })
+
+    const insertResult = await supabase.from('courses').insert(payloads).select('id')
+    if (insertResult.error) {
+      setCopiarMsg('Error: ' + insertResult.error.message)
+      setCopiando(false)
+      return
+    }
+
+    // Copiar también los horarios de cada curso origen a su equivalente nuevo
+    await Promise.all(insertResult.data.map(async function (nuevo, i) {
+      const origenCorrespondiente = aCrear[i]
+      const horariosResult = await supabase.from('course_schedules').select('dia_semana, hora_inicio, hora_fin').eq('course_id', origenCorrespondiente.id)
+      if (horariosResult.data && horariosResult.data.length > 0) {
+        const payload = horariosResult.data.map(function (h) {
+          return { course_id: nuevo.id, dia_semana: h.dia_semana, hora_inicio: h.hora_inicio, hora_fin: h.hora_fin }
+        })
+        await supabase.from('course_schedules').insert(payload)
+      }
+    }))
+
+    // Matricular automáticamente a los alumnos que ya estén en otro curso de esa misma aula destino
+    await Promise.all(insertResult.data.map(async function (nuevo) {
+      const otrosResult = await supabase
+        .from('courses')
+        .select('id')
+        .eq('grado', copiarDestinoGrado)
+        .eq('grupo', copiarDestinoGrupo)
+        .eq('institucion_id', copiarDestinoInst)
+        .neq('id', nuevo.id)
+      const otrosIds = (otrosResult.data || []).map(function (c) { return c.id })
+      if (otrosIds.length === 0) return
+
+      const enrolResult = await supabase.from('enrollments').select('student_id').in('course_id', otrosIds).eq('status', 'activo')
+      const estudiantesUnicos = [...new Set((enrolResult.data || []).map(function (e) { return e.student_id }))]
+      if (estudiantesUnicos.length === 0) return
+
+      const matriculas = estudiantesUnicos.map(function (studentId) { return { course_id: nuevo.id, student_id: studentId, status: 'activo' } })
+      await supabase.from('enrollments').insert(matriculas)
+    }))
+
+    setCopiarMsg(`Se copiaron ${aCrear.length} Asignatura(s) al aula de destino, con su horario incluido.`)
+    setCopiando(false)
+    loadCourses()
+  }
+
   async function handleBulkAsignarInstitucion() {
     if (!bulkInstitucion) {
       setBulkMsg('Selecciona una institución.')
@@ -581,6 +683,62 @@ export default function CoursesManager() {
           </button>
         </div>
         {bulkMsg && <p className="text-xs mt-2" style={{ color: bulkMsg.startsWith('Error') ? '#B91C1C' : '#16A34A' }}>{bulkMsg}</p>}
+      </div>
+
+      <div className="bg-white rounded-2xl p-4 mb-6" style={{ border: '1px solid #E5E9F0' }}>
+        <p className="text-sm font-bold mb-1" style={{ color: NAVY_DARK }}>Copiar aula completa</p>
+        <p className="text-xs text-slate-400 mb-3">
+          Copia todas las Asignaturas (y su horario) de un aula que ya tengas armada, hacia otra — útil para replicar la misma estructura en otra institución, grado o sección, sin repetir todo a mano.
+        </p>
+
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div className="rounded-xl p-3" style={{ backgroundColor: '#F4F6F9' }}>
+            <p className="text-xs font-bold mb-2" style={{ color: NAVY }}>Copiar DESDE</p>
+            <div className="space-y-2">
+              <select value={copiarOrigenInst} onChange={function (e) { setCopiarOrigenInst(e.target.value) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+                <option value="">-- Institución --</option>
+                {instituciones.map(function (i) { return <option key={i.id} value={i.id}>{i.nombre}</option> })}
+              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <select value={copiarOrigenGrado} onChange={function (e) { setCopiarOrigenGrado(Number(e.target.value)) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+                  {gradosParaInstitucion(copiarOrigenInst).map(function (g) { return <option key={g.numero} value={g.numero}>{g.nombre}</option> })}
+                </select>
+                <select value={copiarOrigenGrupo} onChange={function (e) { setCopiarOrigenGrupo(e.target.value) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+                  {SECCIONES.map(function (s) { return <option key={s} value={s}>Sección {s}</option> })}
+                </select>
+              </div>
+              <p className="text-xs text-slate-400">{cursosDelOrigen().length} Asignatura(s) encontrada(s) ahí</p>
+            </div>
+          </div>
+
+          <div className="rounded-xl p-3" style={{ backgroundColor: '#EAF2FB' }}>
+            <p className="text-xs font-bold mb-2" style={{ color: NAVY }}>Copiar HACIA</p>
+            <div className="space-y-2">
+              <select value={copiarDestinoInst} onChange={function (e) { setCopiarDestinoInst(e.target.value) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+                <option value="">-- Institución --</option>
+                {instituciones.map(function (i) { return <option key={i.id} value={i.id}>{i.nombre}</option> })}
+              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <select value={copiarDestinoGrado} onChange={function (e) { setCopiarDestinoGrado(Number(e.target.value)) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+                  {gradosParaInstitucion(copiarDestinoInst).map(function (g) { return <option key={g.numero} value={g.numero}>{g.nombre}</option> })}
+                </select>
+                <select value={copiarDestinoGrupo} onChange={function (e) { setCopiarDestinoGrupo(e.target.value) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+                  {SECCIONES.map(function (s) { return <option key={s} value={s}>Sección {s}</option> })}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={handleCopiarAula}
+          disabled={copiando}
+          className="mt-3 text-sm font-semibold px-5 py-2.5 rounded-xl text-white transition hover:opacity-90 disabled:opacity-50"
+          style={{ background: `linear-gradient(90deg, ${NAVY}, ${GREEN})`, boxShadow: '0 8px 20px rgba(37,99,235,0.3)' }}
+        >
+          {copiando ? 'Copiando...' : 'Copiar aula'}
+        </button>
+        {copiarMsg && <p className="text-xs mt-2" style={{ color: copiarMsg.startsWith('Error') ? '#B91C1C' : '#16A34A' }}>{copiarMsg}</p>}
       </div>
 
       <div className="bg-white rounded-2xl p-4 mb-6" style={{ border: '1px solid #E5E9F0' }}>
