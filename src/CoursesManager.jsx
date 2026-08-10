@@ -549,6 +549,8 @@ export default function CoursesManager() {
     }
     setAsignarDocGuardando(false)
   }
+
+  const [masivoAreaId, setMasivoAreaId] = useState('')
   const [masivoAsignaturaIds, setMasivoAsignaturaIds] = useState(new Set())
   const [masivoGrados, setMasivoGrados] = useState(new Set())
   const [masivoSecciones, setMasivoSecciones] = useState(new Set())
