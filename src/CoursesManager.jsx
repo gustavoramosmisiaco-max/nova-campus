@@ -275,14 +275,23 @@ export default function CoursesManager() {
       return
     }
 
-    // Si es una asignatura NUEVA, matricular automáticamente a quienes ya estén en esta aula (grado+sección)
+    // Si es una asignatura NUEVA, matricular automáticamente a quienes ya estén en esta aula (grado+sección+institución)
     if (!editingId) {
-      const otrosCursosResult = await supabase
+      let otrosCursosQuery = supabase
         .from('courses')
         .select('id')
         .eq('grado', form.grado)
         .eq('grupo', form.grupo)
         .neq('id', courseId)
+
+      // Solo dentro de la MISMA institución — sin esto, se mezclan alumnos de otros colegios que compartan grado/sección
+      if (form.institucion_id) {
+        otrosCursosQuery = otrosCursosQuery.eq('institucion_id', form.institucion_id)
+      } else {
+        otrosCursosQuery = otrosCursosQuery.is('institucion_id', null)
+      }
+
+      const otrosCursosResult = await otrosCursosQuery
 
       const otrosCursoIds = (otrosCursosResult.data || []).map(function (c) { return c.id })
       if (otrosCursoIds.length > 0) {
@@ -357,6 +366,9 @@ export default function CoursesManager() {
         </div>
         <p className="text-sm text-slate-500">
           Docente: <span className="font-medium" style={{ color: c.docente ? NAVY_DARK : '#B91C1C' }}>{c.docente?.full_name || 'Sin asignar'}</span>
+        </p>
+        <p className="text-xs text-slate-400">
+          {c.institucion?.nombre || 'Sin institución'}
         </p>
         <p className="text-sm font-medium" style={{ color: GREEN_DARK }}>
           {scheduleText(c.course_schedules)}
@@ -453,21 +465,29 @@ export default function CoursesManager() {
       return
     }
 
-    const insertResult = await supabase.from('courses').insert(payloads).select('id, grado, grupo')
+    const insertResult = await supabase.from('courses').insert(payloads).select('id, grado, grupo, institucion_id')
     if (insertResult.error) {
       setMasivoMsg('Error: ' + insertResult.error.message)
       setMasivoCreando(false)
       return
     }
 
-    // Matricular automáticamente a quien ya esté en cada una de esas aulas
+    // Matricular automáticamente a quien ya esté en cada una de esas aulas — dentro de la MISMA institución
     await Promise.all(insertResult.data.map(async function (nuevoCurso) {
-      const otrosResult = await supabase
+      let otrosQuery = supabase
         .from('courses')
         .select('id')
         .eq('grado', nuevoCurso.grado)
         .eq('grupo', nuevoCurso.grupo)
         .neq('id', nuevoCurso.id)
+
+      if (nuevoCurso.institucion_id) {
+        otrosQuery = otrosQuery.eq('institucion_id', nuevoCurso.institucion_id)
+      } else {
+        otrosQuery = otrosQuery.is('institucion_id', null)
+      }
+
+      const otrosResult = await otrosQuery
       const otrosIds = (otrosResult.data || []).map(function (c) { return c.id })
       if (otrosIds.length === 0) return
 
