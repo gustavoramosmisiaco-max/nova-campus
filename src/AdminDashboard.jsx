@@ -40,18 +40,18 @@ export default function AdminDashboard() {
   function handleLogoutConDespedida() {
     setDespidiendo(true)
   }
-  const [tab, setTab] = useState('cursos')
+  const [tab, setTab] = useState('instituciones')
 
   const menuItems = [
-    { id: 'cursos', label: 'Gestión de Aulas', icon: BookIcon },
-    { id: 'matriculas', label: 'Matrículas', icon: ClipboardIcon },
-    { id: 'asignaturas', label: 'Asignaturas', icon: LayersIcon },
-    { id: 'estudiantes', label: 'Estudiantes', icon: UsersIcon },
-    { id: 'docentes', label: 'Docentes', icon: UserCheckIcon },
-    { id: 'importar', label: 'Importar Estudiantes', icon: UploadIcon },
-    { id: 'importar-docentes', label: 'Importar Docentes', icon: UploadIcon },
-    { id: 'reportes', label: 'Reportes', icon: ChartBarIcon },
     { id: 'instituciones', label: 'Instituciones', icon: BuildingIcon },
+    { id: 'asignaturas', label: 'Asignaturas', icon: LayersIcon },
+    { id: 'importar-docentes', label: 'Importar Docentes', icon: UploadIcon },
+    { id: 'docentes', label: 'Docentes', icon: UserCheckIcon },
+    { id: 'cursos', label: 'Gestión de Aulas', icon: BookIcon },
+    { id: 'importar', label: 'Importar Estudiantes', icon: UploadIcon },
+    { id: 'estudiantes', label: 'Estudiantes', icon: UsersIcon },
+    { id: 'matriculas', label: 'Matrículas', icon: ClipboardIcon },
+    { id: 'reportes', label: 'Reportes', icon: ChartBarIcon },
     { id: 'habilitar-cursos', label: 'Habilitar Cursos', icon: ToggleIcon },
     { id: 'vaciar-periodo', label: 'Vaciar Periodo', icon: TrashIcon },
     { id: 'recreos', label: 'Recreos', icon: CoffeeIcon },
