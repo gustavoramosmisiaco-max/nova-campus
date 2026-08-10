@@ -275,39 +275,30 @@ export default function CoursesManager() {
       return
     }
 
-    // Si es una asignatura NUEVA, matricular automáticamente a quienes ya estén en esta aula (grado+sección+institución)
+    // Si es una asignatura NUEVA, matricular a quienes correspondan a esta aula (grado+sección+institución) —
+    // por perfil directo, así también agarra a estudiantes que aún no tenían ningún curso
     if (!editingId) {
-      let otrosCursosQuery = supabase
-        .from('courses')
+      let estudiantesQuery = supabase
+        .from('profiles')
         .select('id')
+        .eq('role', 'estudiante')
         .eq('grado', form.grado)
         .eq('grupo', form.grupo)
-        .neq('id', courseId)
 
-      // Solo dentro de la MISMA institución — sin esto, se mezclan alumnos de otros colegios que compartan grado/sección
       if (form.institucion_id) {
-        otrosCursosQuery = otrosCursosQuery.eq('institucion_id', form.institucion_id)
+        estudiantesQuery = estudiantesQuery.eq('institucion_id', form.institucion_id)
       } else {
-        otrosCursosQuery = otrosCursosQuery.is('institucion_id', null)
+        estudiantesQuery = estudiantesQuery.is('institucion_id', null)
       }
 
-      const otrosCursosResult = await otrosCursosQuery
+      const estudiantesResult = await estudiantesQuery
+      const estudiantesDelAula = (estudiantesResult.data || []).map(function (s) { return s.id })
 
-      const otrosCursoIds = (otrosCursosResult.data || []).map(function (c) { return c.id })
-      if (otrosCursoIds.length > 0) {
-        const enrolResult = await supabase
-          .from('enrollments')
-          .select('student_id')
-          .in('course_id', otrosCursoIds)
-          .eq('status', 'activo')
-
-        const estudiantesUnicos = [...new Set((enrolResult.data || []).map(function (e) { return e.student_id }))]
-        if (estudiantesUnicos.length > 0) {
-          const nuevasMatriculas = estudiantesUnicos.map(function (studentId) {
-            return { course_id: courseId, student_id: studentId, status: 'activo' }
-          })
-          await supabase.from('enrollments').insert(nuevasMatriculas)
-        }
+      if (estudiantesDelAula.length > 0) {
+        const nuevasMatriculas = estudiantesDelAula.map(function (studentId) {
+          return { course_id: courseId, student_id: studentId, status: 'activo' }
+        })
+        await supabase.from('enrollments').insert(nuevasMatriculas)
       }
     }
 
@@ -460,25 +451,24 @@ export default function CoursesManager() {
       }
     }))
 
-    // Matricular automáticamente a los alumnos que ya estén en otro curso de esa misma aula destino
-    await Promise.all(insertResult.data.map(async function (nuevo) {
-      const otrosResult = await supabase
-        .from('courses')
-        .select('id')
-        .eq('grado', copiarDestinoGrado)
-        .eq('grupo', copiarDestinoGrupo)
-        .eq('institucion_id', copiarDestinoInst)
-        .neq('id', nuevo.id)
-      const otrosIds = (otrosResult.data || []).map(function (c) { return c.id })
-      if (otrosIds.length === 0) return
+    // Matricular a los alumnos que correspondan a esta aula destino — por perfil directo (institución+grado+sección),
+    // no solo a quienes ya estuvieran en otro curso de ahí (así también agarra a los que aún no tenían ningún curso)
+    const estudiantesResult = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('role', 'estudiante')
+      .eq('grado', copiarDestinoGrado)
+      .eq('grupo', copiarDestinoGrupo)
+      .eq('institucion_id', copiarDestinoInst)
 
-      const enrolResult = await supabase.from('enrollments').select('student_id').in('course_id', otrosIds).eq('status', 'activo')
-      const estudiantesUnicos = [...new Set((enrolResult.data || []).map(function (e) { return e.student_id }))]
-      if (estudiantesUnicos.length === 0) return
+    const estudiantesDelAula = (estudiantesResult.data || []).map(function (s) { return s.id })
 
-      const matriculas = estudiantesUnicos.map(function (studentId) { return { course_id: nuevo.id, student_id: studentId, status: 'activo' } })
-      await supabase.from('enrollments').insert(matriculas)
-    }))
+    if (estudiantesDelAula.length > 0) {
+      await Promise.all(insertResult.data.map(async function (nuevo) {
+        const matriculas = estudiantesDelAula.map(function (studentId) { return { course_id: nuevo.id, student_id: studentId, status: 'activo' } })
+        await supabase.from('enrollments').insert(matriculas)
+      }))
+    }
 
     setCopiarMsg(`Se copiaron ${aCrear.length} Asignatura(s) al aula de destino, con su horario incluido.`)
     setCopiando(false)
@@ -577,34 +567,26 @@ export default function CoursesManager() {
       return
     }
 
-    // Matricular automáticamente a quien ya esté en cada una de esas aulas — dentro de la MISMA institución
+    // Matricular a los alumnos que correspondan a cada aula nueva — por perfil directo (institución+grado+sección)
     await Promise.all(insertResult.data.map(async function (nuevoCurso) {
-      let otrosQuery = supabase
-        .from('courses')
+      let estudiantesQuery = supabase
+        .from('profiles')
         .select('id')
+        .eq('role', 'estudiante')
         .eq('grado', nuevoCurso.grado)
         .eq('grupo', nuevoCurso.grupo)
-        .neq('id', nuevoCurso.id)
 
       if (nuevoCurso.institucion_id) {
-        otrosQuery = otrosQuery.eq('institucion_id', nuevoCurso.institucion_id)
+        estudiantesQuery = estudiantesQuery.eq('institucion_id', nuevoCurso.institucion_id)
       } else {
-        otrosQuery = otrosQuery.is('institucion_id', null)
+        estudiantesQuery = estudiantesQuery.is('institucion_id', null)
       }
 
-      const otrosResult = await otrosQuery
-      const otrosIds = (otrosResult.data || []).map(function (c) { return c.id })
-      if (otrosIds.length === 0) return
+      const estudiantesResult = await estudiantesQuery
+      const estudiantesDelAula = (estudiantesResult.data || []).map(function (s) { return s.id })
+      if (estudiantesDelAula.length === 0) return
 
-      const enrolResult = await supabase
-        .from('enrollments')
-        .select('student_id')
-        .in('course_id', otrosIds)
-        .eq('status', 'activo')
-      const estudiantesUnicos = [...new Set((enrolResult.data || []).map(function (e) { return e.student_id }))]
-      if (estudiantesUnicos.length === 0) return
-
-      const matriculas = estudiantesUnicos.map(function (studentId) {
+      const matriculas = estudiantesDelAula.map(function (studentId) {
         return { course_id: nuevoCurso.id, student_id: studentId, status: 'activo' }
       })
       await supabase.from('enrollments').insert(matriculas)
