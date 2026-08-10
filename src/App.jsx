@@ -6,11 +6,24 @@ import DocenteDashboard from './DocenteDashboard'
 import EstudianteDashboard from './EstudianteDashboard'
 import LoadingBar from './LoadingBar'
 import PortalPadres from './PortalPadres'
+import MatriculaVerano from './MatriculaVerano'
+import PromotorDashboard from './PromotorDashboard'
+import CoordinadorDashboard from './CoordinadorDashboard'
 import { PresenceProvider } from './PresenceContext'
 
 function App() {
   const { session, role, loading } = useAuth()
   const [verPortalPadres, setVerPortalPadres] = useState(false)
+
+  // Link directo para matrícula de verano — funciona sin necesidad de iniciar sesión
+  if (typeof window !== 'undefined' && window.location.pathname === '/matricula-verano') {
+    return (
+      <>
+        <LoadingBar />
+        <MatriculaVerano />
+      </>
+    )
+  }
 
   if (loading) {
     return (
@@ -43,7 +56,9 @@ function App() {
       {role === 'admin' && <AdminDashboard />}
       {role === 'docente' && <DocenteDashboard />}
       {role === 'estudiante' && <EstudianteDashboard />}
-      {role !== 'admin' && role !== 'docente' && role !== 'estudiante' && role != null && (
+      {role === 'promotor' && <PromotorDashboard />}
+      {role === 'coordinador' && <CoordinadorDashboard />}
+      {role !== 'admin' && role !== 'docente' && role !== 'estudiante' && role !== 'promotor' && role !== 'coordinador' && role != null && (
         <div className="min-h-screen bg-slate-900 flex items-center justify-center">
           <p className="text-red-400">Rol no reconocido. Contacta al administrador.</p>
         </div>
