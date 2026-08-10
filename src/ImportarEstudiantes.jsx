@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import ExcelJS from 'exceljs'
 
@@ -37,9 +37,41 @@ export default function ImportarEstudiantes() {
   const [texto, setTexto] = useState('')
   const [grado, setGrado] = useState(1)
   const [grupo, setGrupo] = useState('A')
+  const [instituciones, setInstituciones] = useState([])
+  const [institucionId, setInstitucionId] = useState('')
+  const [gradosPorInstitucion, setGradosPorInstitucion] = useState({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [resultados, setResultados] = useState(null)
+
+  useEffect(function () {
+    cargarInstituciones()
+    cargarGrados()
+  }, [])
+
+  async function cargarInstituciones() {
+    const result = await supabase.from('instituciones_educativas').select('id, nombre').order('nombre')
+    if (!result.error) {
+      setInstituciones(result.data)
+      if (result.data.length === 1) setInstitucionId(result.data[0].id)
+    }
+  }
+
+  async function cargarGrados() {
+    const result = await supabase.from('grados_institucion').select('institucion_id, numero, nombre').order('orden')
+    if (result.error) return
+    const mapa = {}
+    result.data.forEach(function (g) {
+      if (!mapa[g.institucion_id]) mapa[g.institucion_id] = []
+      mapa[g.institucion_id].push({ numero: g.numero, nombre: g.nombre })
+    })
+    setGradosPorInstitucion(mapa)
+  }
+
+  function gradosDisponibles() {
+    if (institucionId && gradosPorInstitucion[institucionId]) return gradosPorInstitucion[institucionId]
+    return GRADOS.map(function (n) { return { numero: n, nombre: n + '°' } })
+  }
 
   const lineas = texto.split('\n').map(function (l) { return l.trim() }).filter(Boolean)
 
@@ -49,7 +81,7 @@ export default function ImportarEstudiantes() {
 
     const students = lineas.map(function (linea) {
       const p = parseNombreCompleto(linea)
-      return { nombres: p.nombres, apellidos: p.apellidos, grado: grado, grupo: grupo }
+      return { nombres: p.nombres, apellidos: p.apellidos, grado: grado, grupo: grupo, institucion_id: institucionId || null }
     }).filter(function (s) { return s.nombres && s.apellidos })
 
     if (students.length === 0) {
@@ -116,11 +148,32 @@ export default function ImportarEstudiantes() {
     <div>
       <h2 className="text-2xl font-bold mb-2" style={{ color: NAVY_DARK }}>Importar Estudiantes</h2>
       <p className="text-sm text-slate-400 mb-6">
-        Pega la lista de nombres completos (uno por línea), elige el grado y sección, y la plataforma crea las
-        cuentas automáticamente con su correo y contraseña, matriculándolos en todos los cursos de esa aula.
+        Pega la lista de nombres completos (uno por línea), elige la institución, grado y sección, y la plataforma
+        crea las cuentas automáticamente con su correo y contraseña, matriculándolos en todos los cursos de esa aula.
       </p>
 
       <div className="bg-white rounded-2xl p-6 mb-6" style={{ border: '1px solid #E5E9F0' }}>
+        <div className="mb-4 max-w-xs">
+          <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Institución educativa</label>
+          <select
+            value={institucionId}
+            onChange={function (e) {
+              const nuevaInstitucion = e.target.value
+              setInstitucionId(nuevaInstitucion)
+              const lista = nuevaInstitucion && gradosPorInstitucion[nuevaInstitucion] ? gradosPorInstitucion[nuevaInstitucion] : GRADOS.map(function (n) { return { numero: n, nombre: n + '°' } })
+              if (!lista.some(function (g) { return g.numero === grado })) setGrado(lista[0]?.numero || 1)
+            }}
+            className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+            style={inputStyle}
+          >
+            <option value="">-- Selecciona --</option>
+            {instituciones.map(function (i) { return <option key={i.id} value={i.id}>{i.nombre}</option> })}
+          </select>
+          {!institucionId && (
+            <p className="text-xs mt-1" style={{ color: '#B45309' }}>Sin institución elegida, los estudiantes se crearán sin institución asignada.</p>
+          )}
+        </div>
+
         <div className="grid grid-cols-2 gap-3 mb-4 max-w-xs">
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Grado</label>
@@ -130,7 +183,7 @@ export default function ImportarEstudiantes() {
               className="w-full rounded-lg px-3 py-2 text-sm outline-none"
               style={inputStyle}
             >
-              {GRADOS.map(function (g) { return <option key={g} value={g}>{g}°</option> })}
+              {gradosDisponibles().map(function (g) { return <option key={g.numero} value={g.numero}>{g.nombre}</option> })}
             </select>
           </div>
           <div>
