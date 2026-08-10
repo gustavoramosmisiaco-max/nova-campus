@@ -395,12 +395,15 @@ export default function CoursesManager() {
       .update({ institucion_id: bulkInstitucion })
       .eq('grado', bulkGrado)
       .eq('grupo', bulkGrupo)
+      .is('institucion_id', null)
       .select('id')
 
     if (result.error) {
       setBulkMsg('Error: ' + result.error.message)
+    } else if (result.data.length === 0) {
+      setBulkMsg(`No se aplicó nada — todos los cursos de ${bulkGrado}° "${bulkGrupo}" ya tenían una institución asignada.`)
     } else {
-      setBulkMsg(`Institución asignada a ${result.data.length} curso(s) de ${bulkGrado}° "${bulkGrupo}".`)
+      setBulkMsg(`Institución asignada a ${result.data.length} curso(s) de ${bulkGrado}° "${bulkGrupo}" que estaban sin institución.`)
       loadCourses()
     }
     setBulkSaving(false)
@@ -546,7 +549,8 @@ export default function CoursesManager() {
       </p>
 
       <div className="bg-white rounded-2xl p-4 mb-6" style={{ border: '1px solid #E5E9F0' }}>
-        <p className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>Asignar Institución a toda un aula</p>
+        <p className="text-sm font-bold mb-1" style={{ color: NAVY_DARK }}>Asignar Institución a toda un aula</p>
+        <p className="text-xs text-slate-400 mb-3">Solo completa los cursos de ese Grado/Sección que <strong>todavía no tienen</strong> institución — nunca reemplaza una que ya esté puesta, para no mezclar colegios distintos que compartan el mismo Grado/Sección.</p>
         <div className="flex items-end gap-3 flex-wrap">
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Grado</label>
