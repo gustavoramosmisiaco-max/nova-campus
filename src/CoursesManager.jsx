@@ -373,6 +373,7 @@ export default function CoursesManager() {
   const [bulkInstitucion, setBulkInstitucion] = useState('')
   const [bulkSaving, setBulkSaving] = useState(false)
   const [bulkMsg, setBulkMsg] = useState('')
+  const [mostrarAvanzado, setMostrarAvanzado] = useState(false)
 
   const [copiarOrigenInst, setCopiarOrigenInst] = useState('')
   const [copiarOrigenGrado, setCopiarOrigenGrado] = useState(1)
@@ -633,44 +634,12 @@ export default function CoursesManager() {
       </p>
 
       <div className="bg-white rounded-2xl p-4 mb-6" style={{ border: '1px solid #E5E9F0' }}>
-        <p className="text-sm font-bold mb-1" style={{ color: NAVY_DARK }}>Asignar Institución a toda un aula</p>
-        <p className="text-xs text-slate-400 mb-3">Solo completa los cursos de ese Grado/Sección que <strong>todavía no tienen</strong> institución — nunca reemplaza una que ya esté puesta, para no mezclar colegios distintos que compartan el mismo Grado/Sección.</p>
-        <div className="flex items-end gap-3 flex-wrap">
-          <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Grado</label>
-            <select value={bulkGrado} onChange={function (e) { setBulkGrado(Number(e.target.value)) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
-              {gradosUnion().map(function (g) { return <option key={g.numero} value={g.numero}>{g.nombre}</option> })}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Sección</label>
-            <select value={bulkGrupo} onChange={function (e) { setBulkGrupo(e.target.value) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
-              {SECCIONES.map(function (s) { return <option key={s} value={s}>{s}</option> })}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Institución</label>
-            <select value={bulkInstitucion} onChange={function (e) { setBulkInstitucion(e.target.value) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ ...inputStyle, minWidth: 220 }}>
-              <option value="">-- Selecciona --</option>
-              {instituciones.map(function (i) { return <option key={i.id} value={i.id}>{i.nombre}</option> })}
-            </select>
-          </div>
-          <button
-            onClick={handleBulkAsignarInstitucion}
-            disabled={bulkSaving}
-            className="text-sm font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
-            style={{ backgroundColor: GREEN }}
-          >
-            {bulkSaving ? 'Aplicando...' : 'Aplicar a toda el aula'}
-          </button>
-        </div>
-        {bulkMsg && <p className="text-xs mt-2" style={{ color: bulkMsg.startsWith('Error') ? '#B91C1C' : '#16A34A' }}>{bulkMsg}</p>}
-      </div>
-
-      <div className="bg-white rounded-2xl p-4 mb-6" style={{ border: '1px solid #E5E9F0' }}>
         <p className="text-sm font-bold mb-1" style={{ color: NAVY_DARK }}>Copiar aula completa</p>
+        <p className="text-xs text-slate-400 mb-1">
+          Úsala cuando <strong>ya tienes un aula parecida armada</strong> (otra institución, otro grado, otra sección) y quieres replicar la misma estructura sin repetir todo a mano.
+        </p>
         <p className="text-xs text-slate-400 mb-3">
-          Copia todas las Asignaturas (y su horario) de un aula que ya tengas armada, hacia otra — útil para replicar la misma estructura en otra institución, grado o sección, sin repetir todo a mano.
+          Copia todas las Asignaturas y su horario, sin duplicar las que ya existan en el destino.
         </p>
 
         <div className="grid sm:grid-cols-2 gap-4">
@@ -725,8 +694,11 @@ export default function CoursesManager() {
 
       <div className="bg-white rounded-2xl p-4 mb-6" style={{ border: '1px solid #E5E9F0' }}>
         <p className="text-sm font-bold mb-1" style={{ color: NAVY_DARK }}>Crear varios cursos de golpe</p>
+        <p className="text-xs text-slate-400 mb-1">
+          Úsala cuando <strong>no tienes ningún aula parecida todavía</strong> — arma varias Asignaturas desde cero, eligiendo Grados y Secciones a la vez.
+        </p>
         <p className="text-xs text-slate-400 mb-3">
-          Elige una o más Asignaturas, y en qué Grados/Secciones crearlas — se crea un curso por cada combinación, y matricula solos a los alumnos que ya estén en esa aula.
+          Se crea un curso por cada combinación, y matricula solos a los alumnos que ya estén en esa aula.
         </p>
 
         <div className="mb-3">
@@ -814,6 +786,53 @@ export default function CoursesManager() {
         </button>
         {masivoMsg && <p className="text-xs mt-2" style={{ color: masivoMsg.startsWith('Error') ? '#B91C1C' : '#16A34A' }}>{masivoMsg}</p>}
       </div>
+
+      <button
+        onClick={function () { setMostrarAvanzado(!mostrarAvanzado) }}
+        className="text-xs font-semibold mb-6 hover:underline"
+        style={{ color: '#94A3B8' }}
+      >
+        {mostrarAvanzado ? '▾' : '▸'} Herramientas avanzadas (poco usadas)
+      </button>
+
+      {mostrarAvanzado && (
+        <div className="bg-white rounded-2xl p-4 mb-6" style={{ border: '1px solid #E5E9F0' }}>
+          <p className="text-sm font-bold mb-1" style={{ color: NAVY_DARK }}>Asignar Institución a toda un aula</p>
+          <p className="text-xs text-slate-400 mb-3">
+            Para casos raros: si algún curso viejo quedó sin institución asignada (de antes de que esto fuera obligatorio), esto la completa. Solo toca los que <strong>todavía no tienen</strong> institución — nunca reemplaza una que ya esté puesta.
+          </p>
+          <div className="flex items-end gap-3 flex-wrap">
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Grado</label>
+              <select value={bulkGrado} onChange={function (e) { setBulkGrado(Number(e.target.value)) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+                {gradosUnion().map(function (g) { return <option key={g.numero} value={g.numero}>{g.nombre}</option> })}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Sección</label>
+              <select value={bulkGrupo} onChange={function (e) { setBulkGrupo(e.target.value) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+                {SECCIONES.map(function (s) { return <option key={s} value={s}>{s}</option> })}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Institución</label>
+              <select value={bulkInstitucion} onChange={function (e) { setBulkInstitucion(e.target.value) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ ...inputStyle, minWidth: 220 }}>
+                <option value="">-- Selecciona --</option>
+                {instituciones.map(function (i) { return <option key={i.id} value={i.id}>{i.nombre}</option> })}
+              </select>
+            </div>
+            <button
+              onClick={handleBulkAsignarInstitucion}
+              disabled={bulkSaving}
+              className="text-sm font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+              style={{ backgroundColor: GREEN }}
+            >
+              {bulkSaving ? 'Aplicando...' : 'Aplicar a toda el aula'}
+            </button>
+          </div>
+          {bulkMsg && <p className="text-xs mt-2" style={{ color: bulkMsg.startsWith('Error') ? '#B91C1C' : '#16A34A' }}>{bulkMsg}</p>}
+        </div>
+      )}
 
       {loading ? (
         <p className="text-slate-400">Cargando...</p>
