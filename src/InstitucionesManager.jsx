@@ -24,6 +24,10 @@ export default function InstitucionesManager() {
   const [nuevoGradoNombre, setNuevoGradoNombre] = useState('')
   const [nuevoGradoNumero, setNuevoGradoNumero] = useState('')
 
+  const [seccionesAbiertoPara, setSeccionesAbiertoPara] = useState(null)
+  const [seccionesDeInstitucion, setSeccionesDeInstitucion] = useState([])
+  const [nuevaSeccionLetra, setNuevaSeccionLetra] = useState('')
+
   useEffect(function () {
     loadInstituciones()
   }, [])
@@ -127,6 +131,41 @@ export default function InstitucionesManager() {
     if (!result.error) setGradosDeInstitucion(result.data)
   }
 
+  async function abrirSecciones(institucionId) {
+    if (seccionesAbiertoPara === institucionId) {
+      setSeccionesAbiertoPara(null)
+      return
+    }
+    setSeccionesAbiertoPara(institucionId)
+    setNuevaSeccionLetra('')
+    const result = await supabase.from('secciones_institucion').select('*').eq('institucion_id', institucionId).order('orden')
+    if (!result.error) setSeccionesDeInstitucion(result.data)
+  }
+
+  async function agregarSeccion(institucionId) {
+    if (!nuevaSeccionLetra.trim()) return
+    const maxOrden = seccionesDeInstitucion.reduce(function (a, s) { return Math.max(a, s.orden) }, 0)
+    const result = await supabase.from('secciones_institucion').insert({
+      institucion_id: institucionId,
+      letra: nuevaSeccionLetra.trim().toUpperCase(),
+      orden: maxOrden + 1,
+    })
+    if (result.error) {
+      alert('No se pudo agregar: ' + result.error.message)
+      return
+    }
+    setNuevaSeccionLetra('')
+    abrirSecciones(institucionId)
+    setSeccionesAbiertoPara(institucionId)
+  }
+
+  async function eliminarSeccion(seccionId, institucionId) {
+    if (!confirm('¿Quitar esta sección de la institución? Las aulas que ya la usen no se ven afectadas.')) return
+    await supabase.from('secciones_institucion').delete().eq('id', seccionId)
+    const result = await supabase.from('secciones_institucion').select('*').eq('institucion_id', institucionId).order('orden')
+    if (!result.error) setSeccionesDeInstitucion(result.data)
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-2">
@@ -192,6 +231,7 @@ export default function InstitucionesManager() {
                   </div>
                   <div className="flex gap-2">
                     <button onClick={function () { abrirGrados(inst.id) }} className="text-xs font-semibold px-2 py-1 rounded-lg transition" style={{ backgroundColor: 'white', color: '#B45309', border: '1px solid #D6DCE5' }}>Grados</button>
+                    <button onClick={function () { abrirSecciones(inst.id) }} className="text-xs font-semibold px-2 py-1 rounded-lg transition" style={{ backgroundColor: 'white', color: '#8a5cb0', border: '1px solid #D6DCE5' }}>Secciones</button>
                     <button onClick={function () { openEdit(inst) }} className="text-xs font-semibold px-2 py-1 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>Editar</button>
                     <button onClick={function () { handleDelete(inst.id) }} className="text-xs font-semibold px-2 py-1 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: '#B91C1C' }}>Eliminar</button>
                   </div>
@@ -218,6 +258,30 @@ export default function InstitucionesManager() {
                       <input type="number" value={nuevoGradoNumero} onChange={function (e) { setNuevoGradoNumero(e.target.value) }} placeholder="Nº (ej: 6)" className="w-20 rounded-lg px-2 py-1.5 text-xs outline-none" style={inputStyle} />
                       <input type="text" value={nuevoGradoNombre} onChange={function (e) { setNuevoGradoNombre(e.target.value) }} placeholder="Nombre (ej: 6°)" className="flex-1 rounded-lg px-2 py-1.5 text-xs outline-none" style={inputStyle} />
                       <button onClick={function () { agregarGrado(inst.id) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: GREEN }}>+ Agregar</button>
+                    </div>
+                  </div>
+                )}
+
+                {seccionesAbiertoPara === inst.id && (
+                  <div className="mt-3 pt-3" style={{ borderTop: '1px solid #F4F6F9' }}>
+                    <p className="text-xs font-bold mb-2" style={{ color: NAVY_DARK }}>Secciones de esta institución</p>
+                    {seccionesDeInstitucion.length === 0 ? (
+                      <p className="text-xs text-slate-400 mb-2">Sin secciones todavía.</p>
+                    ) : (
+                      <ul className="space-y-1 mb-3">
+                        {seccionesDeInstitucion.map(function (s) {
+                          return (
+                            <li key={s.id} className="flex justify-between items-center text-xs rounded-lg px-2 py-1" style={{ backgroundColor: '#F4F6F9' }}>
+                              <span style={{ color: NAVY_DARK }}>Sección {s.letra}</span>
+                              <button onClick={function () { eliminarSeccion(s.id, inst.id) }} className="text-[10px] font-semibold px-2 py-0.5 rounded text-white" style={{ backgroundColor: '#B91C1C' }}>Quitar</button>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                    <div className="flex gap-2">
+                      <input type="text" maxLength={1} value={nuevaSeccionLetra} onChange={function (e) { setNuevaSeccionLetra(e.target.value) }} placeholder="Letra (ej: F)" className="flex-1 rounded-lg px-2 py-1.5 text-xs outline-none" style={inputStyle} />
+                      <button onClick={function () { agregarSeccion(inst.id) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: GREEN }}>+ Agregar</button>
                     </div>
                   </div>
                 )}
