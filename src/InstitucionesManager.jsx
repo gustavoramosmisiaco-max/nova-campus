@@ -28,6 +28,11 @@ export default function InstitucionesManager() {
   const [seccionesDeInstitucion, setSeccionesDeInstitucion] = useState([])
   const [nuevaSeccionLetra, setNuevaSeccionLetra] = useState('')
 
+  const [coordAbiertoPara, setCoordAbiertoPara] = useState(null)
+  const [coordinadorDeInstitucion, setCoordinadorDeInstitucion] = useState(null)
+  const [nuevoCoordNombre, setNuevoCoordNombre] = useState('')
+  const [nuevoCoordId, setNuevoCoordId] = useState('')
+
   useEffect(function () {
     loadInstituciones()
   }, [])
@@ -166,6 +171,23 @@ export default function InstitucionesManager() {
     if (!result.error) setSeccionesDeInstitucion(result.data)
   }
 
+  async function abrirCoordinador(institucionId) {
+    if (coordAbiertoPara === institucionId) {
+      setCoordAbiertoPara(null)
+      return
+    }
+    setCoordAbiertoPara(institucionId)
+    setNuevoCoordNombre('')
+    setNuevoCoordId('')
+    const result = await supabase.from('profiles').select('id, full_name, email').eq('role', 'coordinador').eq('institucion_id', institucionId).maybeSingle()
+    setCoordinadorDeInstitucion(result.error ? null : result.data)
+  }
+
+  function sqlCoordinadorGenerado(institucionId) {
+    const nombreEscapado = (nuevoCoordNombre || 'Nombre del Coordinador').replace(/'/g, "''")
+    return `update profiles\nset full_name = '${nombreEscapado}', role = 'coordinador', institucion_id = '${institucionId}'\nwhere id = '${nuevoCoordId || 'PEGA-AQUI-EL-ID'}';`
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-2">
@@ -232,6 +254,7 @@ export default function InstitucionesManager() {
                   <div className="flex gap-2">
                     <button onClick={function () { abrirGrados(inst.id) }} className="text-xs font-semibold px-2 py-1 rounded-lg transition" style={{ backgroundColor: 'white', color: '#B45309', border: '1px solid #D6DCE5' }}>Grados</button>
                     <button onClick={function () { abrirSecciones(inst.id) }} className="text-xs font-semibold px-2 py-1 rounded-lg transition" style={{ backgroundColor: 'white', color: '#8a5cb0', border: '1px solid #D6DCE5' }}>Secciones</button>
+                    <button onClick={function () { abrirCoordinador(inst.id) }} className="text-xs font-semibold px-2 py-1 rounded-lg transition" style={{ backgroundColor: 'white', color: '#0F4C4C', border: '1px solid #D6DCE5' }}>Coordinador</button>
                     <button onClick={function () { openEdit(inst) }} className="text-xs font-semibold px-2 py-1 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>Editar</button>
                     <button onClick={function () { handleDelete(inst.id) }} className="text-xs font-semibold px-2 py-1 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: '#B91C1C' }}>Eliminar</button>
                   </div>
@@ -283,6 +306,47 @@ export default function InstitucionesManager() {
                       <input type="text" maxLength={1} value={nuevaSeccionLetra} onChange={function (e) { setNuevaSeccionLetra(e.target.value) }} placeholder="Letra (ej: F)" className="flex-1 rounded-lg px-2 py-1.5 text-xs outline-none" style={inputStyle} />
                       <button onClick={function () { agregarSeccion(inst.id) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: GREEN }}>+ Agregar</button>
                     </div>
+                  </div>
+                )}
+
+                {coordAbiertoPara === inst.id && (
+                  <div className="mt-3 pt-3" style={{ borderTop: '1px solid #F4F6F9' }}>
+                    <p className="text-xs font-bold mb-2" style={{ color: NAVY_DARK }}>Coordinador de esta institución</p>
+                    {coordinadorDeInstitucion ? (
+                      <div className="rounded-lg p-3" style={{ backgroundColor: '#E9F5F5' }}>
+                        <p className="text-xs font-semibold" style={{ color: '#0F4C4C' }}>{coordinadorDeInstitucion.full_name}</p>
+                        <p className="text-xs text-slate-500">{coordinadorDeInstitucion.email}</p>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-xs text-slate-400 mb-3">Esta institución todavía no tiene Coordinador. Créalo en 3 pasos:</p>
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-[11px] font-semibold mb-1" style={{ color: '#0F4C4C' }}>Paso 1 — Nombre de la persona</p>
+                            <input type="text" value={nuevoCoordNombre} onChange={function (e) { setNuevoCoordNombre(e.target.value) }} placeholder="Nombre completo" className="w-full rounded-lg px-2 py-1.5 text-xs outline-none" style={inputStyle} />
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-semibold mb-1" style={{ color: '#0F4C4C' }}>Paso 2 — Crea su cuenta en Supabase</p>
+                            <p className="text-[11px] text-slate-500">
+                              Ve a Supabase → Authentication → Users → Add user, pon su correo y contraseña temporal, marca "Auto Confirm User", y copia el ID que se genera.
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-semibold mb-1" style={{ color: '#0F4C4C' }}>Paso 3 — Pega el ID y copia el SQL</p>
+                            <input type="text" value={nuevoCoordId} onChange={function (e) { setNuevoCoordId(e.target.value) }} placeholder="Pega aquí el ID de Supabase" className="w-full rounded-lg px-2 py-1.5 text-xs outline-none mb-2" style={inputStyle} />
+                            <pre className="text-[10px] rounded-lg p-2 overflow-x-auto" style={{ backgroundColor: '#0F172A', color: '#E2E8F0' }}>{sqlCoordinadorGenerado(inst.id)}</pre>
+                            <div className="flex gap-2 mt-2">
+                              <button onClick={function () { navigator.clipboard.writeText(sqlCoordinadorGenerado(inst.id)) }} className="text-[11px] font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: NAVY }}>
+                                📋 Copiar SQL
+                              </button>
+                              <button onClick={function () { abrirCoordinador(inst.id); setCoordAbiertoPara(inst.id) }} className="text-[11px] font-semibold px-3 py-1.5 rounded-lg transition" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #D6DCE5' }}>
+                                Ya lo corrí, actualizar
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
