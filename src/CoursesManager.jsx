@@ -316,6 +316,8 @@ export default function CoursesManager() {
     }
   }
 
+  const [institucionFiltro, setInstitucionFiltro] = useState(null) // null = "todas" (sin filtrar)
+
   // Agrupar: Área > Asignatura > lista de asignaciones (grado/sección/docente) — filtrado por institución elegida
   const coursesFiltrados = institucionFiltro == null ? courses : courses.filter(function (c) { return (c.institucion_id || 'sin-institucion') === institucionFiltro })
 
@@ -667,7 +669,6 @@ export default function CoursesManager() {
     }
   }
 
-  const [institucionFiltro, setInstitucionFiltro] = useState(null) // null = "todas" (sin filtrar)
 
   return (
     <div>
