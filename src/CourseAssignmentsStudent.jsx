@@ -60,6 +60,26 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
         subsResult.data.forEach(function (s) {
           map[s.assignment_id] = s
         })
+
+        // Traer las imágenes (varias por entrega) de todas las entregas encontradas
+        const submissionIds = subsResult.data.map(function (s) { return s.id })
+        if (submissionIds.length > 0) {
+          const filesResult = await supabase
+            .from('submission_files')
+            .select('submission_id, file_url, orden')
+            .in('submission_id', submissionIds)
+            .order('orden')
+          if (!filesResult.error) {
+            filesResult.data.forEach(function (f) {
+              const asgId = Object.keys(map).find(function (k) { return map[k].id === f.submission_id })
+              if (asgId) {
+                if (!map[asgId].files) map[asgId].files = []
+                map[asgId].files.push(f.file_url)
+              }
+            })
+          }
+        }
+
         setSubmissionsMap(map)
       }
 
@@ -88,60 +108,86 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
     return last ? last.toLowerCase() : ''
   }
 
-  async function handleUpload(assignment, file) {
-    if (!file) return
+  async function handleUpload(assignment, filesList) {
+    if (!filesList || filesList.length === 0) return
+    const files = Array.from(filesList)
     setUploadingId(assignment.id)
     setError('')
 
-    const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')
-    const path = `${assignment.course_id}/${session.user.id}/${assignment.id}_${Date.now()}_${safeName}`
-
-    const uploadResult = await supabase.storage.from('entregas').upload(path, file, { upsert: true })
-    if (uploadResult.error) {
-      setError('Error al subir el archivo: ' + uploadResult.error.message)
-      setUploadingId(null)
-      return
-    }
-
+    // 1. Crear o reutilizar la fila de entrega (submissions), sin depender de un solo archivo
     const existing = submissionsMap[assignment.id]
+    let submissionId = existing?.id
     let dbResult
+
     if (existing) {
       dbResult = await supabase
         .from('submissions')
-        .update({ file_url: path, submitted_at: new Date().toISOString() })
+        .update({ submitted_at: new Date().toISOString() })
         .eq('id', existing.id)
     } else {
       dbResult = await supabase.from('submissions').insert({
         assignment_id: assignment.id,
         student_id: session.user.id,
-        file_url: path,
         submitted_at: new Date().toISOString(),
-      })
+      }).select('id').single()
+      if (!dbResult.error) submissionId = dbResult.data.id
     }
 
     if (dbResult.error) {
       setError('Error al registrar la entrega: ' + dbResult.error.message)
-    } else {
-      if (assignment.tipo_entrega === 'grupal') {
-        await cascadearEntregaAGrupo(assignment, path)
-      }
-      if (existing) {
-        const courseResult = await supabase.from('courses').select('docente_id').eq('id', assignment.course_id).single()
-        if (courseResult.data?.docente_id) {
-          await supabase.from('notificaciones').insert({
-            user_id: courseResult.data.docente_id,
-            tipo: 'tarea_nueva',
-            titulo: 'Un estudiante volvió a subir una tarea',
-            mensaje: `${profile?.full_name || 'Un estudiante'} resubió: ${assignment.titulo}. Revisa y vuelve a calificarla.`,
-          })
-        }
-      }
-      loadAssignments()
+      setUploadingId(null)
+      return
     }
+
+    // 2. Si ya tenía fotos de antes, las quitamos — cada vez que suben, reemplaza el set completo
+    if (existing) {
+      await supabase.from('submission_files').delete().eq('submission_id', submissionId)
+    }
+
+    // 3. Subir cada foto y guardar su fila
+    const rutasSubidas = []
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')
+      const path = `${assignment.course_id}/${session.user.id}/${assignment.id}_${Date.now()}_${i}_${safeName}`
+      const uploadResult = await supabase.storage.from('entregas').upload(path, file, { upsert: true })
+      if (uploadResult.error) {
+        setError(`Error al subir la imagen ${i + 1}: ` + uploadResult.error.message)
+        setUploadingId(null)
+        return
+      }
+      rutasSubidas.push(path)
+    }
+
+    const filesPayload = rutasSubidas.map(function (path, i) {
+      return { submission_id: submissionId, file_url: path, orden: i }
+    })
+    const filesInsertResult = await supabase.from('submission_files').insert(filesPayload)
+    if (filesInsertResult.error) {
+      setError('Las fotos se subieron, pero no se pudieron registrar: ' + filesInsertResult.error.message)
+      setUploadingId(null)
+      return
+    }
+
+    if (assignment.tipo_entrega === 'grupal') {
+      await cascadearEntregaAGrupo(assignment, rutasSubidas)
+    }
+    if (existing) {
+      const courseResult = await supabase.from('courses').select('docente_id').eq('id', assignment.course_id).single()
+      if (courseResult.data?.docente_id) {
+        await supabase.from('notificaciones').insert({
+          user_id: courseResult.data.docente_id,
+          tipo: 'tarea_nueva',
+          titulo: 'Un estudiante volvió a subir una tarea',
+          mensaje: `${profile?.full_name || 'Un estudiante'} resubió: ${assignment.titulo}. Revisa y vuelve a calificarla.`,
+        })
+      }
+    }
+    loadAssignments()
     setUploadingId(null)
   }
 
-  async function cascadearEntregaAGrupo(assignment, path) {
+  async function cascadearEntregaAGrupo(assignment, rutasSubidas) {
     const miembroResult = await supabase
       .from('grupos_trabajo_miembros')
       .select('grupo_id, grupo:grupos_trabajo!inner(course_id)')
@@ -168,11 +214,18 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
 
     if (faltantes.length > 0) {
       const nuevas = faltantes.map(function (studentId) {
-        return { assignment_id: assignment.id, student_id: studentId, file_url: path, submitted_at: new Date().toISOString() }
+        return { assignment_id: assignment.id, student_id: studentId, submitted_at: new Date().toISOString() }
       })
-      const cascadaResult = await supabase.from('submissions').insert(nuevas)
+      const cascadaResult = await supabase.from('submissions').insert(nuevas).select('id, student_id')
       if (cascadaResult.error) {
         setError('Tu entrega se guardó, pero no se pudo copiar a tus compañeros de grupo: ' + cascadaResult.error.message)
+        return
+      }
+      const filesParaCompaneros = cascadaResult.data.flatMap(function (s) {
+        return rutasSubidas.map(function (path, i) { return { submission_id: s.id, file_url: path, orden: i } })
+      })
+      if (filesParaCompaneros.length > 0) {
+        await supabase.from('submission_files').insert(filesParaCompaneros)
       }
     }
   }
@@ -264,7 +317,8 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
             const dueDate = new Date(a.fecha_entrega)
             const isPast = dueDate < new Date()
             const hasSubmission = Boolean(submission)
-            const hasRealSubmission = Boolean(submission) && submission.file_url != null
+            const misFotos = submission?.files || []
+            const hasRealSubmission = Boolean(submission) && (misFotos.length > 0 || submission.file_url != null)
             const isGraded = hasSubmission && submission.score != null
             const isUploading = uploadingId === a.id
             const justificacionAprobada = justificacion?.estado === 'aprobada'
@@ -323,7 +377,23 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
                 </div>
 
                 <div className="flex items-center gap-3 mt-3 flex-wrap">
-                  {hasRealSubmission && (
+                  {hasRealSubmission && misFotos.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {misFotos.map(function (path, i) {
+                        return (
+                          <button
+                            key={path}
+                            onClick={function () { handlePreview(path) }}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+                            style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+                          >
+                            📷 Foto {i + 1}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {hasRealSubmission && misFotos.length === 0 && submission.file_url && (
                     <button
                       onClick={function () { handlePreview(submission.file_url) }}
                       className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
@@ -338,16 +408,22 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
                       className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white cursor-pointer transition hover:opacity-90"
                       style={{ backgroundColor: isUploading ? '#94A3B8' : GREEN }}
                     >
-                      {isUploading ? 'Subiendo...' : hasSubmission ? 'Reemplazar entrega' : 'Subir entrega'}
+                      {isUploading ? 'Subiendo...' : hasSubmission ? 'Reemplazar con fotos' : 'Subir fotos de tu tarea'}
                       <input
                         type="file"
+                        accept="image/*"
+                        multiple
+                        capture="environment"
                         className="hidden"
                         disabled={isUploading}
-                        onChange={function (e) { handleUpload(a, e.target.files[0]) }}
+                        onChange={function (e) { handleUpload(a, e.target.files) }}
                       />
                     </label>
                   )}
                 </div>
+                {(!isGraded || justificacionAprobada) && habilitadoParaSubir && (
+                  <p className="text-[11px] text-slate-400 mt-1.5">Puedes elegir varias fotos a la vez (2 o más), o tomar fotos directo con tu cámara.</p>
+                )}
 
                 {isPast && !hasRealSubmission && !justificacionAprobada && (
                   <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: '#FDECEC', border: '1px solid #F5C6C6' }}>
