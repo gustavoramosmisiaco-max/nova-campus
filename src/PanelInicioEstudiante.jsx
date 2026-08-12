@@ -35,6 +35,13 @@ export default function PanelInicioEstudiante({ onNavegar }) {
     setLoading(true)
     setError('')
     try {
+      // Notificaciones no depende de nada más, así que corre en paralelo desde el inicio
+      const notifPromise = supabase
+        .from('notificaciones')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', session.user.id)
+        .eq('leido', false)
+
       const enrollResult = await supabase
         .from('enrollments')
         .select('course:courses(id, nombre, grado, grupo, asignaturas(area_id, areas_curriculares(nombre)))')
@@ -76,29 +83,25 @@ export default function PanelInicioEstudiante({ onNavegar }) {
       }
       setTareasPendientes(totalPendientes)
 
-      const notifResult = await supabase
-        .from('notificaciones')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', session.user.id)
-        .eq('leido', false)
-      setNotifNoLeidas(notifResult.count || 0)
+      // Antes: un "for" que consultaba una Asignatura a la vez, en fila.
+      // Ahora: todas las Asignaturas se consultan a la vez, en paralelo — mismo resultado, mucho más rápido.
+      const conteosExamenes = await Promise.all(
+        coursesData.map(async function (c) {
+          const areaId = c.asignaturas?.area_id
+          if (!areaId) return 0
+          const unidResult = await supabase
+            .from('unidades')
+            .select('id, evaluaciones_unidad(publicado)')
+            .eq('area_id', areaId)
+            .eq('grado', c.grado)
+            .eq('grupo', c.grupo)
+          return (unidResult.data || []).filter(function (u) { return u.evaluaciones_unidad?.publicado === true }).length
+        })
+      )
+      setExamenesProgramados(conteosExamenes.reduce(function (a, b) { return a + b }, 0))
 
-      let totalExamenes = 0
-      for (const c of coursesData) {
-        const areaId = c.asignaturas?.area_id
-        if (!areaId) continue
-        const unidResult = await supabase
-          .from('unidades')
-          .select('id, evaluaciones_unidad(publicado)')
-          .eq('area_id', areaId)
-          .eq('grado', c.grado)
-          .eq('grupo', c.grupo)
-        const publicadosDelCurso = (unidResult.data || []).filter(function (u) {
-          return u.evaluaciones_unidad?.publicado === true
-        }).length
-        totalExamenes += publicadosDelCurso
-      }
-      setExamenesProgramados(totalExamenes)
+      const notifResult = await notifPromise
+      setNotifNoLeidas(notifResult.count || 0)
     } catch (err) {
       console.error('Error cargando Inicio del estudiante:', err)
       setError('No se pudo cargar toda la información. Intenta recargar la página.')
