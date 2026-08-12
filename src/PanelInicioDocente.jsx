@@ -35,72 +35,69 @@ export default function PanelInicioDocente({ onNavegar }) {
     setLoading(true)
     setError('')
     try {
-    const coursesResult = await supabase
-      .from('courses')
-      .select('id, nombre, grado, grupo, enrollments(count), asignaturas(areas_curriculares(nombre))')
-      .eq('docente_id', session.user.id)
-      .eq('activo', true)
-      .order('grado')
-      .order('grupo')
+      const coursesResult = await supabase
+        .from('courses')
+        .select('id, nombre, grado, grupo, enrollments(count), asignaturas(areas_curriculares(nombre))')
+        .eq('docente_id', session.user.id)
+        .eq('activo', true)
+        .order('grado')
+        .order('grupo')
 
-    const coursesData = coursesResult.data || []
+      const coursesData = coursesResult.data || []
+      const courseIds = coursesData.map(function (c) { return c.id })
 
-    const promedios = await Promise.all(
-      coursesData.map(async function (c) {
-        const totalEstudiantes = c.enrollments?.[0]?.count || 0
+      // Las 4 tareas de aquí abajo son independientes entre sí, así que corren todas a la vez (antes iban una por una, en fila)
+      const [promedios, totalPorRevisar, notifResult, gruposResult] = await Promise.all([
+        Promise.all(
+          coursesData.map(async function (c) {
+            const totalEstudiantes = c.enrollments?.[0]?.count || 0
 
-        const assignResult = await supabase.from('assignments').select('id').eq('course_id', c.id)
-        const assignmentIds = (assignResult.data || []).map(function (a) { return a.id })
+            const assignResult = await supabase.from('assignments').select('id').eq('course_id', c.id)
+            const assignmentIds = (assignResult.data || []).map(function (a) { return a.id })
 
-        if (assignmentIds.length === 0 || totalEstudiantes === 0) {
-          return { ...c, totalEstudiantes: totalEstudiantes, progreso: 0 }
-        }
+            if (assignmentIds.length === 0 || totalEstudiantes === 0) {
+              return { ...c, totalEstudiantes: totalEstudiantes, progreso: 0 }
+            }
 
-        const subsResult = await supabase
-          .from('submissions')
+            const subsResult = await supabase
+              .from('submissions')
+              .select('id', { count: 'exact', head: true })
+              .in('assignment_id', assignmentIds)
+
+            const totalPosibles = assignmentIds.length * totalEstudiantes
+            const entregadas = subsResult.count || 0
+            const progreso = totalPosibles > 0 ? Math.round((entregadas / totalPosibles) * 100) : 0
+
+            return { ...c, totalEstudiantes: totalEstudiantes, progreso: progreso }
+          })
+        ),
+        (async function () {
+          if (courseIds.length === 0) return 0
+          const assignResult2 = await supabase.from('assignments').select('id').in('course_id', courseIds)
+          const allAssignmentIds = (assignResult2.data || []).map(function (a) { return a.id })
+          if (allAssignmentIds.length === 0) return 0
+          const sinRevisarResult = await supabase
+            .from('submissions')
+            .select('id', { count: 'exact', head: true })
+            .in('assignment_id', allAssignmentIds)
+            .eq('publicado', false)
+            .not('file_url', 'is', null)
+          return sinRevisarResult.count || 0
+        })(),
+        supabase
+          .from('notificaciones')
           .select('id', { count: 'exact', head: true })
-          .in('assignment_id', assignmentIds)
+          .eq('user_id', session.user.id)
+          .eq('leido', false),
+        courseIds.length > 0
+          ? supabase.from('grupos_trabajo').select('id', { count: 'exact', head: true }).in('course_id', courseIds)
+          : Promise.resolve({ count: 0 }),
+      ])
 
-        const totalPosibles = assignmentIds.length * totalEstudiantes
-        const entregadas = subsResult.count || 0
-        const progreso = totalPosibles > 0 ? Math.round((entregadas / totalPosibles) * 100) : 0
-
-        return { ...c, totalEstudiantes: totalEstudiantes, progreso: progreso }
-      })
-    )
-    setCourses(promedios)
-
-    const courseIds = coursesData.map(function (c) { return c.id })
-    let totalPorRevisar = 0
-    if (courseIds.length > 0) {
-      const assignResult2 = await supabase.from('assignments').select('id').in('course_id', courseIds)
-      const allAssignmentIds = (assignResult2.data || []).map(function (a) { return a.id })
-      if (allAssignmentIds.length > 0) {
-        const sinRevisarResult = await supabase
-          .from('submissions')
-          .select('id', { count: 'exact', head: true })
-          .in('assignment_id', allAssignmentIds)
-          .eq('publicado', false)
-          .not('file_url', 'is', null)
-        totalPorRevisar = sinRevisarResult.count || 0
-      }
-    }
-    setTareasPorRevisar(totalPorRevisar)
-
-    const notifResult = await supabase
-      .from('notificaciones')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', session.user.id)
-      .eq('leido', false)
-    setMensajesNoLeidos(notifResult.count || 0)
-
-    if (courseIds.length > 0) {
-      const gruposResult = await supabase
-        .from('grupos_trabajo')
-        .select('id', { count: 'exact', head: true })
-        .in('course_id', courseIds)
+      setCourses(promedios)
+      setTareasPorRevisar(totalPorRevisar)
+      setMensajesNoLeidos(notifResult.count || 0)
       setGruposActivos(gruposResult.count || 0)
-    }
     } catch (err) {
       console.error('Error cargando Inicio del docente:', err)
       setError('No se pudo cargar toda la información. Intenta recargar la página.')
