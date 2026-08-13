@@ -523,7 +523,7 @@ export default function CoordinadorDashboard() {
 
         {tab === 'recreos' && (
           <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
-            <RecreosManager />
+            <RecreosManager institucionFija={institucion.id} />
           </Suspense>
         )}
 
