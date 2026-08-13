@@ -751,6 +751,7 @@ export default function CoursesManager({ institucionFija, institucionFijaNombre 
       </div>
       )}
 
+      {!institucionFija && (
       <div className="bg-white rounded-2xl p-4 mb-6" style={{ border: '1px solid #E5E9F0' }}>
         <p className="text-sm font-bold mb-1" style={{ color: NAVY_DARK }}>Crear varios cursos de golpe</p>
         <p className="text-xs text-slate-400 mb-1">
@@ -845,6 +846,7 @@ export default function CoursesManager({ institucionFija, institucionFijaNombre 
         </button>
         {masivoMsg && <p className="text-xs mt-2" style={{ color: masivoMsg.startsWith('Error') ? '#B91C1C' : '#16A34A' }}>{masivoMsg}</p>}
       </div>
+      )}
 
       {!institucionFija && (
       <button
