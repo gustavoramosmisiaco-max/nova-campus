@@ -281,6 +281,8 @@ export default function CoordinadorDashboard() {
   const [asisEstudiantesRaw, setAsisEstudiantesRaw] = useState({})
   const [asisAreasDisponibles, setAsisAreasDisponibles] = useState([])
   const [asisAreaFiltro, setAsisAreaFiltro] = useState(null)
+  const [asisUnidades, setAsisUnidades] = useState([])
+  const [asisFeriados, setAsisFeriados] = useState([])
 
   async function cargarAsistenciaDeAula(grado, grupo) {
     setAsisLoading(true)
@@ -341,30 +343,74 @@ export default function CoordinadorDashboard() {
         .sort(function (a, b) { return a.nombre.localeCompare(b.nombre) })
     }
 
+    // Unidades de esa aula (con fechas), de todas las Áreas, para calcular el calendario real de días de clase
+    const unidadesResult = await supabase
+      .from('unidades')
+      .select('id, area_id, fecha_inicio, fecha_fin')
+      .eq('grado', grado)
+      .eq('grupo', grupo)
+      .not('fecha_inicio', 'is', null)
+      .not('fecha_fin', 'is', null)
+    setAsisUnidades(unidadesResult.data || [])
+
+    const feriadosResult = await supabase.from('feriados').select('fecha').eq('institucion_id', institucion.id)
+    setAsisFeriados((feriadosResult.data || []).map(function (f) { return f.fecha }))
+
     setAsisEstudiantesRaw(porEstudiante)
     setAsisAreasDisponibles(areasConDatos)
     setAsisAreaFiltro(null)
-    recalcularAsistencia(porEstudiante, null)
+    recalcularAsistencia(porEstudiante, null, unidadesResult.data || [], (feriadosResult.data || []).map(function (f) { return f.fecha }))
     setAsisLoading(false)
   }
 
-  function recalcularAsistencia(porEstudianteRaw, areaFiltro) {
-    const fechasSet = new Set()
+  function esFinDeSemana(fechaStr) {
+    const dia = new Date(fechaStr + 'T00:00:00').getDay()
+    return dia === 0 || dia === 6
+  }
+
+  function recalcularAsistencia(porEstudianteRaw, areaFiltro, unidadesParam, feriadosParam) {
+    const unidadesUsar = unidadesParam !== undefined ? unidadesParam : asisUnidades
+    const feriadosUsar = feriadosParam !== undefined ? feriadosParam : asisFeriados
+    const unidadesRelevantes = areaFiltro ? unidadesUsar.filter(function (u) { return u.area_id === areaFiltro }) : unidadesUsar
+
+    // Calendario real: todos los días de clase (sin fines de semana ni feriados) dentro del rango de cada Unidad relevante
+    const calendarioSet = new Set()
+    unidadesRelevantes.forEach(function (u) {
+      let cursor = new Date(u.fecha_inicio + 'T00:00:00')
+      const fin = new Date(u.fecha_fin + 'T00:00:00')
+      while (cursor <= fin) {
+        const fStr = cursor.toISOString().slice(0, 10)
+        if (!esFinDeSemana(fStr) && !feriadosUsar.includes(fStr)) calendarioSet.add(fStr)
+        cursor.setDate(cursor.getDate() + 1)
+      }
+    })
+    const fechasCalendario = [...calendarioSet].sort()
+
     const lista = Object.values(porEstudianteRaw).map(function (e) {
       const registrosFiltrados = areaFiltro ? e.registros.filter(function (r) { return r.areaId === areaFiltro }) : e.registros
       const fechas = {}
+      registrosFiltrados.forEach(function (r) { fechas[r.fecha] = r.estado })
       let ausentes = 0
       let justificadas = 0
-      registrosFiltrados.forEach(function (r) {
-        fechas[r.fecha] = r.estado
-        fechasSet.add(r.fecha)
-        if (r.estado === 'justificado') justificadas++
-        else ausentes++
+      fechasCalendario.forEach(function (f) {
+        if (fechas[f] === 'justificado') justificadas++
+        else if (fechas[f] === 'ausente') ausentes++
       })
       return { nombre: e.nombre, fechas: fechas, ausentes: ausentes, justificadas: justificadas, total: ausentes + justificadas }
     })
     lista.sort(function (a, b) { return b.total - a.total })
-    setAsisFechas([...fechasSet].sort())
+
+    // Si ninguna Unidad tiene fechas configuradas todavía, usamos las fechas sueltas que sí tengan registro (respaldo)
+    if (fechasCalendario.length === 0) {
+      const fechasSet = new Set()
+      Object.values(porEstudianteRaw).forEach(function (e) {
+        const registrosFiltrados = areaFiltro ? e.registros.filter(function (r) { return r.areaId === areaFiltro }) : e.registros
+        registrosFiltrados.forEach(function (r) { fechasSet.add(r.fecha) })
+      })
+      setAsisFechas([...fechasSet].sort())
+    } else {
+      setAsisFechas(fechasCalendario)
+    }
     setAsisDatos(lista)
   }
 
