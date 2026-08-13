@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 import RegistroAuxiliarPorArea from './RegistroAuxiliarPorArea'
 import ImportarEstudiantes from './ImportarEstudiantes'
+import ExcelJS from 'exceljs'
 
 const CoursesManager = lazy(function () { return import('./CoursesManager') })
 const ImportarDocentes = lazy(function () { return import('./ImportarDocentes') })
@@ -219,6 +220,7 @@ export default function CoordinadorDashboard() {
   const [asisGradoSel, setAsisGradoSel] = useState(null)
   const [asisSeccionSel, setAsisSeccionSel] = useState(null)
   const [asisDatos, setAsisDatos] = useState([])
+  const [asisFechas, setAsisFechas] = useState([])
   const [asisLoading, setAsisLoading] = useState(false)
 
   async function cargarAsistenciaDeAula(grado, grupo) {
@@ -234,26 +236,108 @@ export default function CoordinadorDashboard() {
     const studentIds = estudiantes.map(function (s) { return s.id })
 
     let porEstudiante = {}
-    estudiantes.forEach(function (s) { porEstudiante[s.id] = { nombre: s.full_name, ausentes: 0, justificadas: 0 } })
+    estudiantes.forEach(function (s) { porEstudiante[s.id] = { nombre: s.full_name, fechas: {}, ausentes: 0, justificadas: 0 } })
 
+    const fechasSet = new Set()
     if (studentIds.length > 0) {
       const asisResult = await supabase
         .from('asistencias')
-        .select('student_id, estado')
+        .select('student_id, fecha, estado')
         .in('student_id', studentIds)
+        .order('fecha')
       ;(asisResult.data || []).forEach(function (a) {
         if (!porEstudiante[a.student_id]) return
+        fechasSet.add(a.fecha)
+        porEstudiante[a.student_id].fechas[a.fecha] = a.estado
         if (a.estado === 'justificado') porEstudiante[a.student_id].justificadas++
         else porEstudiante[a.student_id].ausentes++
       })
     }
 
+    const fechasOrdenadas = [...fechasSet].sort()
     const lista = Object.values(porEstudiante).map(function (e) {
       return { ...e, total: e.ausentes + e.justificadas }
     })
     lista.sort(function (a, b) { return b.total - a.total })
+    setAsisFechas(fechasOrdenadas)
     setAsisDatos(lista)
     setAsisLoading(false)
+  }
+
+  async function exportarAsistenciaExcel() {
+    const workbook = new ExcelJS.Workbook()
+    const ws = workbook.addWorksheet('Asistencia')
+
+    ws.mergeCells(1, 1, 1, 4 + asisFechas.length)
+    const titulo = ws.getCell(1, 1)
+    titulo.value = `Reporte de Asistencia — ${institucion.nombre} — ${gradoLabel(asisGradoSel)} Sección ${asisSeccionSel}`
+    titulo.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } }
+    titulo.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } }
+    titulo.alignment = { horizontal: 'center', vertical: 'middle' }
+    ws.getRow(1).height = 24
+
+    const headerRow = ws.getRow(3)
+    headerRow.getCell(1).value = 'Estudiante'
+    asisFechas.forEach(function (f, i) {
+      const cell = headerRow.getCell(2 + i)
+      cell.value = new Date(f + 'T00:00:00').toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit' })
+      cell.alignment = { textRotation: 90, horizontal: 'center', vertical: 'middle' }
+    })
+    headerRow.getCell(2 + asisFechas.length).value = 'Sin justificar'
+    headerRow.getCell(3 + asisFechas.length).value = 'Justificadas'
+    headerRow.getCell(4 + asisFechas.length).value = 'Total'
+    headerRow.eachCell(function (cell) {
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E79' } }
+    })
+    headerRow.height = 42
+    ws.getColumn(1).width = 30
+    for (let i = 0; i < asisFechas.length; i++) ws.getColumn(2 + i).width = 4
+    ws.getColumn(2 + asisFechas.length).width = 12
+    ws.getColumn(3 + asisFechas.length).width = 12
+    ws.getColumn(4 + asisFechas.length).width = 10
+
+    asisDatos.forEach(function (e, idx) {
+      const row = ws.getRow(4 + idx)
+      row.getCell(1).value = e.nombre
+      asisFechas.forEach(function (f, i) {
+        const estado = e.fechas[f]
+        const cell = row.getCell(2 + i)
+        if (estado === 'justificado') {
+          cell.value = 'J'
+          cell.font = { bold: true, color: { argb: 'FFB45309' } }
+        } else if (estado === 'ausente') {
+          cell.value = 'F'
+          cell.font = { bold: true, color: { argb: 'FFB91C1C' } }
+        }
+        cell.alignment = { horizontal: 'center' }
+      })
+      row.getCell(2 + asisFechas.length).value = e.ausentes
+      row.getCell(2 + asisFechas.length).font = { color: { argb: 'FFB91C1C' }, bold: true }
+      row.getCell(2 + asisFechas.length).alignment = { horizontal: 'center' }
+      row.getCell(3 + asisFechas.length).value = e.justificadas
+      row.getCell(3 + asisFechas.length).font = { color: { argb: 'FFB45309' }, bold: true }
+      row.getCell(3 + asisFechas.length).alignment = { horizontal: 'center' }
+      row.getCell(4 + asisFechas.length).value = e.total
+      row.getCell(4 + asisFechas.length).font = { bold: true }
+      row.getCell(4 + asisFechas.length).alignment = { horizontal: 'center' }
+      for (let c = 1; c <= 4 + asisFechas.length; c++) {
+        row.getCell(c).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
+        if (idx % 2 === 0 && !row.getCell(c).font?.color) row.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+      }
+    })
+
+    ws.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0, footer: 0 } }
+    ws.views = [{ state: 'frozen', xSplit: 1, ySplit: 3 }]
+
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Asistencia_${gradoLabel(asisGradoSel).replace(/\s/g, '_')}_${asisSeccionSel}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   async function sincronizarAsignaturas() {
@@ -557,31 +641,59 @@ export default function CoordinadorDashboard() {
         {tab === 'asistencia' && (
           asisSeccionSel ? (
             <div>
-              <button onClick={function () { setAsisSeccionSel(null); setAsisDatos([]) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Secciones</button>
-              <h3 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>{gradoLabel(asisGradoSel)} — Sección {asisSeccionSel}</h3>
+              <button onClick={function () { setAsisSeccionSel(null); setAsisDatos([]); setAsisFechas([]) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Secciones</button>
+              <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+                <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>{gradoLabel(asisGradoSel)} — Sección {asisSeccionSel}</h3>
+                {asisDatos.length > 0 && (
+                  <button
+                    onClick={exportarAsistenciaExcel}
+                    className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+                    style={{ backgroundColor: '#16A34A' }}
+                  >
+                    📊 Exportar Excel (horizontal)
+                  </button>
+                )}
+              </div>
               {asisLoading ? (
                 <p className="text-slate-400 text-sm">Cargando...</p>
               ) : asisDatos.length === 0 ? (
                 <p className="text-slate-400 text-sm">No hay estudiantes en esta aula.</p>
               ) : (
-                <div className="bg-white rounded-2xl overflow-hidden" style={{ border: '1px solid #E5E9F0' }}>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid #E5E9F0' }}>
-                        <th className="text-left py-2 px-4 font-semibold" style={{ color: NAVY_DARK }}>Estudiante</th>
-                        <th className="text-center py-2 px-2 font-semibold" style={{ color: '#B91C1C' }}>Sin justificar</th>
-                        <th className="text-center py-2 px-2 font-semibold" style={{ color: '#B45309' }}>Justificadas</th>
-                        <th className="text-center py-2 px-4 font-semibold" style={{ color: NAVY_DARK }}>Total</th>
+                <div className="bg-white rounded-2xl overflow-auto" style={{ border: '1px solid #E5E9F0', maxHeight: '70vh' }}>
+                  <table className="text-sm border-collapse" style={{ minWidth: '100%' }}>
+                    <thead className="sticky top-0 z-10">
+                      <tr>
+                        <td className="py-2 px-4 font-semibold sticky left-0" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #E5E9F0', minWidth: 180 }}>Estudiante</td>
+                        {asisFechas.map(function (f) {
+                          return (
+                            <td key={f} className="p-1 text-center" style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0', fontSize: 10, minWidth: 26 }}>
+                              <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>
+                                {new Date(f + 'T00:00:00').toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit' })}
+                              </span>
+                            </td>
+                          )
+                        })}
+                        <td className="p-2 text-center font-semibold" style={{ backgroundColor: '#FDECEC', color: '#B91C1C', border: '1px solid #E5E9F0', minWidth: 60 }}>Sin justif.</td>
+                        <td className="p-2 text-center font-semibold" style={{ backgroundColor: '#FFF7E6', color: '#B45309', border: '1px solid #E5E9F0', minWidth: 60 }}>Justif.</td>
+                        <td className="p-2 text-center font-semibold" style={{ backgroundColor: '#DEEBF7', color: NAVY_DARK, border: '1px solid #E5E9F0', minWidth: 50 }}>Total</td>
                       </tr>
                     </thead>
                     <tbody>
                       {asisDatos.map(function (e, i) {
                         return (
-                          <tr key={i} style={{ borderBottom: '1px solid #F4F6F9' }}>
-                            <td className="py-2 px-4" style={{ color: NAVY_DARK }}>{e.nombre}</td>
-                            <td className="py-2 px-2 text-center font-semibold" style={{ color: '#B91C1C' }}>{e.ausentes}</td>
-                            <td className="py-2 px-2 text-center font-semibold" style={{ color: '#B45309' }}>{e.justificadas}</td>
-                            <td className="py-2 px-4 text-center font-bold" style={{ color: e.total > 0 ? NAVY_DARK : '#94A3B8' }}>{e.total}</td>
+                          <tr key={i}>
+                            <td className="py-2 px-4 sticky left-0" style={{ backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #E5E9F0' }}>{e.nombre}</td>
+                            {asisFechas.map(function (f) {
+                              const estado = e.fechas[f]
+                              return (
+                                <td key={f} className="p-1 text-center font-bold" style={{ border: '1px solid #E5E9F0', fontSize: 11, color: estado === 'justificado' ? '#B45309' : estado === 'ausente' ? '#B91C1C' : '#E2E8F0' }}>
+                                  {estado === 'justificado' ? 'J' : estado === 'ausente' ? 'F' : ''}
+                                </td>
+                              )
+                            })}
+                            <td className="p-2 text-center font-bold" style={{ backgroundColor: '#FDECEC', color: '#B91C1C', border: '1px solid #E5E9F0' }}>{e.ausentes}</td>
+                            <td className="p-2 text-center font-bold" style={{ backgroundColor: '#FFF7E6', color: '#B45309', border: '1px solid #E5E9F0' }}>{e.justificadas}</td>
+                            <td className="p-2 text-center font-bold" style={{ backgroundColor: '#DEEBF7', color: NAVY_DARK, border: '1px solid #E5E9F0' }}>{e.total}</td>
                           </tr>
                         )
                       })}
