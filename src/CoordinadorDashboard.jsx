@@ -38,6 +38,7 @@ export default function CoordinadorDashboard() {
   const [docentesConAlgunVinculo, setDocentesConAlgunVinculo] = useState(new Set())
   const [buscarDocente, setBuscarDocente] = useState('')
   const [vinculandoId, setVinculandoId] = useState(null)
+  const [areaAbierta, setAreaAbierta] = useState(null)
 
   useEffect(function () {
     cargar()
@@ -167,14 +168,21 @@ export default function CoordinadorDashboard() {
     )
   }
 
-  // Agrupar cursos por Área curricular
+  // Agrupar cursos por Área curricular, y dentro de cada Área, por Docente
   const areasMap = {}
   cursos.forEach(function (c) {
     const areaNombre = c.asignaturas?.areas_curriculares?.nombre || 'Sin área'
-    if (!areasMap[areaNombre]) areasMap[areaNombre] = { area: areaNombre, cursos: [] }
-    areasMap[areaNombre].cursos.push(c)
+    if (!areasMap[areaNombre]) areasMap[areaNombre] = { area: areaNombre, docentesMap: {}, sinDocente: [] }
+    if (c.docente) {
+      if (!areasMap[areaNombre].docentesMap[c.docente.id]) areasMap[areaNombre].docentesMap[c.docente.id] = { docente: c.docente, cursos: [] }
+      areasMap[areaNombre].docentesMap[c.docente.id].cursos.push(c)
+    } else {
+      areasMap[areaNombre].sinDocente.push(c)
+    }
   })
-  const areasLista = Object.values(areasMap).sort(function (a, b) { return a.area.localeCompare(b.area) })
+  const areasLista = Object.values(areasMap)
+    .map(function (a) { return { area: a.area, docentesLista: Object.values(a.docentesMap), sinDocente: a.sinDocente } })
+    .sort(function (a, b) { return a.area.localeCompare(b.area) })
   const sinDocente = cursos.filter(function (c) { return !c.docente })
 
   if (cursoSel) {
@@ -279,28 +287,70 @@ export default function CoordinadorDashboard() {
           areasLista.length === 0 ? (
             <p className="text-slate-400 text-sm">Aún no hay Asignaturas creadas en esta institución.</p>
           ) : (
-            <div className="space-y-6">
-              {areasLista.map(function (grupo) {
+            <div className="space-y-3">
+              {areasLista.map(function (grupoArea) {
+                const totalCursos = grupoArea.docentesLista.reduce(function (a, d) { return a + d.cursos.length }, 0) + grupoArea.sinDocente.length
+                const abierta = areaAbierta === grupoArea.area
                 return (
-                  <div key={grupo.area} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
-                    <h3 className="text-sm font-bold mb-3 px-3 py-1 rounded-lg inline-block" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>{grupo.area} ({grupo.cursos.length})</h3>
-                    <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
-                      {grupo.cursos.map(function (c) {
-                        return (
-                          <button
-                            key={c.id}
-                            onClick={function () { setCursoSel(c) }}
-                            className="text-left rounded-xl p-3 transition hover:-translate-y-0.5"
-                            style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}
-                          >
-                            <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{c.nombre}</p>
-                            <p className="text-xs text-slate-400">{gradoLabel(c.grado)} — Sección {c.grupo}</p>
-                            <p className="text-xs mt-1" style={{ color: c.docente ? NAVY : '#B91C1C' }}>{c.docente?.full_name || 'Sin docente'}</p>
-                            <p className="text-xs mt-1" style={{ color: GREEN_DARK }}>{c.enrollments?.[0]?.count ?? 0} estudiante(s)</p>
-                          </button>
-                        )
-                      })}
-                    </div>
+                  <div key={grupoArea.area} className="bg-white rounded-2xl overflow-hidden" style={{ border: '1px solid #E5E9F0' }}>
+                    <button
+                      onClick={function () { setAreaAbierta(abierta ? null : grupoArea.area) }}
+                      className="w-full flex items-center justify-between px-5 py-4 text-left"
+                    >
+                      <span className="text-sm font-bold" style={{ color: NAVY_DARK }}>{grupoArea.area}</span>
+                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-2" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
+                        {totalCursos} asignatura(s) {abierta ? '▾' : '▸'}
+                      </span>
+                    </button>
+
+                    {abierta && (
+                      <div className="px-5 pb-5 space-y-4">
+                        {grupoArea.docentesLista.map(function (grupoDoc) {
+                          return (
+                            <div key={grupoDoc.docente.id} className="rounded-xl p-3" style={{ backgroundColor: '#F4F6F9' }}>
+                              <p className="text-xs font-bold mb-2" style={{ color: NAVY }}>{grupoDoc.docente.full_name}</p>
+                              <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                                {grupoDoc.cursos.map(function (c) {
+                                  return (
+                                    <button
+                                      key={c.id}
+                                      onClick={function () { setCursoSel(c) }}
+                                      className="text-left rounded-lg p-2.5 transition hover:-translate-y-0.5 bg-white"
+                                      style={{ border: '1px solid #E5E9F0' }}
+                                    >
+                                      <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{c.nombre}</p>
+                                      <p className="text-xs text-slate-400">{gradoLabel(c.grado)} — Sección {c.grupo}</p>
+                                      <p className="text-xs mt-1" style={{ color: GREEN_DARK }}>{c.enrollments?.[0]?.count ?? 0} estudiante(s)</p>
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )
+                        })}
+
+                        {grupoArea.sinDocente.length > 0 && (
+                          <div className="rounded-xl p-3" style={{ backgroundColor: '#FDECEC' }}>
+                            <p className="text-xs font-bold mb-2" style={{ color: '#B91C1C' }}>Sin docente asignado</p>
+                            <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                              {grupoArea.sinDocente.map(function (c) {
+                                return (
+                                  <button
+                                    key={c.id}
+                                    onClick={function () { setCursoSel(c) }}
+                                    className="text-left rounded-lg p-2.5 transition hover:-translate-y-0.5 bg-white"
+                                    style={{ border: '1px solid #F5C6C6' }}
+                                  >
+                                    <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{c.nombre}</p>
+                                    <p className="text-xs text-slate-400">{gradoLabel(c.grado)} — Sección {c.grupo}</p>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )
               })}
