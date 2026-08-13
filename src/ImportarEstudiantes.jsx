@@ -33,12 +33,12 @@ async function descargarWorkbook(workbook, filename) {
   URL.revokeObjectURL(url)
 }
 
-export default function ImportarEstudiantes() {
+export default function ImportarEstudiantes({ institucionFija } = {}) {
   const [texto, setTexto] = useState('')
   const [grado, setGrado] = useState(1)
   const [grupo, setGrupo] = useState('A')
   const [instituciones, setInstituciones] = useState([])
-  const [institucionId, setInstitucionId] = useState('')
+  const [institucionId, setInstitucionId] = useState(institucionFija || '')
   const [gradosPorInstitucion, setGradosPorInstitucion] = useState({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -155,22 +155,30 @@ export default function ImportarEstudiantes() {
       <div className="bg-white rounded-2xl p-6 mb-6" style={{ border: '1px solid #E5E9F0' }}>
         <div className="mb-4 max-w-xs">
           <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Institución educativa</label>
-          <select
-            value={institucionId}
-            onChange={function (e) {
-              const nuevaInstitucion = e.target.value
-              setInstitucionId(nuevaInstitucion)
-              const lista = nuevaInstitucion && gradosPorInstitucion[nuevaInstitucion] ? gradosPorInstitucion[nuevaInstitucion] : GRADOS.map(function (n) { return { numero: n, nombre: n + '°' } })
-              if (!lista.some(function (g) { return g.numero === grado })) setGrado(lista[0]?.numero || 1)
-            }}
-            className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-            style={inputStyle}
-          >
-            <option value="">-- Selecciona --</option>
-            {instituciones.map(function (i) { return <option key={i.id} value={i.id}>{i.nombre}</option> })}
-          </select>
-          {!institucionId && (
-            <p className="text-xs mt-1" style={{ color: '#B45309' }}>Sin institución elegida, los estudiantes se crearán sin institución asignada.</p>
+          {institucionFija ? (
+            <p className="w-full rounded-lg px-3 py-2 text-sm" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #D6DCE5' }}>
+              {instituciones.find(function (i) { return i.id === institucionFija })?.nombre || 'Tu institución'}
+            </p>
+          ) : (
+            <>
+              <select
+                value={institucionId}
+                onChange={function (e) {
+                  const nuevaInstitucion = e.target.value
+                  setInstitucionId(nuevaInstitucion)
+                  const lista = nuevaInstitucion && gradosPorInstitucion[nuevaInstitucion] ? gradosPorInstitucion[nuevaInstitucion] : GRADOS.map(function (n) { return { numero: n, nombre: n + '°' } })
+                  if (!lista.some(function (g) { return g.numero === grado })) setGrado(lista[0]?.numero || 1)
+                }}
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={inputStyle}
+              >
+                <option value="">-- Selecciona --</option>
+                {instituciones.map(function (i) { return <option key={i.id} value={i.id}>{i.nombre}</option> })}
+              </select>
+              {!institucionId && (
+                <p className="text-xs mt-1" style={{ color: '#B45309' }}>Sin institución elegida, los estudiantes se crearán sin institución asignada.</p>
+              )}
+            </>
           )}
         </div>
 

@@ -495,7 +495,7 @@ export default function CoordinadorDashboard() {
           )
         )}
 
-        {tab === 'importar' && <ImportarEstudiantes />}
+        {tab === 'importar' && <ImportarEstudiantes institucionFija={institucion.id} />}
 
         {tab === 'aulas' && (
           <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
