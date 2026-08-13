@@ -148,8 +148,9 @@ export default function ImportarEstudiantes({ institucionFija } = {}) {
     <div>
       <h2 className="text-2xl font-bold mb-2" style={{ color: NAVY_DARK }}>Importar Estudiantes</h2>
       <p className="text-sm text-slate-400 mb-6">
-        Pega la lista de nombres completos (uno por línea), elige la institución, grado y sección, y la plataforma
-        crea las cuentas automáticamente con su correo y contraseña, matriculándolos en todos los cursos de esa aula.
+        {institucionFija
+          ? 'Pega la lista de nombres completos (uno por línea), elige el grado y sección, y la plataforma crea las cuentas automáticamente con su correo y contraseña, matriculándolos en todos los cursos de esa aula.'
+          : 'Pega la lista de nombres completos (uno por línea), elige la institución, grado y sección, y la plataforma crea las cuentas automáticamente con su correo y contraseña, matriculándolos en todos los cursos de esa aula.'}
       </p>
 
       <div className="bg-white rounded-2xl p-6 mb-6" style={{ border: '1px solid #E5E9F0' }}>
