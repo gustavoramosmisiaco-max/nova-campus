@@ -686,6 +686,7 @@ export default function CoursesManager({ institucionFija, institucionFijaNombre 
         Asigna un docente a una Asignatura de un Área, para un Grado y Sección específicos.
       </p>
 
+      {!institucionFija && (
       <div className="bg-white rounded-2xl p-4 mb-6" style={{ border: '1px solid #E5E9F0' }}>
         <p className="text-sm font-bold mb-1" style={{ color: NAVY_DARK }}>Copiar aula completa</p>
         <p className="text-xs text-slate-400 mb-1">
@@ -744,6 +745,7 @@ export default function CoursesManager({ institucionFija, institucionFijaNombre 
         </button>
         {copiarMsg && <p className="text-xs mt-2" style={{ color: copiarMsg.startsWith('Error') ? '#B91C1C' : '#16A34A' }}>{copiarMsg}</p>}
       </div>
+      )}
 
       <div className="bg-white rounded-2xl p-4 mb-6" style={{ border: '1px solid #E5E9F0' }}>
         <p className="text-sm font-bold mb-1" style={{ color: NAVY_DARK }}>Crear varios cursos de golpe</p>
@@ -951,7 +953,8 @@ export default function CoursesManager({ institucionFija, institucionFijaNombre 
         </div>
       )}
 
-      {loading ? (
+      {!institucionFija && (
+      loading ? (
         <p className="text-slate-400">Cargando...</p>
       ) : courses.length === 0 ? (
         <p className="text-slate-400">Aún no hay ninguna asignación creada.</p>
@@ -1048,6 +1051,7 @@ export default function CoursesManager({ institucionFija, institucionFijaNombre 
           </div>
           )}
         </div>
+      )
       )}
 
       {showForm && (

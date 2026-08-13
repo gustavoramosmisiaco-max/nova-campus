@@ -225,7 +225,6 @@ export default function CoordinadorDashboard() {
             { id: 'docentes', label: 'Docentes y Aulas' },
             { id: 'lista-docentes', label: 'Docentes' },
             { id: 'lista-estudiantes', label: 'Estudiantes' },
-            { id: 'vincular-docentes', label: 'Vincular Docentes' },
             { id: 'aulas', label: 'Gestión de Aulas' },
             { id: 'grados-secciones', label: 'Grados y Secciones' },
             { id: 'conducta', label: `Conducta ${conducta.length > 0 ? `(${conducta.length})` : ''}` },
@@ -256,49 +255,6 @@ export default function CoordinadorDashboard() {
           <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
             <EstudiantesList institucionFija={institucion.id} institucionFijaNombre={institucion.nombre} />
           </Suspense>
-        )}
-
-        {tab === 'vincular-docentes' && (
-          <div>
-            <p className="text-xs text-slate-400 mb-3">
-              Aquí solo aparecen los docentes que ya creaste, o que todavía no pertenecen a ninguna institución. Marca a quiénes pueden dar clases en {institucion.nombre}.
-            </p>
-            <input
-              type="text"
-              value={buscarDocente}
-              onChange={function (e) { setBuscarDocente(e.target.value) }}
-              placeholder="Buscar docente por nombre..."
-              className="w-full max-w-sm rounded-lg px-3 py-2 text-sm outline-none mb-4"
-              style={{ backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }}
-            />
-            <div className="bg-white rounded-2xl overflow-hidden" style={{ border: '1px solid #E5E9F0' }}>
-              {todosLosDocentes
-                .filter(function (d) { return docentesVinculadosIds.has(d.id) || !docentesConAlgunVinculo.has(d.id) })
-                .filter(function (d) { return d.full_name.toLowerCase().includes(buscarDocente.toLowerCase()) })
-                .map(function (d) {
-                  const vinculado = docentesVinculadosIds.has(d.id)
-                  return (
-                    <div key={d.id} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #F4F6F9' }}>
-                      <div>
-                        <p className="text-sm font-medium" style={{ color: NAVY_DARK }}>{d.full_name}</p>
-                        <p className="text-xs text-slate-400">{d.email}</p>
-                      </div>
-                      <button
-                        onClick={function () { toggleVinculoDocente(d.id, vinculado) }}
-                        disabled={vinculandoId === d.id}
-                        className="text-xs font-semibold px-3 py-1.5 rounded-lg transition disabled:opacity-50"
-                        style={vinculado ? { backgroundColor: '#FDECEC', color: '#B91C1C' } : { backgroundColor: GREEN, color: 'white' }}
-                      >
-                        {vinculandoId === d.id ? '...' : vinculado ? 'Quitar' : 'Vincular'}
-                      </button>
-                    </div>
-                  )
-                })}
-              {todosLosDocentes.length === 0 && (
-                <p className="text-slate-400 text-sm p-4">No hay docentes registrados todavía.</p>
-              )}
-            </div>
-          </div>
         )}
 
         {tab === 'docentes' && (
