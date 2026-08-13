@@ -318,6 +318,10 @@ export default function CoursesManager({ institucionFija, institucionFijaNombre 
   }
 
   const [institucionFiltro, setInstitucionFiltro] = useState(institucionFija || null) // null = "todas" (sin filtrar)
+  const [horarioSelAbierto, setHorarioSelAbierto] = useState(false)
+  const [horarioSelGrado, setHorarioSelGrado] = useState(1)
+  const [horarioSelGrupo, setHorarioSelGrupo] = useState('A')
+  const [horarioSelAsigId, setHorarioSelAsigId] = useState('')
 
   // Agrupar: Área > Asignatura > lista de asignaciones (grado/sección/docente) — filtrado por institución elegida
   const coursesFiltrados = institucionFiltro == null ? courses : courses.filter(function (c) { return (c.institucion_id || 'sin-institucion') === institucionFiltro })
@@ -678,13 +682,23 @@ export default function CoursesManager({ institucionFija, institucionFijaNombre 
     <div>
       <div className="flex justify-between items-center mb-1">
         <h2 className="text-2xl font-bold" style={{ color: NAVY_DARK }}>Gestión de Aulas</h2>
-        <button
-          onClick={openNewForm}
-          className="font-semibold px-4 py-2 rounded-lg transition text-white hover:opacity-90"
-          style={{ backgroundColor: GREEN }}
-        >
-          + Nueva asignación
-        </button>
+        {institucionFija ? (
+          <button
+            onClick={function () { setHorarioSelAbierto(true); setHorarioSelAsigId('') }}
+            className="font-semibold px-4 py-2 rounded-lg transition text-white hover:opacity-90"
+            style={{ backgroundColor: GREEN }}
+          >
+            🕐 Editar Horario
+          </button>
+        ) : (
+          <button
+            onClick={openNewForm}
+            className="font-semibold px-4 py-2 rounded-lg transition text-white hover:opacity-90"
+            style={{ backgroundColor: GREEN }}
+          >
+            + Nueva asignación
+          </button>
+        )}
       </div>
       <p className="text-sm text-slate-400 mb-4">
         Asigna un docente a una Asignatura de un Área, para un Grado y Sección específicos.
@@ -1062,6 +1076,71 @@ export default function CoursesManager({ institucionFija, institucionFijaNombre 
           )}
         </div>
       )
+      )}
+
+      {horarioSelAbierto && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4" style={{ border: '1px solid #E5E9F0' }}>
+            <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>Editar Horario</h3>
+            <p className="text-xs text-slate-400">Elige la Asignatura a la que quieres ponerle o cambiarle el horario.</p>
+
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: NAVY_DARK }}>Grado</label>
+              <select value={horarioSelGrado} onChange={function (e) { setHorarioSelGrado(Number(e.target.value)); setHorarioSelAsigId('') }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+                {gradosParaInstitucion(institucionFija).map(function (g) { return <option key={g.numero} value={g.numero}>{g.nombre}</option> })}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: NAVY_DARK }}>Sección</label>
+              <select value={horarioSelGrupo} onChange={function (e) { setHorarioSelGrupo(e.target.value); setHorarioSelAsigId('') }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+                {SECCIONES.map(function (s) { return <option key={s} value={s}>Sección {s}</option> })}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: NAVY_DARK }}>Asignatura</label>
+              {(function () {
+                const cursosDeAula = courses.filter(function (c) {
+                  return c.institucion_id === institucionFija && c.grado === horarioSelGrado && c.grupo === horarioSelGrupo
+                })
+                if (cursosDeAula.length === 0) {
+                  return <p className="text-xs" style={{ color: '#B91C1C' }}>Esa aula no tiene ninguna Asignatura todavía.</p>
+                }
+                return (
+                  <select value={horarioSelAsigId} onChange={function (e) { setHorarioSelAsigId(e.target.value) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+                    <option value="">-- Selecciona --</option>
+                    {cursosDeAula.map(function (c) { return <option key={c.id} value={c.id}>{c.nombre}</option> })}
+                  </select>
+                )
+              })()}
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={function () { setHorarioSelAbierto(false) }}
+                className="flex-1 py-2 rounded-lg transition font-medium"
+                style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #D6DCE5' }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!horarioSelAsigId}
+                onClick={function () {
+                  const curso = courses.find(function (c) { return c.id === horarioSelAsigId })
+                  if (curso) {
+                    setHorarioSelAbierto(false)
+                    openEditForm(curso)
+                  }
+                }}
+                className="flex-1 font-semibold py-2 rounded-lg transition text-white hover:opacity-90 disabled:opacity-50"
+                style={{ background: `linear-gradient(90deg, ${NAVY}, ${GREEN})` }}
+              >
+                Continuar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showForm && (
