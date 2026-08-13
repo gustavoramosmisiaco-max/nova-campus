@@ -33,6 +33,10 @@ export default function CoordinadorDashboard() {
   const [nuevoGradoNombre, setNuevoGradoNombre] = useState('')
   const [nuevoGradoNumero, setNuevoGradoNumero] = useState('')
   const [nuevaSeccionLetra, setNuevaSeccionLetra] = useState('')
+  const [todosLosDocentes, setTodosLosDocentes] = useState([])
+  const [docentesVinculadosIds, setDocentesVinculadosIds] = useState(new Set())
+  const [buscarDocente, setBuscarDocente] = useState('')
+  const [vinculandoId, setVinculandoId] = useState(null)
 
   useEffect(function () {
     cargar()
@@ -78,8 +82,26 @@ export default function CoordinadorDashboard() {
 
       const seccionesResult = await supabase.from('secciones_institucion').select('*').eq('institucion_id', institucionId).order('orden')
       if (!seccionesResult.error) setSeccionesProp(seccionesResult.data)
+
+      const docentesResult = await supabase.from('profiles').select('id, full_name, email').eq('role', 'docente').order('full_name')
+      if (!docentesResult.error) setTodosLosDocentes(docentesResult.data)
+
+      const vinculosResult = await supabase.from('docente_instituciones').select('docente_id').eq('institucion_id', institucionId)
+      if (!vinculosResult.error) setDocentesVinculadosIds(new Set(vinculosResult.data.map(function (v) { return v.docente_id })))
     }
     setLoading(false)
+  }
+
+  async function toggleVinculoDocente(docenteId, yaVinculado) {
+    if (!institucion?.id) return
+    setVinculandoId(docenteId)
+    if (yaVinculado) {
+      await supabase.from('docente_instituciones').delete().eq('docente_id', docenteId).eq('institucion_id', institucion.id)
+    } else {
+      await supabase.from('docente_instituciones').insert({ docente_id: docenteId, institucion_id: institucion.id })
+    }
+    await cargar()
+    setVinculandoId(null)
   }
 
   async function agregarGrado() {
@@ -185,6 +207,7 @@ export default function CoordinadorDashboard() {
         <div className="flex gap-2 mb-6 border-b overflow-x-auto" style={{ borderColor: '#E5E9F0' }}>
           {[
             { id: 'docentes', label: 'Docentes y Aulas' },
+            { id: 'vincular-docentes', label: 'Vincular Docentes' },
             { id: 'aulas', label: 'Gestión de Aulas' },
             { id: 'grados-secciones', label: 'Grados y Secciones' },
             { id: 'conducta', label: `Conducta ${conducta.length > 0 ? `(${conducta.length})` : ''}` },
@@ -204,6 +227,48 @@ export default function CoordinadorDashboard() {
             )
           })}
         </div>
+
+        {tab === 'vincular-docentes' && (
+          <div>
+            <p className="text-xs text-slate-400 mb-3">
+              Marca qué docentes pueden dar clases en {institucion.nombre}. Esto no crea Asignaturas, solo habilita que aparezcan disponibles al asignarles cursos.
+            </p>
+            <input
+              type="text"
+              value={buscarDocente}
+              onChange={function (e) { setBuscarDocente(e.target.value) }}
+              placeholder="Buscar docente por nombre..."
+              className="w-full max-w-sm rounded-lg px-3 py-2 text-sm outline-none mb-4"
+              style={{ backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }}
+            />
+            <div className="bg-white rounded-2xl overflow-hidden" style={{ border: '1px solid #E5E9F0' }}>
+              {todosLosDocentes
+                .filter(function (d) { return d.full_name.toLowerCase().includes(buscarDocente.toLowerCase()) })
+                .map(function (d) {
+                  const vinculado = docentesVinculadosIds.has(d.id)
+                  return (
+                    <div key={d.id} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #F4F6F9' }}>
+                      <div>
+                        <p className="text-sm font-medium" style={{ color: NAVY_DARK }}>{d.full_name}</p>
+                        <p className="text-xs text-slate-400">{d.email}</p>
+                      </div>
+                      <button
+                        onClick={function () { toggleVinculoDocente(d.id, vinculado) }}
+                        disabled={vinculandoId === d.id}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                        style={vinculado ? { backgroundColor: '#FDECEC', color: '#B91C1C' } : { backgroundColor: GREEN, color: 'white' }}
+                      >
+                        {vinculandoId === d.id ? '...' : vinculado ? 'Quitar' : 'Vincular'}
+                      </button>
+                    </div>
+                  )
+                })}
+              {todosLosDocentes.length === 0 && (
+                <p className="text-slate-400 text-sm p-4">No hay docentes registrados todavía.</p>
+              )}
+            </div>
+          </div>
+        )}
 
         {tab === 'docentes' && (
           docentesLista.length === 0 ? (
