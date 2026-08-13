@@ -216,6 +216,45 @@ export default function CoordinadorDashboard() {
 
   const [sincronizando, setSincronizando] = useState(false)
   const [sincronizarMsg, setSincronizarMsg] = useState('')
+  const [asisGradoSel, setAsisGradoSel] = useState(null)
+  const [asisSeccionSel, setAsisSeccionSel] = useState(null)
+  const [asisDatos, setAsisDatos] = useState([])
+  const [asisLoading, setAsisLoading] = useState(false)
+
+  async function cargarAsistenciaDeAula(grado, grupo) {
+    setAsisLoading(true)
+    const estudiantesResult = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .eq('role', 'estudiante')
+      .eq('grado', grado)
+      .eq('grupo', grupo)
+      .eq('institucion_id', institucion.id)
+    const estudiantes = estudiantesResult.data || []
+    const studentIds = estudiantes.map(function (s) { return s.id })
+
+    let porEstudiante = {}
+    estudiantes.forEach(function (s) { porEstudiante[s.id] = { nombre: s.full_name, ausentes: 0, justificadas: 0 } })
+
+    if (studentIds.length > 0) {
+      const asisResult = await supabase
+        .from('asistencias')
+        .select('student_id, estado')
+        .in('student_id', studentIds)
+      ;(asisResult.data || []).forEach(function (a) {
+        if (!porEstudiante[a.student_id]) return
+        if (a.estado === 'justificado') porEstudiante[a.student_id].justificadas++
+        else porEstudiante[a.student_id].ausentes++
+      })
+    }
+
+    const lista = Object.values(porEstudiante).map(function (e) {
+      return { ...e, total: e.ausentes + e.justificadas }
+    })
+    lista.sort(function (a, b) { return b.total - a.total })
+    setAsisDatos(lista)
+    setAsisLoading(false)
+  }
 
   async function sincronizarAsignaturas() {
     if (gradosProp.length === 0 || seccionesProp.length === 0) {
@@ -327,6 +366,7 @@ export default function CoordinadorDashboard() {
             { id: 'recreos', label: 'Recreos' },
             { id: 'feriados', label: 'Feriados' },
             { id: 'matriculas', label: 'Matrículas' },
+            { id: 'asistencia', label: 'Asistencia' },
           ].map(function (t) {
             const active = tab === t.id
             return (
@@ -512,6 +552,82 @@ export default function CoordinadorDashboard() {
           <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
             <EnrollmentsManager />
           </Suspense>
+        )}
+
+        {tab === 'asistencia' && (
+          asisSeccionSel ? (
+            <div>
+              <button onClick={function () { setAsisSeccionSel(null); setAsisDatos([]) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Secciones</button>
+              <h3 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>{gradoLabel(asisGradoSel)} — Sección {asisSeccionSel}</h3>
+              {asisLoading ? (
+                <p className="text-slate-400 text-sm">Cargando...</p>
+              ) : asisDatos.length === 0 ? (
+                <p className="text-slate-400 text-sm">No hay estudiantes en esta aula.</p>
+              ) : (
+                <div className="bg-white rounded-2xl overflow-hidden" style={{ border: '1px solid #E5E9F0' }}>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #E5E9F0' }}>
+                        <th className="text-left py-2 px-4 font-semibold" style={{ color: NAVY_DARK }}>Estudiante</th>
+                        <th className="text-center py-2 px-2 font-semibold" style={{ color: '#B91C1C' }}>Sin justificar</th>
+                        <th className="text-center py-2 px-2 font-semibold" style={{ color: '#B45309' }}>Justificadas</th>
+                        <th className="text-center py-2 px-4 font-semibold" style={{ color: NAVY_DARK }}>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {asisDatos.map(function (e, i) {
+                        return (
+                          <tr key={i} style={{ borderBottom: '1px solid #F4F6F9' }}>
+                            <td className="py-2 px-4" style={{ color: NAVY_DARK }}>{e.nombre}</td>
+                            <td className="py-2 px-2 text-center font-semibold" style={{ color: '#B91C1C' }}>{e.ausentes}</td>
+                            <td className="py-2 px-2 text-center font-semibold" style={{ color: '#B45309' }}>{e.justificadas}</td>
+                            <td className="py-2 px-4 text-center font-bold" style={{ color: e.total > 0 ? NAVY_DARK : '#94A3B8' }}>{e.total}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ) : asisGradoSel ? (
+            <div>
+              <button onClick={function () { setAsisGradoSel(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Grados</button>
+              <p className="text-sm text-slate-400 mb-4">Elige la Sección de {gradoLabel(asisGradoSel)}</p>
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                {seccionesProp.map(function (s) {
+                  return (
+                    <button
+                      key={s.letra}
+                      onClick={function () { setAsisSeccionSel(s.letra); cargarAsistenciaDeAula(asisGradoSel, s.letra) }}
+                      className="text-left bg-white rounded-2xl p-5 space-y-1 transition hover:-translate-y-0.5"
+                      style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
+                    >
+                      <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>Sección {s.letra}</h3>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            <div>
+              <p className="text-sm text-slate-400 mb-4">Elige el Grado para ver el reporte de asistencia</p>
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                {gradosProp.map(function (g) {
+                  return (
+                    <button
+                      key={g.numero}
+                      onClick={function () { setAsisGradoSel(g.numero) }}
+                      className="text-left bg-white rounded-2xl p-5 space-y-1 transition hover:-translate-y-0.5"
+                      style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
+                    >
+                      <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>{g.nombre}</h3>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )
         )}
 
         {tab === 'grados-secciones' && (
