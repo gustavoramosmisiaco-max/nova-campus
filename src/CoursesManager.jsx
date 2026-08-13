@@ -510,6 +510,7 @@ export default function CoursesManager({ institucionFija, institucionFijaNombre 
   const [asignarDocInst, setAsignarDocInst] = useState(institucionFija || '')
   const [asignarDocGrado, setAsignarDocGrado] = useState(1)
   const [asignarDocGrupo, setAsignarDocGrupo] = useState('A')
+  const [asignarDocAreaFiltro, setAsignarDocAreaFiltro] = useState('')
   const [asignarDocSeleccionadas, setAsignarDocSeleccionadas] = useState(new Set())
   const [asignarDocDocenteId, setAsignarDocDocenteId] = useState('')
   const [asignarDocGuardando, setAsignarDocGuardando] = useState(false)
@@ -519,6 +520,8 @@ export default function CoursesManager({ institucionFija, institucionFijaNombre 
     if (!asignarDocInst) return []
     return courses.filter(function (c) {
       return c.institucion_id === asignarDocInst && c.grado === asignarDocGrado && c.grupo === asignarDocGrupo
+        && !c.docente_id
+        && (!asignarDocAreaFiltro || c.asignaturas?.areas_curriculares?.id === asignarDocAreaFiltro)
     })
   }
 
@@ -859,7 +862,7 @@ export default function CoursesManager({ institucionFija, institucionFijaNombre 
           Elige el aula, marca las Asignaturas que quieras (todas, o solo algunas), y ponles el mismo docente de un solo golpe — sin abrir cada una por separado.
         </p>
 
-        <div className="grid sm:grid-cols-3 gap-3 mb-3 max-w-2xl">
+        <div className="grid sm:grid-cols-4 gap-3 mb-3 max-w-3xl">
           <select value={asignarDocInst} disabled={!!institucionFija} onChange={function (e) { setAsignarDocInst(e.target.value); setAsignarDocSeleccionadas(new Set()) }} className="rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-60" style={inputStyle}>
             <option value="">-- Institución --</option>
             {instituciones.map(function (i) { return <option key={i.id} value={i.id}>{i.nombre}</option> })}
@@ -870,12 +873,16 @@ export default function CoursesManager({ institucionFija, institucionFijaNombre 
           <select value={asignarDocGrupo} onChange={function (e) { setAsignarDocGrupo(e.target.value); setAsignarDocSeleccionadas(new Set()) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
             {SECCIONES.map(function (s) { return <option key={s} value={s}>Sección {s}</option> })}
           </select>
+          <select value={asignarDocAreaFiltro} onChange={function (e) { setAsignarDocAreaFiltro(e.target.value); setAsignarDocSeleccionadas(new Set()) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+            <option value="">Todas las Áreas</option>
+            {areas.map(function (a) { return <option key={a.id} value={a.id}>{a.nombre}</option> })}
+          </select>
         </div>
 
         {asignarDocInst && cursosDelAulaSeleccionada().length > 0 && (
           <>
             <div className="flex justify-between items-center mb-2">
-              <p className="text-xs font-semibold" style={{ color: NAVY_DARK }}>Asignaturas de esta aula ({cursosDelAulaSeleccionada().length})</p>
+              <p className="text-xs font-semibold" style={{ color: NAVY_DARK }}>Asignaturas sin docente en esta aula ({cursosDelAulaSeleccionada().length})</p>
               <button onClick={seleccionarTodasAsignarDoc} className="text-xs font-semibold hover:underline" style={{ color: NAVY }}>Marcar todas</button>
             </div>
             <div className="rounded-xl overflow-hidden mb-3" style={{ border: '1px solid #E5E9F0' }}>
@@ -910,7 +917,7 @@ export default function CoursesManager({ institucionFija, institucionFijaNombre 
           </>
         )}
         {asignarDocInst && cursosDelAulaSeleccionada().length === 0 && (
-          <p className="text-xs text-slate-400">Esa aula no tiene ninguna Asignatura todavía.</p>
+          <p className="text-xs text-slate-400">Todas las Asignaturas de esa aula ya tienen docente asignado (o no hay ninguna todavía).</p>
         )}
         {asignarDocMsg && <p className="text-xs mt-3" style={{ color: asignarDocMsg.startsWith('Error') ? '#B91C1C' : '#16A34A' }}>{asignarDocMsg}</p>}
       </div>
