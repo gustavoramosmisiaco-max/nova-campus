@@ -35,6 +35,7 @@ export default function CoordinadorDashboard() {
   const [nuevaSeccionLetra, setNuevaSeccionLetra] = useState('')
   const [todosLosDocentes, setTodosLosDocentes] = useState([])
   const [docentesVinculadosIds, setDocentesVinculadosIds] = useState(new Set())
+  const [docentesConAlgunVinculo, setDocentesConAlgunVinculo] = useState(new Set())
   const [buscarDocente, setBuscarDocente] = useState('')
   const [vinculandoId, setVinculandoId] = useState(null)
 
@@ -86,8 +87,11 @@ export default function CoordinadorDashboard() {
       const docentesResult = await supabase.from('profiles').select('id, full_name, email').eq('role', 'docente').order('full_name')
       if (!docentesResult.error) setTodosLosDocentes(docentesResult.data)
 
-      const vinculosResult = await supabase.from('docente_instituciones').select('docente_id').eq('institucion_id', institucionId)
-      if (!vinculosResult.error) setDocentesVinculadosIds(new Set(vinculosResult.data.map(function (v) { return v.docente_id })))
+      const todosVinculosResult = await supabase.from('docente_instituciones').select('docente_id, institucion_id')
+      if (!todosVinculosResult.error) {
+        setDocentesVinculadosIds(new Set(todosVinculosResult.data.filter(function (v) { return v.institucion_id === institucionId }).map(function (v) { return v.docente_id })))
+        setDocentesConAlgunVinculo(new Set(todosVinculosResult.data.map(function (v) { return v.docente_id })))
+      }
     }
     setLoading(false)
   }
@@ -231,7 +235,7 @@ export default function CoordinadorDashboard() {
         {tab === 'vincular-docentes' && (
           <div>
             <p className="text-xs text-slate-400 mb-3">
-              Marca qué docentes pueden dar clases en {institucion.nombre}. Esto no crea Asignaturas, solo habilita que aparezcan disponibles al asignarles cursos.
+              Aquí solo aparecen los docentes que ya creaste, o que todavía no pertenecen a ninguna institución. Marca a quiénes pueden dar clases en {institucion.nombre}.
             </p>
             <input
               type="text"
@@ -243,6 +247,7 @@ export default function CoordinadorDashboard() {
             />
             <div className="bg-white rounded-2xl overflow-hidden" style={{ border: '1px solid #E5E9F0' }}>
               {todosLosDocentes
+                .filter(function (d) { return docentesVinculadosIds.has(d.id) || !docentesConAlgunVinculo.has(d.id) })
                 .filter(function (d) { return d.full_name.toLowerCase().includes(buscarDocente.toLowerCase()) })
                 .map(function (d) {
                   const vinculado = docentesVinculadosIds.has(d.id)
