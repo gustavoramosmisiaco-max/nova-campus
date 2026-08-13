@@ -114,18 +114,73 @@ export default function CoordinadorDashboard() {
     setVinculandoId(null)
   }
 
+  async function crearAsignaturasAutomaticas(combinaciones) {
+    // combinaciones: [{grado, grupo}, ...] — crea 1 curso por cada Asignatura del catálogo compartido, por cada combinación
+    if (!institucion?.id || combinaciones.length === 0) return
+
+    const globalesResult = await supabase.from('asignaturas').select('id, nombre').is('institucion_id', null).eq('activo', true)
+    const globales = globalesResult.data || []
+    if (globales.length === 0) return
+
+    const existentesResult = await supabase
+      .from('courses')
+      .select('asignatura_id, grado, grupo')
+      .eq('institucion_id', institucion.id)
+    const yaExisten = new Set((existentesResult.data || []).map(function (c) { return `${c.asignatura_id}__${c.grado}__${c.grupo}` }))
+
+    const payloads = []
+    combinaciones.forEach(function (comb) {
+      globales.forEach(function (asig) {
+        const key = `${asig.id}__${comb.grado}__${comb.grupo}`
+        if (yaExisten.has(key)) return
+        payloads.push({
+          nombre: asig.nombre,
+          asignatura_id: asig.id,
+          grado: comb.grado,
+          grupo: comb.grupo,
+          institucion_id: institucion.id,
+          activo: true,
+        })
+      })
+    })
+    if (payloads.length === 0) return
+
+    const insertResult = await supabase.from('courses').insert(payloads).select('id, grado, grupo')
+    if (insertResult.error || !insertResult.data) return
+
+    // Matricular automáticamente a los estudiantes que correspondan a cada combinación
+    await Promise.all(insertResult.data.map(async function (nuevoCurso) {
+      const estudiantesResult = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'estudiante')
+        .eq('grado', nuevoCurso.grado)
+        .eq('grupo', nuevoCurso.grupo)
+        .eq('institucion_id', institucion.id)
+      const estudiantesDelAula = (estudiantesResult.data || []).map(function (s) { return s.id })
+      if (estudiantesDelAula.length === 0) return
+      const matriculas = estudiantesDelAula.map(function (studentId) { return { course_id: nuevoCurso.id, student_id: studentId, status: 'activo' } })
+      await supabase.from('enrollments').insert(matriculas)
+    }))
+  }
+
   async function agregarGrado() {
     if (!nuevoGradoNombre.trim() || !nuevoGradoNumero || !institucion?.id) return
     const maxOrden = gradosProp.reduce(function (a, g) { return Math.max(a, g.orden) }, 0)
+    const nuevoNumero = Number(nuevoGradoNumero)
     const result = await supabase.from('grados_institucion').insert({
       institucion_id: institucion.id,
-      numero: Number(nuevoGradoNumero),
+      numero: nuevoNumero,
       nombre: nuevoGradoNombre.trim(),
       orden: maxOrden + 1,
     })
     if (result.error) { alert('No se pudo agregar: ' + result.error.message); return }
     setNuevoGradoNombre('')
     setNuevoGradoNumero('')
+
+    // Crear las Asignaturas del catálogo compartido para este Grado nuevo, en cada Sección que ya exista
+    const combinaciones = seccionesProp.map(function (s) { return { grado: nuevoNumero, grupo: s.letra } })
+    await crearAsignaturasAutomaticas(combinaciones)
     cargar()
   }
 
@@ -138,13 +193,18 @@ export default function CoordinadorDashboard() {
   async function agregarSeccion() {
     if (!nuevaSeccionLetra.trim() || !institucion?.id) return
     const maxOrden = seccionesProp.reduce(function (a, s) { return Math.max(a, s.orden) }, 0)
+    const nuevaLetra = nuevaSeccionLetra.trim().toUpperCase()
     const result = await supabase.from('secciones_institucion').insert({
       institucion_id: institucion.id,
-      letra: nuevaSeccionLetra.trim().toUpperCase(),
+      letra: nuevaLetra,
       orden: maxOrden + 1,
     })
     if (result.error) { alert('No se pudo agregar: ' + result.error.message); return }
     setNuevaSeccionLetra('')
+
+    // Crear las Asignaturas del catálogo compartido para esta Sección nueva, en cada Grado que ya exista
+    const combinaciones = gradosProp.map(function (g) { return { grado: g.numero, grupo: nuevaLetra } })
+    await crearAsignaturasAutomaticas(combinaciones)
     cargar()
   }
 
