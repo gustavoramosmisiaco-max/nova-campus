@@ -356,7 +356,7 @@ export default function CoordinadorDashboard() {
           ) : (
             <div className="space-y-3">
               {areasLista.map(function (grupoArea) {
-                const totalCursos = grupoArea.docentesLista.reduce(function (a, d) { return a + d.cursos.length }, 0) + grupoArea.sinDocente.length
+                const totalCursos = grupoArea.docentesLista.reduce(function (a, d) { return a + d.cursos.length }, 0)
                 const abierta = areaAbierta === grupoArea.area
                 return (
                   <div key={grupoArea.area} className="bg-white rounded-2xl overflow-hidden" style={{ border: '1px solid #E5E9F0' }}>
@@ -438,31 +438,6 @@ export default function CoordinadorDashboard() {
                             </div>
                           )
                         })}
-
-                        {grupoArea.sinDocente.length > 0 && (function () {
-                          const sinDocenteFiltrado = gradoFiltroArea == null ? grupoArea.sinDocente : grupoArea.sinDocente.filter(function (c) { return c.grado === gradoFiltroArea })
-                          if (sinDocenteFiltrado.length === 0) return null
-                          return (
-                            <div className="rounded-xl p-3" style={{ backgroundColor: '#FDECEC' }}>
-                              <p className="text-xs font-bold mb-2" style={{ color: '#B91C1C' }}>Sin docente asignado</p>
-                              <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
-                                {sinDocenteFiltrado.map(function (c) {
-                                  return (
-                                    <button
-                                      key={c.id}
-                                      onClick={function () { setCursoSel(c) }}
-                                      className="text-left rounded-lg p-2.5 transition hover:-translate-y-0.5 bg-white"
-                                      style={{ border: '1px solid #F5C6C6' }}
-                                    >
-                                      <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{c.nombre}</p>
-                                      <p className="text-xs text-slate-400">{gradoLabel(c.grado)} — Sección {c.grupo}</p>
-                                    </button>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          )
-                        })()}
                       </div>
                     )}
                   </div>
