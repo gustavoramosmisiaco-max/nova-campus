@@ -30,6 +30,7 @@ export default function CoordinadorDashboard() {
   const [institucion, setInstitucion] = useState(null)
   const [cursos, setCursos] = useState([])
   const [conducta, setConducta] = useState([])
+  const [monitoreoPorCurso, setMonitoreoPorCurso] = useState({})
   const [tab, setTab] = useState('docentes')
   const [cursoSel, setCursoSel] = useState(null)
   const [gradosProp, setGradosProp] = useState([])
@@ -64,6 +65,40 @@ export default function CoordinadorDashboard() {
         .order('grado')
         .order('grupo')
       if (!cursosResult.error) setCursos(cursosResult.data)
+
+      const courseIds = (cursosResult.data || []).map(function (c) { return c.id })
+      if (courseIds.length > 0) {
+        const actividadesResult = await supabase.from('actividades').select('id, course_id, created_at').in('course_id', courseIds)
+        const actividades = actividadesResult.data || []
+        const actIds = actividades.map(function (a) { return a.id })
+
+        let assignments = []
+        if (actIds.length > 0) {
+          const assignResult = await supabase.from('assignments').select('id, actividad_id, created_at').in('actividad_id', actIds)
+          assignments = assignResult.data || []
+        }
+
+        const conteoPorCurso = {}
+        courseIds.forEach(function (id) { conteoPorCurso[id] = { actividades: 0, tareas: 0, ultimaFecha: null } })
+        actividades.forEach(function (a) {
+          if (!conteoPorCurso[a.course_id]) return
+          conteoPorCurso[a.course_id].actividades++
+          if (!conteoPorCurso[a.course_id].ultimaFecha || a.created_at > conteoPorCurso[a.course_id].ultimaFecha) {
+            conteoPorCurso[a.course_id].ultimaFecha = a.created_at
+          }
+        })
+        const actividadPorId = {}
+        actividades.forEach(function (a) { actividadPorId[a.id] = a.course_id })
+        assignments.forEach(function (t) {
+          const courseId = actividadPorId[t.actividad_id]
+          if (!courseId || !conteoPorCurso[courseId]) return
+          conteoPorCurso[courseId].tareas++
+          if (!conteoPorCurso[courseId].ultimaFecha || t.created_at > conteoPorCurso[courseId].ultimaFecha) {
+            conteoPorCurso[courseId].ultimaFecha = t.created_at
+          }
+        })
+        setMonitoreoPorCurso(conteoPorCurso)
+      }
 
       const conductaResult = await supabase
         .from('conductas_registro')
@@ -529,6 +564,7 @@ export default function CoordinadorDashboard() {
             { id: 'feriados', label: 'Feriados' },
             { id: 'matriculas', label: 'Matrículas' },
             { id: 'asistencia', label: 'Asistencia' },
+            { id: 'monitoreo', label: 'Monitoreo' },
           ].map(function (t) {
             const active = tab === t.id
             return (
@@ -539,6 +575,58 @@ export default function CoordinadorDashboard() {
             )
           })}
         </div>
+
+        {tab === 'monitoreo' && (
+          areasLista.length === 0 ? (
+            <p className="text-slate-400 text-sm">Aún no hay Asignaturas creadas en esta institución.</p>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-xs text-slate-400">Muestra cuántas Actividades y Tareas ha creado cada docente en cada Asignatura — para detectar quién no ha registrado nada todavía.</p>
+              {areasLista.map(function (grupoArea) {
+                return (
+                  <div key={grupoArea.area} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
+                    <h3 className="text-sm font-bold mb-3 px-3 py-1 rounded-lg inline-block" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>{grupoArea.area}</h3>
+                    <div className="space-y-3">
+                      {grupoArea.docentesLista.map(function (grupoDoc) {
+                        return (
+                          <div key={grupoDoc.docente.id}>
+                            <p className="text-xs font-bold mb-2" style={{ color: NAVY }}>{grupoDoc.docente.full_name}</p>
+                            <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                              {grupoDoc.cursos.map(function (c) {
+                                const m = monitoreoPorCurso[c.id] || { actividades: 0, tareas: 0, ultimaFecha: null }
+                                const sinActividad = m.actividades === 0
+                                return (
+                                  <div
+                                    key={c.id}
+                                    className="rounded-xl p-3"
+                                    style={sinActividad ? { backgroundColor: '#FDECEC', border: '1px solid #F5C6C6' } : { backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}
+                                  >
+                                    <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{c.nombre}</p>
+                                    <p className="text-xs text-slate-400">{gradoLabel(c.grado)} — Sección {c.grupo}</p>
+                                    {sinActividad ? (
+                                      <p className="text-xs mt-1.5 font-semibold" style={{ color: '#B91C1C' }}>Sin actividad registrada</p>
+                                    ) : (
+                                      <>
+                                        <p className="text-xs mt-1.5" style={{ color: GREEN_DARK }}>{m.actividades} actividad(es) · {m.tareas} tarea(s)</p>
+                                        {m.ultimaFecha && (
+                                          <p className="text-[11px] text-slate-400 mt-0.5">Última: {new Date(m.ultimaFecha).toLocaleDateString('es-PE')}</p>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        )}
 
         {tab === 'lista-docentes' && (
           <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
