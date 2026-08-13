@@ -7,6 +7,7 @@ import ImportarEstudiantes from './ImportarEstudiantes'
 const CoursesManager = lazy(function () { return import('./CoursesManager') })
 const ImportarDocentes = lazy(function () { return import('./ImportarDocentes') })
 const HabilitarCursos = lazy(function () { return import('./HabilitarCursos') })
+const AsignaturasManager = lazy(function () { return import('./AsignaturasManager') })
 const RecreosManager = lazy(function () { return import('./RecreosManager') })
 const FeriadosManager = lazy(function () { return import('./FeriadosManager') })
 const EnrollmentsManager = lazy(function () { return import('./EnrollmentsManager') })
@@ -231,6 +232,7 @@ export default function CoordinadorDashboard() {
             { id: 'importar', label: 'Importar Estudiantes' },
             { id: 'importar-docentes', label: 'Importar Docentes' },
             { id: 'habilitar-cursos', label: 'Habilitar Cursos' },
+            { id: 'asignaturas', label: 'Asignaturas' },
             { id: 'recreos', label: 'Recreos' },
             { id: 'feriados', label: 'Feriados' },
             { id: 'matriculas', label: 'Matrículas' },
@@ -419,6 +421,12 @@ export default function CoordinadorDashboard() {
         {tab === 'habilitar-cursos' && (
           <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
             <HabilitarCursos institucionFija={institucion.id} />
+          </Suspense>
+        )}
+
+        {tab === 'asignaturas' && (
+          <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
+            <AsignaturasManager institucionFija={institucion.id} />
           </Suspense>
         )}
 

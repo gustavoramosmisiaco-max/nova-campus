@@ -2,14 +2,21 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 
 const NAVY_DARK = '#0F172A'
+const NAVY = '#2563EB'
 const GREEN = '#22C55E'
 const GREEN_DARK = '#16A34A'
 
-export default function AsignaturasManager() {
+const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
+
+export default function AsignaturasManager({ institucionFija } = {}) {
   const [areas, setAreas] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(null)
+  const [showNueva, setShowNueva] = useState(false)
+  const [nuevaAreaId, setNuevaAreaId] = useState('')
+  const [nuevaNombre, setNuevaNombre] = useState('')
+  const [creando, setCreando] = useState(false)
 
   useEffect(function () {
     loadData()
@@ -32,8 +39,27 @@ export default function AsignaturasManager() {
         }
       })
       setAreas(sorted)
+      if (!nuevaAreaId && sorted.length > 0) setNuevaAreaId(sorted[0].id)
     }
     setLoading(false)
+  }
+
+  async function crearAsignatura() {
+    if (!nuevaNombre.trim() || !nuevaAreaId) return
+    setCreando(true)
+    const result = await supabase.from('asignaturas').insert({
+      nombre: nuevaNombre.trim(),
+      area_id: nuevaAreaId,
+      activo: true,
+    })
+    if (result.error) {
+      alert('Error al crear: ' + result.error.message)
+    } else {
+      setNuevaNombre('')
+      setShowNueva(false)
+      loadData()
+    }
+    setCreando(false)
   }
 
   async function toggleAsignatura(asignaturaId, currentValue) {
@@ -97,11 +123,47 @@ export default function AsignaturasManager() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-2" style={{ color: NAVY_DARK }}>Asignaturas</h2>
+      <div className="flex justify-between items-start gap-3 flex-wrap mb-2">
+        <h2 className="text-2xl font-bold" style={{ color: NAVY_DARK }}>Asignaturas</h2>
+        <button
+          onClick={function () { setShowNueva(!showNueva) }}
+          className="text-sm font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+          style={{ backgroundColor: GREEN }}
+        >
+          {showNueva ? 'Cancelar' : '+ Nueva Asignatura'}
+        </button>
+      </div>
       <p className="text-sm text-slate-400 mb-6">
-        Activa o desactiva qué asignaturas están disponibles en la plataforma. Las desactivadas dejan de mostrarse
-        a docentes y estudiantes, sin borrar nada.
+        {institucionFija
+          ? 'Aquí puedes agregar Asignaturas nuevas al catálogo (por ejemplo, "Botánica"). Para activarlas o desactivarlas en tu institución, usa "Habilitar Cursos".'
+          : 'Activa o desactiva qué asignaturas están disponibles en la plataforma. Las desactivadas dejan de mostrarse a docentes y estudiantes, sin borrar nada.'}
       </p>
+
+      {showNueva && (
+        <div className="bg-white rounded-2xl p-5 mb-6" style={{ border: '1px solid #E5E9F0' }}>
+          <p className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>Nueva Asignatura</p>
+          <div className="grid sm:grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Área</label>
+              <select value={nuevaAreaId} onChange={function (e) { setNuevaAreaId(e.target.value) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+                {areas.map(function (a) { return <option key={a.id} value={a.id}>{a.nombre}</option> })}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Nombre de la Asignatura</label>
+              <input type="text" value={nuevaNombre} onChange={function (e) { setNuevaNombre(e.target.value) }} placeholder="Ej: Botánica" className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
+            </div>
+          </div>
+          <button
+            onClick={crearAsignatura}
+            disabled={creando || !nuevaNombre.trim()}
+            className="text-sm font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+            style={{ background: `linear-gradient(90deg, ${NAVY}, ${GREEN})` }}
+          >
+            {creando ? 'Creando...' : 'Crear Asignatura'}
+          </button>
+        </div>
+      )}
 
       <div className="space-y-5">
         {areas.map(function (area) {
@@ -110,27 +172,40 @@ export default function AsignaturasManager() {
             <div key={area.id} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0', opacity: area.activo ? 1 : 0.6 }}>
               <div className="flex justify-between items-center mb-3">
                 <h3 className="text-sm font-bold" style={{ color: GREEN_DARK }}>{area.nombre}</h3>
-                <button
-                  onClick={function () { toggleArea(area.id, area.activo) }}
-                  disabled={areaSaving}
-                  className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg transition disabled:opacity-60"
-                  style={{ backgroundColor: area.activo ? '#E7F3E4' : '#FDECEC', color: area.activo ? GREEN_DARK : '#B91C1C' }}
-                >
-                  {area.activo ? 'Área activa' : 'Área desactivada'}
-                  <span
-                    className="relative inline-flex items-center rounded-full transition-colors flex-shrink-0"
-                    style={{ width: 34, height: 19, backgroundColor: area.activo ? GREEN : '#CBD5E1' }}
+                {!institucionFija && (
+                  <button
+                    onClick={function () { toggleArea(area.id, area.activo) }}
+                    disabled={areaSaving}
+                    className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg transition disabled:opacity-60"
+                    style={{ backgroundColor: area.activo ? '#E7F3E4' : '#FDECEC', color: area.activo ? GREEN_DARK : '#B91C1C' }}
                   >
+                    {area.activo ? 'Área activa' : 'Área desactivada'}
                     <span
-                      className="absolute rounded-full bg-white transition-transform"
-                      style={{ width: 14, height: 14, top: 2.5, transform: area.activo ? 'translateX(17px)' : 'translateX(3px)' }}
-                    />
-                  </span>
-                </button>
+                      className="relative inline-flex items-center rounded-full transition-colors flex-shrink-0"
+                      style={{ width: 34, height: 19, backgroundColor: area.activo ? GREEN : '#CBD5E1' }}
+                    >
+                      <span
+                        className="absolute rounded-full bg-white transition-transform"
+                        style={{ width: 14, height: 14, top: 2.5, transform: area.activo ? 'translateX(17px)' : 'translateX(3px)' }}
+                      />
+                    </span>
+                  </button>
+                )}
               </div>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {area.asignaturas.map(function (a) {
                   const isSaving = saving === a.id
+                  if (institucionFija) {
+                    return (
+                      <div
+                        key={a.id}
+                        className="rounded-xl px-3 py-2.5"
+                        style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}
+                      >
+                        <span className="text-sm font-medium" style={{ color: NAVY_DARK }}>{a.nombre}</span>
+                      </div>
+                    )
+                  }
                   return (
                     <button
                       key={a.id}
