@@ -21,13 +21,13 @@ function FolderIcon({ color, big }) {
   )
 }
 
-export default function EstudiantesList() {
+export default function EstudiantesList({ institucionFija, institucionFijaNombre } = {}) {
   const { isOnline } = usePresence()
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [deletingId, setDeletingId] = useState(null)
-  const [selectedInst, setSelectedInst] = useState(null)
+  const [selectedInst, setSelectedInst] = useState(institucionFijaNombre || null)
   const [selectedAula, setSelectedAula] = useState(null)
   const [eliminandoAula, setEliminandoAula] = useState(false)
 
@@ -284,9 +284,11 @@ export default function EstudiantesList() {
 
     return (
       <div>
-        <button onClick={function () { setSelectedInst(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>
-          ← Volver a Instituciones
-        </button>
+        {!institucionFija && (
+          <button onClick={function () { setSelectedInst(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>
+            ← Volver a Instituciones
+          </button>
+        )}
         <h2 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>{selectedInst} ({lista.length})</h2>
 
         {aulas.length === 0 && sinAula.length === 0 ? (
