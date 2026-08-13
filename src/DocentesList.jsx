@@ -260,7 +260,7 @@ export default function DocentesList({ institucionFija } = {}) {
     <div>
       <h2 className="text-2xl font-bold mb-2" style={{ color: NAVY_DARK }}>Docentes</h2>
       <p className="text-sm text-slate-400 mb-6">
-        {docentes.length} docente(s) registrado(s) en total. Un docente puede estar marcado en varias instituciones — ahí aparecerá en cada una.
+        {docentes.length} docente(s) registrado(s) en total.
       </p>
 
       {docentes.length === 0 ? (
