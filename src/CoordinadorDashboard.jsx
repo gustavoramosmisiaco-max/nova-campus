@@ -248,7 +248,7 @@ export default function CoordinadorDashboard() {
 
         {tab === 'lista-docentes' && (
           <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
-            <DocentesList />
+            <DocentesList institucionFija={institucion.id} />
           </Suspense>
         )}
 

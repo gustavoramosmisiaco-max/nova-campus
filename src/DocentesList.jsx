@@ -9,7 +9,7 @@ const NAVY = '#2563EB'
 const GREEN = '#22C55E'
 const GREEN_DARK = '#16A34A'
 
-export default function DocentesList() {
+export default function DocentesList({ institucionFija } = {}) {
   const { isOnline } = usePresence()
   const [docentes, setDocentes] = useState([])
   const [instituciones, setInstituciones] = useState([])
@@ -28,7 +28,7 @@ export default function DocentesList() {
     setError('')
 
     const [profilesResult, instResult, relResult, coursesResult] = await Promise.all([
-      supabase.from('profiles').select('id, full_name, whatsapp, last_active_at').eq('role', 'docente').order('full_name'),
+      supabase.from('profiles').select('id, full_name, email, whatsapp, last_active_at').eq('role', 'docente').order('full_name'),
       supabase.from('instituciones_educativas').select('id, nombre').order('nombre'),
       supabase.from('docente_instituciones').select('docente_id, institucion_id'),
       supabase.from('courses').select('id, docente_id, nombre, grado, grupo, asignaturas(areas_curriculares(nombre))').not('docente_id', 'is', null),
@@ -152,6 +152,7 @@ export default function DocentesList() {
         <thead>
           <tr style={{ borderBottom: '1px solid #E5E9F0' }}>
             <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Nombre</th>
+            <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Correo</th>
             <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Cursos a cargo</th>
             <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Grupo de WhatsApp (padres)</th>
             <th className="text-right py-2 font-semibold" style={{ color: NAVY_DARK }}></th>
@@ -175,7 +176,9 @@ export default function DocentesList() {
                   </button>
                   {editandoInstId === d.id && (
                     <div className="mt-2 p-2 rounded-lg space-y-1" style={{ backgroundColor: '#F4F6F9' }}>
-                      {instituciones.map(function (inst) {
+                      {instituciones
+                        .filter(function (inst) { return !institucionFija || inst.id === institucionFija })
+                        .map(function (inst) {
                         const marcado = d.institucionIds.includes(inst.id)
                         return (
                           <label key={inst.id} className="flex items-center gap-2 text-xs cursor-pointer">
@@ -192,6 +195,7 @@ export default function DocentesList() {
                     </div>
                   )}
                 </td>
+                <td className="py-2 pr-3 align-top text-xs text-slate-500">{d.email || '—'}</td>
                 <td className="py-2 pr-3 align-top">
                   {d.cursos.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
