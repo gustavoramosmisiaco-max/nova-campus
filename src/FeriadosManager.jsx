@@ -7,10 +7,10 @@ const GREEN = '#22C55E'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 
-export default function FeriadosManager() {
+export default function FeriadosManager({ institucionFija } = {}) {
   const [loading, setLoading] = useState(true)
   const [instituciones, setInstituciones] = useState([])
-  const [institucionSel, setInstitucionSel] = useState('')
+  const [institucionSel, setInstitucionSel] = useState(institucionFija || '')
   const [feriados, setFeriados] = useState([])
 
   const [nombre, setNombre] = useState('')
@@ -32,7 +32,7 @@ export default function FeriadosManager() {
     const result = await supabase.from('instituciones_educativas').select('id, nombre').order('nombre')
     if (!result.error) {
       setInstituciones(result.data)
-      if (result.data.length === 1) setInstitucionSel(result.data[0].id)
+      if (result.data.length === 1 && !institucionSel) setInstitucionSel(result.data[0].id)
     }
     setLoading(false)
   }
@@ -77,15 +77,21 @@ export default function FeriadosManager() {
   return (
     <div>
       <h2 className="text-2xl font-bold mb-2" style={{ color: NAVY_DARK }}>Feriados</h2>
-      <p className="text-sm text-slate-400 mb-6">Configura los feriados de cada institución — se usarán para calcular correctamente los días de clase al registrar asistencia.</p>
+      <p className="text-sm text-slate-400 mb-6">
+        {institucionFija
+          ? 'Configura los feriados de tu institución — se usarán para calcular correctamente los días de clase al registrar asistencia.'
+          : 'Configura los feriados de cada institución — se usarán para calcular correctamente los días de clase al registrar asistencia.'}
+      </p>
 
-      <div className="mb-5 max-w-sm">
-        <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Institución</label>
-        <select value={institucionSel} onChange={function (e) { setInstitucionSel(e.target.value) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
-          <option value="">-- Elige --</option>
-          {instituciones.map(function (i) { return <option key={i.id} value={i.id}>{i.nombre}</option> })}
-        </select>
-      </div>
+      {!institucionFija && (
+        <div className="mb-5 max-w-sm">
+          <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Institución</label>
+          <select value={institucionSel} onChange={function (e) { setInstitucionSel(e.target.value) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+            <option value="">-- Elige --</option>
+            {instituciones.map(function (i) { return <option key={i.id} value={i.id}>{i.nombre}</option> })}
+          </select>
+        </div>
+      )}
 
       {institucionSel && (
         <>
