@@ -222,6 +222,9 @@ export default function CoordinadorDashboard() {
   const [asisDatos, setAsisDatos] = useState([])
   const [asisFechas, setAsisFechas] = useState([])
   const [asisLoading, setAsisLoading] = useState(false)
+  const [asisEstudiantesRaw, setAsisEstudiantesRaw] = useState({})
+  const [asisAreasDisponibles, setAsisAreasDisponibles] = useState([])
+  const [asisAreaFiltro, setAsisAreaFiltro] = useState(null)
 
   async function cargarAsistenciaDeAula(grado, grupo) {
     setAsisLoading(true)
@@ -236,32 +239,57 @@ export default function CoordinadorDashboard() {
     const studentIds = estudiantes.map(function (s) { return s.id })
 
     let porEstudiante = {}
-    estudiantes.forEach(function (s) { porEstudiante[s.id] = { nombre: s.full_name, fechas: {}, ausentes: 0, justificadas: 0 } })
+    estudiantes.forEach(function (s) { porEstudiante[s.id] = { nombre: s.full_name, registros: [] } })
 
-    const fechasSet = new Set()
+    let areasConDatos = []
     if (studentIds.length > 0) {
       const asisResult = await supabase
         .from('asistencias')
-        .select('student_id, fecha, estado')
+        .select('student_id, fecha, estado, area_id, areas_curriculares(nombre)')
         .in('student_id', studentIds)
         .order('fecha')
       ;(asisResult.data || []).forEach(function (a) {
         if (!porEstudiante[a.student_id]) return
-        fechasSet.add(a.fecha)
-        porEstudiante[a.student_id].fechas[a.fecha] = a.estado
-        if (a.estado === 'justificado') porEstudiante[a.student_id].justificadas++
-        else porEstudiante[a.student_id].ausentes++
+        porEstudiante[a.student_id].registros.push({ fecha: a.fecha, estado: a.estado, areaId: a.area_id, areaNombre: a.areas_curriculares?.nombre || 'Sin área' })
       })
+      const mapaAreas = {}
+      ;(asisResult.data || []).forEach(function (a) {
+        if (a.area_id) mapaAreas[a.area_id] = a.areas_curriculares?.nombre || 'Sin área'
+      })
+      areasConDatos = Object.entries(mapaAreas).map(function ([id, nombre]) { return { id: id, nombre: nombre } })
+        .sort(function (a, b) { return a.nombre.localeCompare(b.nombre) })
     }
 
-    const fechasOrdenadas = [...fechasSet].sort()
-    const lista = Object.values(porEstudiante).map(function (e) {
-      return { ...e, total: e.ausentes + e.justificadas }
+    setAsisEstudiantesRaw(porEstudiante)
+    setAsisAreasDisponibles(areasConDatos)
+    setAsisAreaFiltro(null)
+    recalcularAsistencia(porEstudiante, null)
+    setAsisLoading(false)
+  }
+
+  function recalcularAsistencia(porEstudianteRaw, areaFiltro) {
+    const fechasSet = new Set()
+    const lista = Object.values(porEstudianteRaw).map(function (e) {
+      const registrosFiltrados = areaFiltro ? e.registros.filter(function (r) { return r.areaId === areaFiltro }) : e.registros
+      const fechas = {}
+      let ausentes = 0
+      let justificadas = 0
+      registrosFiltrados.forEach(function (r) {
+        fechas[r.fecha] = r.estado
+        fechasSet.add(r.fecha)
+        if (r.estado === 'justificado') justificadas++
+        else ausentes++
+      })
+      return { nombre: e.nombre, fechas: fechas, ausentes: ausentes, justificadas: justificadas, total: ausentes + justificadas }
     })
     lista.sort(function (a, b) { return b.total - a.total })
-    setAsisFechas(fechasOrdenadas)
+    setAsisFechas([...fechasSet].sort())
     setAsisDatos(lista)
-    setAsisLoading(false)
+  }
+
+  function cambiarAreaFiltro(areaId) {
+    setAsisAreaFiltro(areaId)
+    recalcularAsistencia(asisEstudiantesRaw, areaId)
   }
 
   async function exportarAsistenciaExcel() {
@@ -270,7 +298,8 @@ export default function CoordinadorDashboard() {
 
     ws.mergeCells(1, 1, 1, 4 + asisFechas.length)
     const titulo = ws.getCell(1, 1)
-    titulo.value = `Reporte de Asistencia — ${institucion.nombre} — ${gradoLabel(asisGradoSel)} Sección ${asisSeccionSel}`
+    const nombreAreaFiltro = asisAreaFiltro ? asisAreasDisponibles.find(function (a) { return a.id === asisAreaFiltro })?.nombre : null
+    titulo.value = `Reporte de Asistencia — ${institucion.nombre} — ${gradoLabel(asisGradoSel)} Sección ${asisSeccionSel}${nombreAreaFiltro ? ' — ' + nombreAreaFiltro : ''}`
     titulo.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } }
     titulo.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } }
     titulo.alignment = { horizontal: 'center', vertical: 'middle' }
@@ -309,6 +338,9 @@ export default function CoordinadorDashboard() {
         } else if (estado === 'ausente') {
           cell.value = 'F'
           cell.font = { bold: true, color: { argb: 'FFB91C1C' } }
+        } else {
+          cell.value = 'P'
+          cell.font = { bold: true, color: { argb: 'FF16A34A' } }
         }
         cell.alignment = { horizontal: 'center' }
       })
@@ -654,6 +686,29 @@ export default function CoordinadorDashboard() {
                   </button>
                 )}
               </div>
+              {asisAreasDisponibles.length > 1 && (
+                <div className="flex gap-1.5 flex-wrap mb-4">
+                  <button
+                    onClick={function () { cambiarAreaFiltro(null) }}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-full transition"
+                    style={asisAreaFiltro == null ? { backgroundColor: NAVY_DARK, color: 'white' } : { backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }}
+                  >
+                    Todas las Áreas
+                  </button>
+                  {asisAreasDisponibles.map(function (a) {
+                    return (
+                      <button
+                        key={a.id}
+                        onClick={function () { cambiarAreaFiltro(a.id) }}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-full transition"
+                        style={asisAreaFiltro === a.id ? { backgroundColor: GREEN, color: 'white' } : { backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }}
+                      >
+                        {a.nombre}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
               {asisLoading ? (
                 <p className="text-slate-400 text-sm">Cargando...</p>
               ) : asisDatos.length === 0 ? (
@@ -686,8 +741,8 @@ export default function CoordinadorDashboard() {
                             {asisFechas.map(function (f) {
                               const estado = e.fechas[f]
                               return (
-                                <td key={f} className="p-1 text-center font-bold" style={{ border: '1px solid #E5E9F0', fontSize: 11, color: estado === 'justificado' ? '#B45309' : estado === 'ausente' ? '#B91C1C' : '#E2E8F0' }}>
-                                  {estado === 'justificado' ? 'J' : estado === 'ausente' ? 'F' : ''}
+                                <td key={f} className="p-1 text-center font-bold" style={{ border: '1px solid #E5E9F0', fontSize: 11, color: estado === 'justificado' ? '#B45309' : estado === 'ausente' ? '#B91C1C' : '#16A34A' }}>
+                                  {estado === 'justificado' ? 'J' : estado === 'ausente' ? 'F' : 'P'}
                                 </td>
                               )
                             })}
