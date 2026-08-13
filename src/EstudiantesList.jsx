@@ -29,6 +29,7 @@ export default function EstudiantesList({ institucionFija, institucionFijaNombre
   const [deletingId, setDeletingId] = useState(null)
   const [selectedInst, setSelectedInst] = useState(institucionFijaNombre || null)
   const [selectedAula, setSelectedAula] = useState(null)
+  const [selectedGrado, setSelectedGrado] = useState(null)
   const [eliminandoAula, setEliminandoAula] = useState(false)
 
   useEffect(function () {
@@ -41,7 +42,7 @@ export default function EstudiantesList({ institucionFija, institucionFijaNombre
 
     const profilesResult = await supabase
       .from('profiles')
-      .select('id, full_name, codigo_padre, last_active_at, grado, grupo, institucion_id, institucion:instituciones_educativas!profiles_institucion_id_fkey(nombre)')
+      .select('id, full_name, email, codigo_padre, last_active_at, grado, grupo, institucion_id, institucion:instituciones_educativas!profiles_institucion_id_fkey(nombre)')
       .eq('role', 'estudiante')
       .order('full_name', { ascending: true })
 
@@ -178,7 +179,7 @@ export default function EstudiantesList({ institucionFija, institucionFijaNombre
     return (
       <div>
         <button onClick={function () { setSelectedAula(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>
-          ← Volver a {selectedInst}
+          ← Volver a {institucionFija && selectedGrado ? `${selectedGrado}° Secundaria` : selectedInst}
         </button>
         <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
           <h2 className="text-lg font-bold" style={{ color: NAVY_DARK }}>
@@ -211,6 +212,7 @@ export default function EstudiantesList({ institucionFija, institucionFijaNombre
             <thead>
               <tr style={{ borderBottom: '1px solid #E5E9F0' }}>
                 <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Nombre</th>
+                <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Correo</th>
                 <th className="text-left py-2 pr-3 font-semibold" style={{ color: NAVY_DARK }}>Código de padre</th>
                 <th className="text-right py-2 font-semibold" style={{ color: NAVY_DARK }}></th>
               </tr>
@@ -225,6 +227,7 @@ export default function EstudiantesList({ institucionFija, institucionFijaNombre
                         {s.full_name}
                       </span>
                     </td>
+                    <td className="py-2 pr-3 text-xs text-slate-500">{s.email || '—'}</td>
                     <td className="py-2 pr-3">
                       {s.codigo_padre ? (
                         <span className="text-xs font-mono font-semibold px-2 py-1 rounded-lg" style={{ backgroundColor: '#E7F3E4', color: '#16A34A' }}>
@@ -281,6 +284,88 @@ export default function EstudiantesList({ institucionFija, institucionFijaNombre
       })
     })
     const sinAula = lista.filter(function (s) { return !s.aula.grado })
+
+    // Con institución fija (Coordinador): primero carpetas de Grado, luego de Sección adentro
+    if (institucionFija && !selectedGrado) {
+      const gradosConDatos = [...new Set(aulas.map(function (a) { return a.grado }))].sort(function (a, b) { return a - b })
+      return (
+        <div>
+          <h2 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>{selectedInst} ({lista.length})</h2>
+          {gradosConDatos.length === 0 && sinAula.length === 0 ? (
+            <p className="text-slate-400 text-sm">No hay estudiantes aquí.</p>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {gradosConDatos.map(function (g) {
+                const cantidad = aulas.filter(function (a) { return a.grado === g }).reduce(function (acc, a) { return acc + a.cantidad }, 0)
+                const seccionesCount = aulas.filter(function (a) { return a.grado === g }).length
+                return (
+                  <button
+                    key={g}
+                    onClick={function () { setSelectedGrado(g) }}
+                    className="text-left rounded-xl p-4 transition hover:-translate-y-0.5"
+                    style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <FolderIcon />
+                      <span className="text-xs font-semibold" style={{ color: GREEN_DARK }}>{g}° Secundaria</span>
+                    </div>
+                    <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>{g}° Secundaria</p>
+                    <p className="text-xs text-slate-400 mt-1">{seccionesCount} sección(es) · {cantidad} estudiante(s)</p>
+                  </button>
+                )
+              })}
+
+              {sinAula.length > 0 && (
+                <button
+                  onClick={function () { setSelectedAula({ grado: null, grupo: null }) }}
+                  className="text-left rounded-xl p-4 transition hover:-translate-y-0.5"
+                  style={{ backgroundColor: '#FDECEC', border: '1px solid #F5C6C6' }}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <FolderIcon color="#B91C1C" />
+                    <span className="text-xs font-semibold" style={{ color: '#B91C1C' }}>Sin aula</span>
+                  </div>
+                  <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>Sin aula asignada</p>
+                  <p className="text-xs text-slate-400 mt-1">{sinAula.length} estudiante(s)</p>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    // Con institución fija y un Grado ya elegido: mostrar solo las Secciones de ese Grado
+    if (institucionFija && selectedGrado) {
+      const aulasDelGrado = aulas.filter(function (a) { return a.grado === selectedGrado })
+      return (
+        <div>
+          <button onClick={function () { setSelectedGrado(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>
+            ← Volver a Grados
+          </button>
+          <h2 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>{selectedGrado}° Secundaria</h2>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {aulasDelGrado.map(function (aula) {
+              return (
+                <button
+                  key={`${aula.grado}${aula.grupo}`}
+                  onClick={function () { setSelectedAula(aula) }}
+                  className="text-left rounded-xl p-4 transition hover:-translate-y-0.5"
+                  style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <FolderIcon />
+                    <span className="text-xs font-semibold" style={{ color: GREEN_DARK }}>{aula.grado}° "{aula.grupo}"</span>
+                  </div>
+                  <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>{aula.grado}° Secundaria — Sección {aula.grupo}</p>
+                  <p className="text-xs text-slate-400 mt-1">{aula.cantidad} estudiante(s)</p>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )
+    }
 
     return (
       <div>
