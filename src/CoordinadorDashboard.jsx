@@ -214,6 +214,37 @@ export default function CoordinadorDashboard() {
     cargar()
   }
 
+  const [sincronizando, setSincronizando] = useState(false)
+  const [sincronizarMsg, setSincronizarMsg] = useState('')
+
+  async function sincronizarAsignaturas() {
+    if (gradosProp.length === 0 || seccionesProp.length === 0) {
+      setSincronizarMsg('Primero agrega al menos un Grado y una Sección.')
+      return
+    }
+    setSincronizando(true)
+    setSincronizarMsg('')
+
+    const combinaciones = []
+    gradosProp.forEach(function (g) {
+      seccionesProp.forEach(function (s) {
+        combinaciones.push({ grado: g.numero, grupo: s.letra })
+      })
+    })
+
+    const antesResult = await supabase.from('courses').select('id', { count: 'exact', head: true }).eq('institucion_id', institucion.id)
+    const totalAntes = antesResult.count || 0
+
+    await crearAsignaturasAutomaticas(combinaciones)
+
+    const despuesResult = await supabase.from('courses').select('id', { count: 'exact', head: true }).eq('institucion_id', institucion.id)
+    const totalDespues = despuesResult.count || 0
+
+    setSincronizarMsg(`Listo: se completaron ${totalDespues - totalAntes} Asignatura(s) que faltaban en tus Grados y Secciones existentes.`)
+    setSincronizando(false)
+    cargar()
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#F4F6F9' }}>
@@ -509,7 +540,22 @@ export default function CoordinadorDashboard() {
         )}
 
         {tab === 'grados-secciones' && (
-          <div className="grid sm:grid-cols-2 gap-5">
+          <div>
+            <div className="bg-white rounded-2xl p-4 mb-5" style={{ border: '1px solid #E5E9F0' }}>
+              <p className="text-sm font-bold mb-1" style={{ color: NAVY_DARK }}>Completar Asignaturas en aulas ya existentes</p>
+              <p className="text-xs text-slate-400 mb-3">Si tenías Grados/Secciones de antes, esto revisa todas las combinaciones y agrega las Asignaturas del catálogo compartido que les falten — sin duplicar nada.</p>
+              <button
+                onClick={sincronizarAsignaturas}
+                disabled={sincronizando}
+                className="text-sm font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: GREEN }}
+              >
+                {sincronizando ? 'Sincronizando...' : 'Sincronizar ahora'}
+              </button>
+              {sincronizarMsg && <p className="text-xs mt-2" style={{ color: '#16A34A' }}>{sincronizarMsg}</p>}
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-5">
             <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
               <p className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>Grados de {institucion.nombre}</p>
               {gradosProp.length === 0 ? (
@@ -553,6 +599,7 @@ export default function CoordinadorDashboard() {
                 <input type="text" maxLength={1} value={nuevaSeccionLetra} onChange={function (e) { setNuevaSeccionLetra(e.target.value) }} placeholder="Letra (ej: F)" className="flex-1 rounded-lg px-2 py-1.5 text-xs outline-none" style={{ backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }} />
                 <button onClick={agregarSeccion} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: GREEN }}>+ Agregar</button>
               </div>
+            </div>
             </div>
           </div>
         )}
