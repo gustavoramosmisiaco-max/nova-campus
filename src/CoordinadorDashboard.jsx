@@ -39,6 +39,8 @@ export default function CoordinadorDashboard() {
   const [buscarDocente, setBuscarDocente] = useState('')
   const [vinculandoId, setVinculandoId] = useState(null)
   const [areaAbierta, setAreaAbierta] = useState(null)
+  const [docenteAbierto, setDocenteAbierto] = useState(null)
+  const [gradoFiltroArea, setGradoFiltroArea] = useState(null)
 
   useEffect(function () {
     cargar()
@@ -305,50 +307,97 @@ export default function CoordinadorDashboard() {
 
                     {abierta && (
                       <div className="px-5 pb-5 space-y-4">
-                        {grupoArea.docentesLista.map(function (grupoDoc) {
+                        {(function () {
+                          const gradosDeEstaArea = [...new Set(
+                            grupoArea.docentesLista.flatMap(function (d) { return d.cursos.map(function (c) { return c.grado } ) })
+                              .concat(grupoArea.sinDocente.map(function (c) { return c.grado }))
+                          )].sort(function (a, b) { return a - b })
+                          if (gradosDeEstaArea.length <= 1) return null
                           return (
-                            <div key={grupoDoc.docente.id} className="rounded-xl p-3" style={{ backgroundColor: '#F4F6F9' }}>
-                              <p className="text-xs font-bold mb-2" style={{ color: NAVY }}>{grupoDoc.docente.full_name}</p>
+                            <div className="flex gap-1.5 flex-wrap">
+                              <button
+                                onClick={function () { setGradoFiltroArea(null) }}
+                                className="text-[11px] font-semibold px-2.5 py-1 rounded-full transition"
+                                style={gradoFiltroArea == null ? { backgroundColor: NAVY_DARK, color: 'white' } : { backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }}
+                              >
+                                Todos los grados
+                              </button>
+                              {gradosDeEstaArea.map(function (g) {
+                                return (
+                                  <button
+                                    key={g}
+                                    onClick={function () { setGradoFiltroArea(g) }}
+                                    className="text-[11px] font-semibold px-2.5 py-1 rounded-full transition"
+                                    style={gradoFiltroArea === g ? { backgroundColor: GREEN, color: 'white' } : { backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }}
+                                  >
+                                    {gradoLabel(g)}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          )
+                        })()}
+
+                        {grupoArea.docentesLista.map(function (grupoDoc) {
+                          const cursosFiltrados = gradoFiltroArea == null ? grupoDoc.cursos : grupoDoc.cursos.filter(function (c) { return c.grado === gradoFiltroArea })
+                          if (cursosFiltrados.length === 0) return null
+                          const docenteEstaAbierto = docenteAbierto === grupoDoc.docente.id
+                          return (
+                            <div key={grupoDoc.docente.id} className="rounded-xl overflow-hidden" style={{ border: '1px solid #E5E9F0' }}>
+                              <button
+                                onClick={function () { setDocenteAbierto(docenteEstaAbierto ? null : grupoDoc.docente.id) }}
+                                className="w-full flex items-center justify-between px-3 py-2.5 text-left"
+                                style={{ backgroundColor: '#F4F6F9' }}
+                              >
+                                <span className="text-xs font-bold" style={{ color: NAVY }}>{grupoDoc.docente.full_name}</span>
+                                <span className="text-[11px] text-slate-400">{cursosFiltrados.length} asignatura(s) {docenteEstaAbierto ? '▾' : '▸'}</span>
+                              </button>
+                              {docenteEstaAbierto && (
+                                <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 p-3">
+                                  {cursosFiltrados.map(function (c) {
+                                    return (
+                                      <button
+                                        key={c.id}
+                                        onClick={function () { setCursoSel(c) }}
+                                        className="text-left rounded-lg p-2.5 transition hover:-translate-y-0.5 bg-white"
+                                        style={{ border: '1px solid #E5E9F0' }}
+                                      >
+                                        <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{c.nombre}</p>
+                                        <p className="text-xs text-slate-400">{gradoLabel(c.grado)} — Sección {c.grupo}</p>
+                                        <p className="text-xs mt-1" style={{ color: GREEN_DARK }}>{c.enrollments?.[0]?.count ?? 0} estudiante(s)</p>
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+
+                        {grupoArea.sinDocente.length > 0 && (function () {
+                          const sinDocenteFiltrado = gradoFiltroArea == null ? grupoArea.sinDocente : grupoArea.sinDocente.filter(function (c) { return c.grado === gradoFiltroArea })
+                          if (sinDocenteFiltrado.length === 0) return null
+                          return (
+                            <div className="rounded-xl p-3" style={{ backgroundColor: '#FDECEC' }}>
+                              <p className="text-xs font-bold mb-2" style={{ color: '#B91C1C' }}>Sin docente asignado</p>
                               <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
-                                {grupoDoc.cursos.map(function (c) {
+                                {sinDocenteFiltrado.map(function (c) {
                                   return (
                                     <button
                                       key={c.id}
                                       onClick={function () { setCursoSel(c) }}
                                       className="text-left rounded-lg p-2.5 transition hover:-translate-y-0.5 bg-white"
-                                      style={{ border: '1px solid #E5E9F0' }}
+                                      style={{ border: '1px solid #F5C6C6' }}
                                     >
                                       <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{c.nombre}</p>
                                       <p className="text-xs text-slate-400">{gradoLabel(c.grado)} — Sección {c.grupo}</p>
-                                      <p className="text-xs mt-1" style={{ color: GREEN_DARK }}>{c.enrollments?.[0]?.count ?? 0} estudiante(s)</p>
                                     </button>
                                   )
                                 })}
                               </div>
                             </div>
                           )
-                        })}
-
-                        {grupoArea.sinDocente.length > 0 && (
-                          <div className="rounded-xl p-3" style={{ backgroundColor: '#FDECEC' }}>
-                            <p className="text-xs font-bold mb-2" style={{ color: '#B91C1C' }}>Sin docente asignado</p>
-                            <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
-                              {grupoArea.sinDocente.map(function (c) {
-                                return (
-                                  <button
-                                    key={c.id}
-                                    onClick={function () { setCursoSel(c) }}
-                                    className="text-left rounded-lg p-2.5 transition hover:-translate-y-0.5 bg-white"
-                                    style={{ border: '1px solid #F5C6C6' }}
-                                  >
-                                    <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{c.nombre}</p>
-                                    <p className="text-xs text-slate-400">{gradoLabel(c.grado)} — Sección {c.grupo}</p>
-                                  </button>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        )}
+                        })()}
                       </div>
                     )}
                   </div>
