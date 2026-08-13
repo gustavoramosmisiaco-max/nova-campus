@@ -10,6 +10,8 @@ const HabilitarCursos = lazy(function () { return import('./HabilitarCursos') })
 const RecreosManager = lazy(function () { return import('./RecreosManager') })
 const FeriadosManager = lazy(function () { return import('./FeriadosManager') })
 const EnrollmentsManager = lazy(function () { return import('./EnrollmentsManager') })
+const DocentesList = lazy(function () { return import('./DocentesList') })
+const EstudiantesList = lazy(function () { return import('./EstudiantesList') })
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
@@ -221,6 +223,8 @@ export default function CoordinadorDashboard() {
         <div className="flex gap-2 mb-6 border-b overflow-x-auto" style={{ borderColor: '#E5E9F0' }}>
           {[
             { id: 'docentes', label: 'Docentes y Aulas' },
+            { id: 'lista-docentes', label: 'Docentes' },
+            { id: 'lista-estudiantes', label: 'Estudiantes' },
             { id: 'vincular-docentes', label: 'Vincular Docentes' },
             { id: 'aulas', label: 'Gestión de Aulas' },
             { id: 'grados-secciones', label: 'Grados y Secciones' },
@@ -241,6 +245,18 @@ export default function CoordinadorDashboard() {
             )
           })}
         </div>
+
+        {tab === 'lista-docentes' && (
+          <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
+            <DocentesList />
+          </Suspense>
+        )}
+
+        {tab === 'lista-estudiantes' && (
+          <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
+            <EstudiantesList />
+          </Suspense>
+        )}
 
         {tab === 'vincular-docentes' && (
           <div>
