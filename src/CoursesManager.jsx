@@ -36,7 +36,7 @@ const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', colo
 
 const emptyBlock = { dia_semana: 1, hora_inicio: '', hora_fin: '' }
 
-export default function CoursesManager() {
+export default function CoursesManager({ institucionFija, institucionFijaNombre } = {}) {
   const [courses, setCourses] = useState([])
   const [docentes, setDocentes] = useState([])
   const [areas, setAreas] = useState([])
@@ -172,7 +172,7 @@ export default function CoursesManager() {
       grupo: 'A',
       grado: 1,
       docente_id: '',
-      institucion_id: instituciones[0]?.id || '',
+      institucion_id: institucionFija || instituciones[0]?.id || '',
       descripcion: '',
     })
     setSchedules([{ ...emptyBlock }])
@@ -316,7 +316,7 @@ export default function CoursesManager() {
     }
   }
 
-  const [institucionFiltro, setInstitucionFiltro] = useState(null) // null = "todas" (sin filtrar)
+  const [institucionFiltro, setInstitucionFiltro] = useState(institucionFija || null) // null = "todas" (sin filtrar)
 
   // Agrupar: Área > Asignatura > lista de asignaciones (grado/sección/docente) — filtrado por institución elegida
   const coursesFiltrados = institucionFiltro == null ? courses : courses.filter(function (c) { return (c.institucion_id || 'sin-institucion') === institucionFiltro })
@@ -379,10 +379,10 @@ export default function CoursesManager() {
   const [bulkMsg, setBulkMsg] = useState('')
   const [mostrarAvanzado, setMostrarAvanzado] = useState(false)
 
-  const [copiarOrigenInst, setCopiarOrigenInst] = useState('')
+  const [copiarOrigenInst, setCopiarOrigenInst] = useState(institucionFija || '')
   const [copiarOrigenGrado, setCopiarOrigenGrado] = useState(1)
   const [copiarOrigenGrupo, setCopiarOrigenGrupo] = useState('A')
-  const [copiarDestinoInst, setCopiarDestinoInst] = useState('')
+  const [copiarDestinoInst, setCopiarDestinoInst] = useState(institucionFija || '')
   const [copiarDestinoGrado, setCopiarDestinoGrado] = useState(1)
   const [copiarDestinoGrupo, setCopiarDestinoGrupo] = useState('A')
   const [copiando, setCopiando] = useState(false)
@@ -506,7 +506,7 @@ export default function CoursesManager() {
     setBulkSaving(false)
   }
 
-  const [asignarDocInst, setAsignarDocInst] = useState('')
+  const [asignarDocInst, setAsignarDocInst] = useState(institucionFija || '')
   const [asignarDocGrado, setAsignarDocGrado] = useState(1)
   const [asignarDocGrupo, setAsignarDocGrupo] = useState('A')
   const [asignarDocSeleccionadas, setAsignarDocSeleccionadas] = useState(new Set())
@@ -558,7 +558,7 @@ export default function CoursesManager() {
   const [masivoAsignaturaIds, setMasivoAsignaturaIds] = useState(new Set())
   const [masivoGrados, setMasivoGrados] = useState(new Set())
   const [masivoSecciones, setMasivoSecciones] = useState(new Set())
-  const [masivoInstitucion, setMasivoInstitucion] = useState('')
+  const [masivoInstitucion, setMasivoInstitucion] = useState(institucionFija || '')
   const [masivoCreando, setMasivoCreando] = useState(false)
   const [masivoMsg, setMasivoMsg] = useState('')
 
@@ -699,7 +699,7 @@ export default function CoursesManager() {
           <div className="rounded-xl p-3" style={{ backgroundColor: '#F4F6F9' }}>
             <p className="text-xs font-bold mb-2" style={{ color: NAVY }}>Copiar DESDE</p>
             <div className="space-y-2">
-              <select value={copiarOrigenInst} onChange={function (e) { setCopiarOrigenInst(e.target.value) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+              <select value={copiarOrigenInst} disabled={!!institucionFija} onChange={function (e) { setCopiarOrigenInst(e.target.value) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-60" style={inputStyle}>
                 <option value="">-- Institución --</option>
                 {instituciones.map(function (i) { return <option key={i.id} value={i.id}>{i.nombre}</option> })}
               </select>
@@ -718,7 +718,7 @@ export default function CoursesManager() {
           <div className="rounded-xl p-3" style={{ backgroundColor: '#EAF2FB' }}>
             <p className="text-xs font-bold mb-2" style={{ color: NAVY }}>Copiar HACIA</p>
             <div className="space-y-2">
-              <select value={copiarDestinoInst} onChange={function (e) { setCopiarDestinoInst(e.target.value) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+              <select value={copiarDestinoInst} disabled={!!institucionFija} onChange={function (e) { setCopiarDestinoInst(e.target.value) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-60" style={inputStyle}>
                 <option value="">-- Institución --</option>
                 {instituciones.map(function (i) { return <option key={i.id} value={i.id}>{i.nombre}</option> })}
               </select>
@@ -822,7 +822,7 @@ export default function CoursesManager() {
           </div>
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Institución (opcional)</label>
-            <select value={masivoInstitucion} onChange={function (e) { setMasivoInstitucion(e.target.value) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+            <select value={masivoInstitucion} disabled={!!institucionFija} onChange={function (e) { setMasivoInstitucion(e.target.value) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-60" style={inputStyle}>
               <option value="">-- Sin asignar --</option>
               {instituciones.map(function (i) { return <option key={i.id} value={i.id}>{i.nombre}</option> })}
             </select>
@@ -840,6 +840,7 @@ export default function CoursesManager() {
         {masivoMsg && <p className="text-xs mt-2" style={{ color: masivoMsg.startsWith('Error') ? '#B91C1C' : '#16A34A' }}>{masivoMsg}</p>}
       </div>
 
+      {!institucionFija && (
       <button
         onClick={function () { setMostrarAvanzado(!mostrarAvanzado) }}
         className="text-xs font-semibold mb-6 hover:underline"
@@ -847,6 +848,7 @@ export default function CoursesManager() {
       >
         {mostrarAvanzado ? '▾' : '▸'} Herramientas avanzadas (poco usadas)
       </button>
+      )}
 
       <div className="bg-white rounded-2xl p-4 mb-6" style={{ border: '1px solid #E5E9F0' }}>
         <p className="text-sm font-bold mb-1" style={{ color: NAVY_DARK }}>Asignar Docente a varias Asignaturas</p>
@@ -855,7 +857,7 @@ export default function CoursesManager() {
         </p>
 
         <div className="grid sm:grid-cols-3 gap-3 mb-3 max-w-2xl">
-          <select value={asignarDocInst} onChange={function (e) { setAsignarDocInst(e.target.value); setAsignarDocSeleccionadas(new Set()) }} className="rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
+          <select value={asignarDocInst} disabled={!!institucionFija} onChange={function (e) { setAsignarDocInst(e.target.value); setAsignarDocSeleccionadas(new Set()) }} className="rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-60" style={inputStyle}>
             <option value="">-- Institución --</option>
             {instituciones.map(function (i) { return <option key={i.id} value={i.id}>{i.nombre}</option> })}
           </select>
@@ -1139,26 +1141,34 @@ export default function CoursesManager() {
 
             <div>
               <label className="block text-sm font-medium mb-1" style={{ color: NAVY_DARK }}>Institución educativa</label>
-              <select
-                value={form.institucion_id}
-                onChange={function (e) {
-                  const nuevaInstitucion = e.target.value
-                  const listaGrados = gradosParaInstitucion(nuevaInstitucion)
-                  const gradoValido = listaGrados.some(function (g) { return g.numero === form.grado })
-                  setForm({ ...form, institucion_id: nuevaInstitucion, grado: gradoValido ? form.grado : (listaGrados[0]?.numero || form.grado) })
-                }}
-                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-                style={inputStyle}
-              >
-                <option value="">-- Selecciona --</option>
-                {instituciones.map(function (i) {
-                  return <option key={i.id} value={i.id}>{i.nombre}</option>
-                })}
-              </select>
-              {instituciones.length === 0 && (
-                <p className="text-xs mt-1" style={{ color: '#B91C1C' }}>
-                  No hay instituciones creadas. Créalas primero en la pestaña "Instituciones".
+              {institucionFija ? (
+                <p className="w-full rounded-lg px-3 py-2 text-sm" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #D6DCE5' }}>
+                  {institucionFijaNombre || 'Tu institución'}
                 </p>
+              ) : (
+                <>
+                  <select
+                    value={form.institucion_id}
+                    onChange={function (e) {
+                      const nuevaInstitucion = e.target.value
+                      const listaGrados = gradosParaInstitucion(nuevaInstitucion)
+                      const gradoValido = listaGrados.some(function (g) { return g.numero === form.grado })
+                      setForm({ ...form, institucion_id: nuevaInstitucion, grado: gradoValido ? form.grado : (listaGrados[0]?.numero || form.grado) })
+                    }}
+                    className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                    style={inputStyle}
+                  >
+                    <option value="">-- Selecciona --</option>
+                    {instituciones.map(function (i) {
+                      return <option key={i.id} value={i.id}>{i.nombre}</option>
+                    })}
+                  </select>
+                  {instituciones.length === 0 && (
+                    <p className="text-xs mt-1" style={{ color: '#B91C1C' }}>
+                      No hay instituciones creadas. Créalas primero en la pestaña "Instituciones".
+                    </p>
+                  )}
+                </>
               )}
             </div>
 

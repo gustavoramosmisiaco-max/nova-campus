@@ -1,8 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense } from 'react'
 import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 import RegistroAuxiliarPorArea from './RegistroAuxiliarPorArea'
 import ImportarEstudiantes from './ImportarEstudiantes'
+
+const CoursesManager = lazy(function () { return import('./CoursesManager') })
+const ImportarDocentes = lazy(function () { return import('./ImportarDocentes') })
+const HabilitarCursos = lazy(function () { return import('./HabilitarCursos') })
+const RecreosManager = lazy(function () { return import('./RecreosManager') })
+const FeriadosManager = lazy(function () { return import('./FeriadosManager') })
+const EnrollmentsManager = lazy(function () { return import('./EnrollmentsManager') })
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
@@ -21,6 +28,11 @@ export default function CoordinadorDashboard() {
   const [conducta, setConducta] = useState([])
   const [tab, setTab] = useState('docentes')
   const [cursoSel, setCursoSel] = useState(null)
+  const [gradosProp, setGradosProp] = useState([])
+  const [seccionesProp, setSeccionesProp] = useState([])
+  const [nuevoGradoNombre, setNuevoGradoNombre] = useState('')
+  const [nuevoGradoNumero, setNuevoGradoNumero] = useState('')
+  const [nuevaSeccionLetra, setNuevaSeccionLetra] = useState('')
 
   useEffect(function () {
     cargar()
@@ -28,7 +40,7 @@ export default function CoordinadorDashboard() {
 
   async function cargar() {
     setLoading(true)
-    const instResult = await supabase.from('profiles').select('institucion_id, instituciones_educativas!profiles_institucion_id_fkey(nombre)').eq('id', session.user.id).single()
+    const instResult = await supabase.from('profiles').select('institucion_id, instituciones_educativas!profiles_institucion_id_fkey(id, nombre)').eq('id', session.user.id).single()
     const institucionId = instResult.data?.institucion_id
     setInstitucion(instResult.data?.instituciones_educativas || null)
 
@@ -60,8 +72,54 @@ export default function CoordinadorDashboard() {
           return { ...r, studentNombre: nombresMap[r.student_id] || 'Estudiante', curso: cursosPorId[r.course_id] }
         }))
       }
+
+      const gradosResult = await supabase.from('grados_institucion').select('*').eq('institucion_id', institucionId).order('orden')
+      if (!gradosResult.error) setGradosProp(gradosResult.data)
+
+      const seccionesResult = await supabase.from('secciones_institucion').select('*').eq('institucion_id', institucionId).order('orden')
+      if (!seccionesResult.error) setSeccionesProp(seccionesResult.data)
     }
     setLoading(false)
+  }
+
+  async function agregarGrado() {
+    if (!nuevoGradoNombre.trim() || !nuevoGradoNumero || !institucion?.id) return
+    const maxOrden = gradosProp.reduce(function (a, g) { return Math.max(a, g.orden) }, 0)
+    const result = await supabase.from('grados_institucion').insert({
+      institucion_id: institucion.id,
+      numero: Number(nuevoGradoNumero),
+      nombre: nuevoGradoNombre.trim(),
+      orden: maxOrden + 1,
+    })
+    if (result.error) { alert('No se pudo agregar: ' + result.error.message); return }
+    setNuevoGradoNombre('')
+    setNuevoGradoNumero('')
+    cargar()
+  }
+
+  async function eliminarGrado(gradoId) {
+    if (!confirm('¿Quitar este grado? Las aulas que ya lo usen no se ven afectadas.')) return
+    await supabase.from('grados_institucion').delete().eq('id', gradoId)
+    cargar()
+  }
+
+  async function agregarSeccion() {
+    if (!nuevaSeccionLetra.trim() || !institucion?.id) return
+    const maxOrden = seccionesProp.reduce(function (a, s) { return Math.max(a, s.orden) }, 0)
+    const result = await supabase.from('secciones_institucion').insert({
+      institucion_id: institucion.id,
+      letra: nuevaSeccionLetra.trim().toUpperCase(),
+      orden: maxOrden + 1,
+    })
+    if (result.error) { alert('No se pudo agregar: ' + result.error.message); return }
+    setNuevaSeccionLetra('')
+    cargar()
+  }
+
+  async function eliminarSeccion(seccionId) {
+    if (!confirm('¿Quitar esta sección? Las aulas que ya la usen no se ven afectadas.')) return
+    await supabase.from('secciones_institucion').delete().eq('id', seccionId)
+    cargar()
   }
 
   if (loading) {
@@ -124,15 +182,22 @@ export default function CoordinadorDashboard() {
         <h2 className="text-2xl font-bold mb-1" style={{ color: NAVY_DARK }}>Panel de Supervisión</h2>
         <p className="text-sm text-slate-400 mb-6">Solo puedes ver información — cualquier edición de notas o asistencia la hace el docente correspondiente.</p>
 
-        <div className="flex gap-2 mb-6 border-b" style={{ borderColor: '#E5E9F0' }}>
+        <div className="flex gap-2 mb-6 border-b overflow-x-auto" style={{ borderColor: '#E5E9F0' }}>
           {[
             { id: 'docentes', label: 'Docentes y Aulas' },
+            { id: 'aulas', label: 'Gestión de Aulas' },
+            { id: 'grados-secciones', label: 'Grados y Secciones' },
             { id: 'conducta', label: `Conducta ${conducta.length > 0 ? `(${conducta.length})` : ''}` },
             { id: 'importar', label: 'Importar Estudiantes' },
+            { id: 'importar-docentes', label: 'Importar Docentes' },
+            { id: 'habilitar-cursos', label: 'Habilitar Cursos' },
+            { id: 'recreos', label: 'Recreos' },
+            { id: 'feriados', label: 'Feriados' },
+            { id: 'matriculas', label: 'Matrículas' },
           ].map(function (t) {
             const active = tab === t.id
             return (
-              <button key={t.id} onClick={function () { setTab(t.id) }} className="px-4 py-2.5 text-sm font-semibold border-b-2 transition"
+              <button key={t.id} onClick={function () { setTab(t.id) }} className="px-4 py-2.5 text-sm font-semibold border-b-2 transition whitespace-nowrap"
                 style={active ? { borderColor: GREEN, color: NAVY_DARK } : { borderColor: 'transparent', color: '#94A3B8' }}>
                 {t.label}
               </button>
@@ -212,6 +277,91 @@ export default function CoordinadorDashboard() {
         )}
 
         {tab === 'importar' && <ImportarEstudiantes />}
+
+        {tab === 'aulas' && (
+          <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
+            <CoursesManager institucionFija={institucion.id} institucionFijaNombre={institucion.nombre} />
+          </Suspense>
+        )}
+
+        {tab === 'importar-docentes' && (
+          <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
+            <ImportarDocentes />
+          </Suspense>
+        )}
+
+        {tab === 'habilitar-cursos' && (
+          <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
+            <HabilitarCursos />
+          </Suspense>
+        )}
+
+        {tab === 'recreos' && (
+          <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
+            <RecreosManager />
+          </Suspense>
+        )}
+
+        {tab === 'feriados' && (
+          <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
+            <FeriadosManager />
+          </Suspense>
+        )}
+
+        {tab === 'matriculas' && (
+          <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
+            <EnrollmentsManager />
+          </Suspense>
+        )}
+
+        {tab === 'grados-secciones' && (
+          <div className="grid sm:grid-cols-2 gap-5">
+            <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
+              <p className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>Grados de {institucion.nombre}</p>
+              {gradosProp.length === 0 ? (
+                <p className="text-xs text-slate-400 mb-3">Sin grados todavía.</p>
+              ) : (
+                <ul className="space-y-1 mb-3">
+                  {gradosProp.map(function (g) {
+                    return (
+                      <li key={g.id} className="flex justify-between items-center text-xs rounded-lg px-2 py-1.5" style={{ backgroundColor: '#F4F6F9' }}>
+                        <span style={{ color: NAVY_DARK }}>{g.nombre} (nº {g.numero})</span>
+                        <button onClick={function () { eliminarGrado(g.id) }} className="text-[10px] font-semibold px-2 py-0.5 rounded text-white" style={{ backgroundColor: '#B91C1C' }}>Quitar</button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+              <div className="flex gap-2">
+                <input type="number" value={nuevoGradoNumero} onChange={function (e) { setNuevoGradoNumero(e.target.value) }} placeholder="Nº (ej: 6)" className="w-20 rounded-lg px-2 py-1.5 text-xs outline-none" style={{ backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }} />
+                <input type="text" value={nuevoGradoNombre} onChange={function (e) { setNuevoGradoNombre(e.target.value) }} placeholder="Nombre (ej: 6°)" className="flex-1 rounded-lg px-2 py-1.5 text-xs outline-none" style={{ backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }} />
+                <button onClick={agregarGrado} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: GREEN }}>+ Agregar</button>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
+              <p className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>Secciones de {institucion.nombre}</p>
+              {seccionesProp.length === 0 ? (
+                <p className="text-xs text-slate-400 mb-3">Sin secciones todavía.</p>
+              ) : (
+                <ul className="space-y-1 mb-3">
+                  {seccionesProp.map(function (s) {
+                    return (
+                      <li key={s.id} className="flex justify-between items-center text-xs rounded-lg px-2 py-1.5" style={{ backgroundColor: '#F4F6F9' }}>
+                        <span style={{ color: NAVY_DARK }}>Sección {s.letra}</span>
+                        <button onClick={function () { eliminarSeccion(s.id) }} className="text-[10px] font-semibold px-2 py-0.5 rounded text-white" style={{ backgroundColor: '#B91C1C' }}>Quitar</button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+              <div className="flex gap-2">
+                <input type="text" maxLength={1} value={nuevaSeccionLetra} onChange={function (e) { setNuevaSeccionLetra(e.target.value) }} placeholder="Letra (ej: F)" className="flex-1 rounded-lg px-2 py-1.5 text-xs outline-none" style={{ backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }} />
+                <button onClick={agregarSeccion} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: GREEN }}>+ Agregar</button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )
