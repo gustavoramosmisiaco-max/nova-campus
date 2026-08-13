@@ -35,10 +35,16 @@ export default function HabilitarCursos({ institucionFija } = {}) {
   }
 
   async function cargarAreas() {
-    const result = await supabase.from('areas_curriculares').select('*, asignaturas(id, nombre, activo)').order('orden')
+    const result = await supabase.from('areas_curriculares').select('*, asignaturas(id, nombre, activo, institucion_id)').order('orden')
     if (!result.error) {
       setAreas(result.data.map(function (a) {
-        return { ...a, asignaturas: a.asignaturas.filter(function (s) { return s.activo }).sort(function (x, y) { return x.nombre.localeCompare(y.nombre) }) }
+        return {
+          ...a,
+          asignaturas: a.asignaturas
+            .filter(function (s) { return s.activo })
+            .filter(function (s) { return !institucionFija || !s.institucion_id || s.institucion_id === institucionFija })
+            .sort(function (x, y) { return x.nombre.localeCompare(y.nombre) }),
+        }
       }))
     }
   }

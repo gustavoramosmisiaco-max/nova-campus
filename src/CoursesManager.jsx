@@ -129,7 +129,7 @@ export default function CoursesManager({ institucionFija, institucionFijaNombre 
   async function loadAreas() {
     const result = await supabase
       .from('areas_curriculares')
-      .select('*, asignaturas(id, nombre, activo)')
+      .select('*, asignaturas(id, nombre, activo, institucion_id)')
       .order('orden', { ascending: true })
 
     if (!result.error) {
@@ -138,6 +138,7 @@ export default function CoursesManager({ institucionFija, institucionFijaNombre 
           ...area,
           asignaturas: area.asignaturas
             .filter(function (a) { return a.activo })
+            .filter(function (a) { return !institucionFija || !a.institucion_id || a.institucion_id === institucionFija })
             .sort(function (a, b) { return a.nombre.localeCompare(b.nombre) }),
         }
       }).filter(function (area) { return area.asignaturas.length > 0 })

@@ -26,16 +26,19 @@ export default function AsignaturasManager({ institucionFija } = {}) {
     setLoading(true)
     const areasResult = await supabase
       .from('areas_curriculares')
-      .select('*, asignaturas(id, nombre, activo)')
+      .select('*, asignaturas(id, nombre, activo, institucion_id)')
       .order('orden', { ascending: true })
 
     if (areasResult.error) {
       setError(areasResult.error.message)
     } else {
       const sorted = areasResult.data.map(function (area) {
+        const asignaturasVisibles = institucionFija
+          ? area.asignaturas.filter(function (a) { return !a.institucion_id || a.institucion_id === institucionFija })
+          : area.asignaturas
         return {
           ...area,
-          asignaturas: [...area.asignaturas].sort(function (a, b) { return a.nombre.localeCompare(b.nombre) }),
+          asignaturas: [...asignaturasVisibles].sort(function (a, b) { return a.nombre.localeCompare(b.nombre) }),
         }
       })
       setAreas(sorted)
@@ -51,6 +54,7 @@ export default function AsignaturasManager({ institucionFija } = {}) {
       nombre: nuevaNombre.trim(),
       area_id: nuevaAreaId,
       activo: true,
+      institucion_id: institucionFija || null,
     })
     if (result.error) {
       alert('Error al crear: ' + result.error.message)
