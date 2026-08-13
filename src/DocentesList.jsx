@@ -167,18 +167,18 @@ export default function DocentesList({ institucionFija } = {}) {
                     {isOnline(d.id) && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#22C55E' }} title="En línea" />}
                     {d.full_name}
                   </span>
-                  <button
-                    onClick={function () { setEditandoInstId(editandoInstId === d.id ? null : d.id) }}
-                    className="text-[11px] font-semibold hover:underline mt-0.5 block"
-                    style={{ color: NAVY }}
-                  >
-                    {editandoInstId === d.id ? 'Cerrar' : 'Editar instituciones'}
-                  </button>
-                  {editandoInstId === d.id && (
+                  {!institucionFija && (
+                    <button
+                      onClick={function () { setEditandoInstId(editandoInstId === d.id ? null : d.id) }}
+                      className="text-[11px] font-semibold hover:underline mt-0.5 block"
+                      style={{ color: NAVY }}
+                    >
+                      {editandoInstId === d.id ? 'Cerrar' : 'Editar instituciones'}
+                    </button>
+                  )}
+                  {!institucionFija && editandoInstId === d.id && (
                     <div className="mt-2 p-2 rounded-lg space-y-1" style={{ backgroundColor: '#F4F6F9' }}>
-                      {instituciones
-                        .filter(function (inst) { return !institucionFija || inst.id === institucionFija })
-                        .map(function (inst) {
+                      {instituciones.map(function (inst) {
                         const marcado = d.institucionIds.includes(inst.id)
                         return (
                           <label key={inst.id} className="flex items-center gap-2 text-xs cursor-pointer">
@@ -283,7 +283,7 @@ export default function DocentesList({ institucionFija } = {}) {
             )
           })}
 
-          {sinInstitucion.length > 0 && (
+          {!institucionFija && sinInstitucion.length > 0 && (
             <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
               <h3
                 className="text-xs font-bold uppercase tracking-wide mb-3 px-3 py-1.5 rounded-lg inline-block"
