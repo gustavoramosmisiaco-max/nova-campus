@@ -30,7 +30,7 @@ async function descargarWorkbook(workbook, filename) {
   URL.revokeObjectURL(url)
 }
 
-export default function ImportarDocentes() {
+export default function ImportarDocentes({ institucionFija } = {}) {
   const [areas, setAreas] = useState([])
   const [texto, setTexto] = useState('')
   const [areaId, setAreaId] = useState('')
@@ -118,9 +118,9 @@ export default function ImportarDocentes() {
     <div>
       <h2 className="text-2xl font-bold mb-2" style={{ color: NAVY_DARK }}>Importar Docentes</h2>
       <p className="text-sm text-slate-400 mb-6">
-        Pega la lista de nombres completos (uno por línea), elige el área a la que pertenecen, y la plataforma
-        crea sus cuentas automáticamente con correo y contraseña. Luego los asignas a sus asignaturas específicas
-        desde la pestaña "Cursos".
+        {institucionFija
+          ? 'Pega la lista de nombres completos (uno por línea), elige el área a la que pertenecen, y la plataforma crea sus cuentas automáticamente con correo y contraseña — quedan ligadas directo a tu institución. Luego los asignas a sus asignaturas específicas desde "Gestión de Aulas".'
+          : 'Pega la lista de nombres completos (uno por línea), elige el área a la que pertenecen, y la plataforma crea sus cuentas automáticamente con correo y contraseña. Luego los asignas a sus asignaturas específicas desde la pestaña "Cursos".'}
       </p>
 
       <div className="bg-white rounded-2xl p-6 mb-6" style={{ border: '1px solid #E5E9F0' }}>
