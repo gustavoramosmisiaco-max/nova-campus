@@ -167,14 +167,14 @@ export default function CoordinadorDashboard() {
     )
   }
 
-  // Agrupar cursos por docente
-  const docentesMap = {}
+  // Agrupar cursos por Área curricular
+  const areasMap = {}
   cursos.forEach(function (c) {
-    if (!c.docente) return
-    if (!docentesMap[c.docente.id]) docentesMap[c.docente.id] = { docente: c.docente, cursos: [] }
-    docentesMap[c.docente.id].cursos.push(c)
+    const areaNombre = c.asignaturas?.areas_curriculares?.nombre || 'Sin área'
+    if (!areasMap[areaNombre]) areasMap[areaNombre] = { area: areaNombre, cursos: [] }
+    areasMap[areaNombre].cursos.push(c)
   })
-  const docentesLista = Object.values(docentesMap)
+  const areasLista = Object.values(areasMap).sort(function (a, b) { return a.area.localeCompare(b.area) })
   const sinDocente = cursos.filter(function (c) { return !c.docente })
 
   if (cursoSel) {
@@ -276,14 +276,14 @@ export default function CoordinadorDashboard() {
         )}
 
         {tab === 'docentes' && (
-          docentesLista.length === 0 ? (
-            <p className="text-slate-400 text-sm">Aún no hay docentes con Asignaturas en esta institución.</p>
+          areasLista.length === 0 ? (
+            <p className="text-slate-400 text-sm">Aún no hay Asignaturas creadas en esta institución.</p>
           ) : (
             <div className="space-y-6">
-              {docentesLista.map(function (grupo) {
+              {areasLista.map(function (grupo) {
                 return (
-                  <div key={grupo.docente.id} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
-                    <h3 className="text-sm font-bold mb-3" style={{ color: NAVY_DARK }}>{grupo.docente.full_name}</h3>
+                  <div key={grupo.area} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
+                    <h3 className="text-sm font-bold mb-3 px-3 py-1 rounded-lg inline-block" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>{grupo.area} ({grupo.cursos.length})</h3>
                     <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
                       {grupo.cursos.map(function (c) {
                         return (
@@ -295,6 +295,7 @@ export default function CoordinadorDashboard() {
                           >
                             <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{c.nombre}</p>
                             <p className="text-xs text-slate-400">{gradoLabel(c.grado)} — Sección {c.grupo}</p>
+                            <p className="text-xs mt-1" style={{ color: c.docente ? NAVY : '#B91C1C' }}>{c.docente?.full_name || 'Sin docente'}</p>
                             <p className="text-xs mt-1" style={{ color: GREEN_DARK }}>{c.enrollments?.[0]?.count ?? 0} estudiante(s)</p>
                           </button>
                         )
@@ -303,22 +304,6 @@ export default function CoordinadorDashboard() {
                   </div>
                 )
               })}
-
-              {sinDocente.length > 0 && (
-                <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #FDECEC' }}>
-                  <h3 className="text-sm font-bold mb-3" style={{ color: '#B91C1C' }}>Asignaturas sin docente ({sinDocente.length})</h3>
-                  <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
-                    {sinDocente.map(function (c) {
-                      return (
-                        <div key={c.id} className="rounded-xl p-3" style={{ backgroundColor: '#FDECEC' }}>
-                          <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{c.nombre}</p>
-                          <p className="text-xs text-slate-400">{gradoLabel(c.grado)} — Sección {c.grupo}</p>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
           )
         )}
