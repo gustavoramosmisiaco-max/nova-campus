@@ -19,6 +19,7 @@ export default function HabilitarCursos({ institucionFija } = {}) {
   const [actualizandoId, setActualizandoId] = useState(null)
   const [agregandoAsig, setAgregandoAsig] = useState(false)
   const [asigParaAgregar, setAsigParaAgregar] = useState('')
+  const [mostrarPorArea, setMostrarPorArea] = useState(false)
 
   useEffect(function () {
     cargarCursos()
@@ -58,6 +59,23 @@ export default function HabilitarCursos({ institucionFija } = {}) {
       alert('Error: ' + result.error.message)
     } else {
       setCourses(function (prev) { return prev.map(function (c) { return c.id === course.id ? { ...c, activo: !c.activo } : c }) })
+    }
+    setActualizandoId(null)
+  }
+
+  async function toggleAsignaturaEnInstitucion(asignaturaId, activarATodas) {
+    setActualizandoId('masivo_' + asignaturaId)
+    const cursosDeEstaAsig = courses.filter(function (c) {
+      return c.asignatura_id === asignaturaId && (c.institucion_id || 'sin-institucion') === institucionSel
+    })
+    const ids = cursosDeEstaAsig.map(function (c) { return c.id })
+    if (ids.length === 0) { setActualizandoId(null); return }
+
+    const result = await supabase.from('courses').update({ activo: activarATodas }).in('id', ids)
+    if (result.error) {
+      alert('Error: ' + result.error.message)
+    } else {
+      setCourses(function (prev) { return prev.map(function (c) { return ids.includes(c.id) ? { ...c, activo: activarATodas } : c }) })
     }
     setActualizandoId(null)
   }
@@ -147,7 +165,62 @@ export default function HabilitarCursos({ institucionFija } = {}) {
           {!institucionFija && (
             <button onClick={function () { setInstitucionSel(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Instituciones</button>
           )}
-          <p className="text-sm text-slate-400 mb-4">Elige el Grado</p>
+
+          <div className="bg-white rounded-2xl overflow-hidden mb-6" style={{ border: '1px solid #E5E9F0' }}>
+            <button
+              onClick={function () { setMostrarPorArea(!mostrarPorArea) }}
+              className="w-full flex items-center justify-between px-5 py-4 text-left"
+            >
+              <div>
+                <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>Habilitar por Área (todos los grados y secciones)</p>
+                <p className="text-xs text-slate-400 mt-0.5">Como todos los grados suelen usar las mismas Áreas y Asignaturas, actívalas o desactívalas todas de golpe aquí, sin entrar grado por grado.</p>
+              </div>
+              <span className="text-sm flex-shrink-0 ml-3">{mostrarPorArea ? '▾' : '▸'}</span>
+            </button>
+
+            {mostrarPorArea && (
+              <div className="px-5 pb-5 space-y-4">
+                {areas.map(function (area) {
+                  return (
+                    <div key={area.id}>
+                      <p className="text-xs font-bold uppercase tracking-wide mb-2 px-3 py-1 rounded-lg inline-block" style={{ backgroundColor: '#E7F3E4', color: '#16A34A' }}>{area.nombre}</p>
+                      <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #F4F6F9' }}>
+                        {area.asignaturas.map(function (asig, i) {
+                          const cursosDeEsta = courses.filter(function (c) {
+                            return c.asignatura_id === asig.id && (c.institucion_id || 'sin-institucion') === institucionSel
+                          })
+                          if (cursosDeEsta.length === 0) return null
+                          const activosCount = cursosDeEsta.filter(function (c) { return c.activo }).length
+                          const estado = activosCount === cursosDeEsta.length ? 'todas' : activosCount === 0 ? 'ninguna' : 'parcial'
+                          const actualizando = actualizandoId === 'masivo_' + asig.id
+                          return (
+                            <div key={asig.id} className="flex items-center justify-between px-3 py-2.5" style={{ backgroundColor: '#FAFBFC', borderBottom: i < area.asignaturas.length - 1 ? '1px solid #F4F6F9' : 'none' }}>
+                              <div>
+                                <p className="text-sm font-medium" style={{ color: NAVY_DARK }}>{asig.nombre}</p>
+                                <p className="text-xs" style={{ color: estado === 'todas' ? '#16A34A' : estado === 'ninguna' ? '#94A3B8' : '#B45309' }}>
+                                  {activosCount}/{cursosDeEsta.length} aula(s) activa(s){estado === 'parcial' ? ' (mixto)' : ''}
+                                </p>
+                              </div>
+                              <button
+                                onClick={function () { toggleAsignaturaEnInstitucion(asig.id, estado !== 'todas') }}
+                                disabled={actualizando}
+                                className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+                                style={{ backgroundColor: estado === 'todas' ? '#B91C1C' : GREEN }}
+                              >
+                                {actualizando ? '...' : estado === 'todas' ? 'Desactivar todas' : 'Activar todas'}
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          <p className="text-sm text-slate-400 mb-4">O elige el Grado para verlo con más detalle</p>
           {(function () {
             const cursosInst = courses.filter(function (c) { return (c.institucion_id || 'sin-institucion') === institucionSel })
             const gradosUnicos = [...new Set(cursosInst.map(function (c) { return c.grado }))].sort(function (a, b) { return a - b })
