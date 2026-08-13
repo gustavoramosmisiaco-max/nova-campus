@@ -151,14 +151,35 @@ export default function CoordinadorDashboard() {
 
     // Matricular automáticamente a los estudiantes que correspondan a cada combinación
     await Promise.all(insertResult.data.map(async function (nuevoCurso) {
-      const estudiantesResult = await supabase
+      const directoResult = await supabase
         .from('profiles')
         .select('id')
         .eq('role', 'estudiante')
         .eq('grado', nuevoCurso.grado)
         .eq('grupo', nuevoCurso.grupo)
         .eq('institucion_id', institucion.id)
-      const estudiantesDelAula = (estudiantesResult.data || []).map(function (s) { return s.id })
+
+      // Respaldo: estudiantes viejos que solo se sabe su aula por matrículas en OTROS cursos de esa misma combinación
+      const otrosCursosResult = await supabase
+        .from('courses')
+        .select('id')
+        .eq('institucion_id', institucion.id)
+        .eq('grado', nuevoCurso.grado)
+        .eq('grupo', nuevoCurso.grupo)
+        .neq('id', nuevoCurso.id)
+      const otrosCourseIds = (otrosCursosResult.data || []).map(function (c) { return c.id })
+
+      let respaldoIds = []
+      if (otrosCourseIds.length > 0) {
+        const enrollResult = await supabase
+          .from('enrollments')
+          .select('student_id')
+          .in('course_id', otrosCourseIds)
+          .eq('status', 'activo')
+        respaldoIds = (enrollResult.data || []).map(function (e) { return e.student_id })
+      }
+
+      const estudiantesDelAula = [...new Set([...(directoResult.data || []).map(function (s) { return s.id }), ...respaldoIds])]
       if (estudiantesDelAula.length === 0) return
       const matriculas = estudiantesDelAula.map(function (studentId) { return { course_id: nuevoCurso.id, student_id: studentId, status: 'activo' } })
       await supabase.from('enrollments').insert(matriculas)
@@ -228,14 +249,39 @@ export default function CoordinadorDashboard() {
 
   async function cargarAsistenciaDeAula(grado, grupo) {
     setAsisLoading(true)
-    const estudiantesResult = await supabase
+
+    // Estudiantes con el dato guardado directo en su perfil
+    const directoResult = await supabase
       .from('profiles')
       .select('id, full_name')
       .eq('role', 'estudiante')
       .eq('grado', grado)
       .eq('grupo', grupo)
       .eq('institucion_id', institucion.id)
-    const estudiantes = estudiantesResult.data || []
+
+    // Respaldo: estudiantes viejos que solo se sabe su aula por sus matrículas de cursos
+    const cursosDeAulaResult = await supabase
+      .from('courses')
+      .select('id')
+      .eq('institucion_id', institucion.id)
+      .eq('grado', grado)
+      .eq('grupo', grupo)
+    const courseIds = (cursosDeAulaResult.data || []).map(function (c) { return c.id })
+
+    let respaldoEstudiantes = []
+    if (courseIds.length > 0) {
+      const enrollResult = await supabase
+        .from('enrollments')
+        .select('student:profiles(id, full_name)')
+        .in('course_id', courseIds)
+        .eq('status', 'activo')
+      respaldoEstudiantes = (enrollResult.data || []).map(function (e) { return e.student }).filter(Boolean)
+    }
+
+    const mapaEstudiantes = new Map()
+    ;(directoResult.data || []).forEach(function (s) { mapaEstudiantes.set(s.id, s) })
+    respaldoEstudiantes.forEach(function (s) { if (!mapaEstudiantes.has(s.id)) mapaEstudiantes.set(s.id, s) })
+    const estudiantes = [...mapaEstudiantes.values()]
     const studentIds = estudiantes.map(function (s) { return s.id })
 
     let porEstudiante = {}
