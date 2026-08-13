@@ -418,7 +418,7 @@ export default function CoordinadorDashboard() {
 
         {tab === 'habilitar-cursos' && (
           <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
-            <HabilitarCursos />
+            <HabilitarCursos institucionFija={institucion.id} />
           </Suspense>
         )}
 
