@@ -127,6 +127,224 @@ export default function CoordinadorDashboard() {
   const [monitoreoCargado, setMonitoreoCargado] = useState(false)
   const monitoreoTurnoRef = useRef(0)
   const [docenteExpandido, setDocenteExpandido] = useState(null)
+
+  // ============================================================
+  // Formato SIAGIE por Bimestre — RVM N° 094-2020-MINEDU
+  // ============================================================
+  const [siagieGrado, setSiagieGrado] = useState(1)
+  const [siagieGrupo, setSiagieGrupo] = useState('A')
+  const [siagieBimestre, setSiagieBimestre] = useState(1)
+  const [siagieGenerando, setSiagieGenerando] = useState(false)
+
+  function nivelLogro(promedio) {
+    if (promedio == null) return null
+    if (promedio >= 18) return 'AD'
+    if (promedio >= 14) return 'A'
+    if (promedio >= 11) return 'B'
+    return 'C'
+  }
+
+  async function generarSIAGIE() {
+    setSiagieGenerando(true)
+    try {
+      const grado = siagieGrado
+      const grupo = siagieGrupo
+      const bimestre = siagieBimestre
+
+      // 1. Estudiantes de esa aula (perfil directo + respaldo por matrícula)
+      const directoResult = await supabase.from('profiles').select('id, full_name')
+        .eq('role', 'estudiante').eq('grado', grado).eq('grupo', grupo).eq('institucion_id', institucion.id)
+
+      const cursosAulaResult = await supabase.from('courses')
+        .select('id, asignatura_id, asignaturas(nombre, areas_curriculares(id, nombre))')
+        .eq('institucion_id', institucion.id).eq('grado', grado).eq('grupo', grupo)
+      const cursosAula = cursosAulaResult.data || []
+      const courseIds = cursosAula.map(function (c) { return c.id })
+
+      let estudiantesMap = {}
+      ;(directoResult.data || []).forEach(function (s) { estudiantesMap[s.id] = s.full_name })
+
+      if (courseIds.length > 0) {
+        for (let i = 0; i < courseIds.length; i += 80) {
+          const trozo = courseIds.slice(i, i + 80)
+          const enrollResult = await supabase.from('enrollments').select('student_id, student:profiles(id, full_name)').eq('status', 'activo').in('course_id', trozo)
+          ;(enrollResult.data || []).forEach(function (e) { if (e.student) estudiantesMap[e.student.id] = e.student.full_name })
+        }
+      }
+
+      const estudiantes = Object.entries(estudiantesMap).map(function ([id, full_name]) { return { id: id, full_name: full_name } })
+      estudiantes.sort(function (a, b) { return compararPorApellido ? compararPorApellido(a.full_name, b.full_name) : a.full_name.localeCompare(b.full_name) })
+
+      if (estudiantes.length === 0) {
+        alert('No se encontraron estudiantes en esa aula.')
+        setSiagieGenerando(false)
+        return
+      }
+
+      // 2. Áreas presentes en esa aula
+      const areasMap = {}
+      cursosAula.forEach(function (c) {
+        const area = c.asignaturas?.areas_curriculares
+        if (area) areasMap[area.nombre] = area.id
+      })
+      const areaNombres = Object.keys(areasMap).sort()
+
+      if (areaNombres.length === 0) {
+        alert('Esa aula no tiene Áreas/Asignaturas configuradas.')
+        setSiagieGenerando(false)
+        return
+      }
+
+      // 3. Competencias de cada Área (competencias.area es texto, se compara por nombre)
+      const competenciasResult = await supabase.from('competencias').select('id, nombre, area, codigo').in('area', areaNombres)
+      const competencias = competenciasResult.data || []
+
+      const capacidadesResult = competencias.length > 0
+        ? await supabase.from('capacidades').select('id, competencia_id').in('competencia_id', competencias.map(function (c) { return c.id }))
+        : { data: [] }
+      const capacidades = capacidadesResult.data || []
+      const capacidadIds = capacidades.map(function (c) { return c.id })
+
+      // 4. Unidades del Bimestre elegido (numero 1-2 = Bimestre 1, 3-4 = Bimestre 2, etc.)
+      const numerosDelBimestre = [bimestre * 2 - 1, bimestre * 2]
+      const unidadesResult = await supabase.from('unidades').select('id, area_id, grado, grupo, numero')
+        .eq('grado', grado).eq('grupo', grupo).in('numero', numerosDelBimestre)
+        .in('area_id', Object.values(areasMap))
+      const unidades = unidadesResult.data || []
+      const unidadIds = unidades.map(function (u) { return u.id })
+
+      // 5. Actividades de esas Unidades, en los cursos de esta aula
+      let actividades = []
+      if (unidadIds.length > 0 && courseIds.length > 0) {
+        for (let i = 0; i < courseIds.length; i += 80) {
+          const trozo = courseIds.slice(i, i + 80)
+          const actResult = await supabase.from('actividades').select('id, course_id, unidad_id').in('course_id', trozo).in('unidad_id', unidadIds)
+          actividades = actividades.concat(actResult.data || [])
+        }
+      }
+      const actividadIds = actividades.map(function (a) { return a.id })
+
+      // 6. Tareas de esas Actividades
+      let assignments = []
+      if (actividadIds.length > 0) {
+        for (let i = 0; i < actividadIds.length; i += 80) {
+          const trozo = actividadIds.slice(i, i + 80)
+          const assignResult = await supabase.from('assignments').select('id, actividad_id').in('actividad_id', trozo)
+          assignments = assignments.concat(assignResult.data || [])
+        }
+      }
+      const assignmentIds = assignments.map(function (a) { return a.id })
+
+      // 7. Entregas y sus notas por Capacidad, para calcular el promedio por Estudiante+Competencia
+      let submissions = []
+      if (assignmentIds.length > 0) {
+        for (let i = 0; i < assignmentIds.length; i += 80) {
+          const trozo = assignmentIds.slice(i, i + 80)
+          const subsResult = await supabase.from('submissions').select('id, student_id, assignment_id').in('assignment_id', trozo)
+          submissions = submissions.concat(subsResult.data || [])
+        }
+      }
+      const submissionIds = submissions.map(function (s) { return s.id })
+
+      let scores = []
+      if (submissionIds.length > 0 && capacidadIds.length > 0) {
+        for (let i = 0; i < submissionIds.length; i += 80) {
+          const trozo = submissionIds.slice(i, i + 80)
+          const scoresResult = await supabase.from('submission_scores').select('submission_id, capacidad_id, score').in('submission_id', trozo).in('capacidad_id', capacidadIds)
+          scores = scores.concat(scoresResult.data || [])
+        }
+      }
+
+      const submissionPorId = {}
+      submissions.forEach(function (s) { submissionPorId[s.id] = s })
+      const capacidadPorId = {}
+      capacidades.forEach(function (c) { capacidadPorId[c.id] = c })
+
+      // Promedio por Estudiante+Competencia
+      const acumulado = {}
+      scores.forEach(function (sc) {
+        const submission = submissionPorId[sc.submission_id]
+        const capacidad = capacidadPorId[sc.capacidad_id]
+        if (!submission || !capacidad || sc.score == null) return
+        const key = `${submission.student_id}__${capacidad.competencia_id}`
+        if (!acumulado[key]) acumulado[key] = { suma: 0, cantidad: 0 }
+        acumulado[key].suma += sc.score
+        acumulado[key].cantidad += 1
+      })
+
+      // 8. Armar el Excel: una hoja por Área
+      const workbook = new ExcelJS.Workbook()
+
+      areaNombres.forEach(function (areaNombre) {
+        const competenciasDelArea = competencias.filter(function (c) { return c.area === areaNombre }).sort(function (a, b) { return a.nombre.localeCompare(b.nombre) })
+        if (competenciasDelArea.length === 0) return
+
+        const ws = workbook.addWorksheet(areaNombre.slice(0, 31))
+
+        ws.mergeCells(1, 1, 1, competenciasDelArea.length + 2)
+        const titulo = ws.getCell(1, 1)
+        titulo.value = `${areaNombre} — ${gradoLabel(grado)} Sección ${grupo} — Bimestre ${bimestre}`
+        titulo.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } }
+        titulo.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } }
+        titulo.alignment = { horizontal: 'center', vertical: 'middle' }
+        ws.getRow(1).height = 22
+
+        const headerRow = ws.getRow(3)
+        headerRow.getCell(1).value = 'Estudiante'
+        competenciasDelArea.forEach(function (comp, i) {
+          headerRow.getCell(2 + i).value = comp.nombre
+          headerRow.getCell(2 + i).alignment = { wrapText: true, vertical: 'middle', horizontal: 'center' }
+        })
+        headerRow.getCell(2 + competenciasDelArea.length).value = 'Conclusión descriptiva'
+        headerRow.eachCell(function (cell) {
+          cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E79' } }
+        })
+        headerRow.height = 34
+        ws.getColumn(1).width = 32
+        competenciasDelArea.forEach(function (_, i) { ws.getColumn(2 + i).width = 14 })
+        ws.getColumn(2 + competenciasDelArea.length).width = 45
+
+        estudiantes.forEach(function (est, idx) {
+          const row = ws.getRow(4 + idx)
+          row.getCell(1).value = est.full_name
+          let algunNivelC = false
+          competenciasDelArea.forEach(function (comp, i) {
+            const key = `${est.id}__${comp.id}`
+            const datos = acumulado[key]
+            const promedio = datos && datos.cantidad > 0 ? datos.suma / datos.cantidad : null
+            const nivel = nivelLogro(promedio)
+            const cell = row.getCell(2 + i)
+            cell.value = nivel || '—'
+            cell.alignment = { horizontal: 'center' }
+            if (nivel === 'C') { cell.font = { bold: true, color: { argb: 'FFB91C1C' } }; algunNivelC = true }
+            else if (nivel === 'AD') cell.font = { bold: true, color: { argb: 'FF16A34A' } }
+            else if (nivel) cell.font = { bold: true, color: { argb: 'FF2563EB' } }
+          })
+          const cellConclusion = row.getCell(2 + competenciasDelArea.length)
+          cellConclusion.value = ''
+          if (algunNivelC) cellConclusion.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF7E6' } }
+          for (let c = 1; c <= 2 + competenciasDelArea.length; c++) {
+            row.getCell(c).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
+          }
+        })
+
+        ws.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
+      })
+
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `SIAGIE_${gradoLabel(grado).replace(/\s/g, '_')}_${grupo}_Bimestre${bimestre}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      alert('Error al generar el formato: ' + err.message)
+    }
+    setSiagieGenerando(false)
+  }
   const [monitoreoVistaComparar, setMonitoreoVistaComparar] = useState(false)
   const [monitoreoAreaComparar, setMonitoreoAreaComparar] = useState(null)
 
@@ -893,6 +1111,7 @@ export default function CoordinadorDashboard() {
               { id: 'matriculas', label: 'Matrículas' },
               { id: 'asistencia', label: 'Asistencia' },
               { id: 'monitoreo', label: 'Monitoreo' },
+              { id: 'siagie', label: 'Formato SIAGIE' },
             ]
             return pestañas.map(function (t) {
               const active = tab === t.id
@@ -948,6 +1167,7 @@ export default function CoordinadorDashboard() {
                 { id: 'matriculas', label: 'Matrículas' },
                 { id: 'asistencia', label: 'Asistencia' },
                 { id: 'monitoreo', label: 'Monitoreo' },
+                { id: 'siagie', label: 'Formato SIAGIE' },
               ].map(function (t) {
                 const active = tab === t.id
                 return (
@@ -1294,6 +1514,53 @@ export default function CoordinadorDashboard() {
             </div>
           )
         })()}
+
+        {tab === 'siagie' && (
+          <div>
+            <h2 className="text-2xl font-bold mb-2" style={{ color: NAVY_DARK }}>Formato SIAGIE por Bimestre</h2>
+            <p className="text-sm text-slate-400 mb-1">
+              Genera el Excel con el nivel de logro (AD, A, B, C) de cada Competencia, por Grado y Sección — listo para pasar al SIAGIE.
+            </p>
+            <p className="text-xs text-slate-400 mb-6">
+              Según la RVM N° 094-2020-MINEDU: la Conclusión Descriptiva es obligatoria cuando el nivel de logro es "C" (resaltada en naranja) — queda en blanco por ahora, lista para completarse.
+            </p>
+
+            <div className="bg-white rounded-2xl p-5 max-w-lg" style={{ border: '1px solid #E5E9F0' }}>
+              <div className="grid sm:grid-cols-3 gap-3 mb-4">
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Grado</label>
+                  <select value={siagieGrado} onChange={function (e) { setSiagieGrado(Number(e.target.value)) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }}>
+                    {(gradosProp.length > 0 ? gradosProp.map(function (g) { return g.numero }) : [1, 2, 3, 4, 5]).map(function (g) { return <option key={g} value={g}>{g}°</option> })}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Sección</label>
+                  <select value={siagieGrupo} onChange={function (e) { setSiagieGrupo(e.target.value) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }}>
+                    {(seccionesProp.length > 0 ? seccionesProp.map(function (s) { return s.letra }) : ['A', 'B', 'C', 'D', 'E']).map(function (s) { return <option key={s} value={s}>Sección {s}</option> })}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Bimestre</label>
+                  <select value={siagieBimestre} onChange={function (e) { setSiagieBimestre(Number(e.target.value)) }} className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }}>
+                    <option value={1}>I Bimestre</option>
+                    <option value={2}>II Bimestre</option>
+                    <option value={3}>III Bimestre</option>
+                    <option value={4}>IV Bimestre</option>
+                  </select>
+                </div>
+              </div>
+
+              <button
+                onClick={generarSIAGIE}
+                disabled={siagieGenerando}
+                className="text-sm font-semibold px-5 py-2.5 rounded-xl text-white transition hover:opacity-90 disabled:opacity-50"
+                style={{ background: `linear-gradient(90deg, ${NAVY}, ${GREEN})`, boxShadow: '0 8px 20px rgba(37,99,235,0.3)' }}
+              >
+                {siagieGenerando ? 'Generando...' : '📥 Descargar formato SIAGIE'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {tab === 'lista-docentes' && (
           <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
