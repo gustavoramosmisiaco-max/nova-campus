@@ -77,11 +77,20 @@ export default function TareasPendientes() {
     if (assignmentIds.length > 0) {
       const subsResult = await supabase
         .from('submissions')
-        .select('id, assignment_id, file_url')
+        .select('id, assignment_id, file_url, link_url')
         .eq('student_id', session.user.id)
         .in('assignment_id', assignmentIds)
       if (!subsResult.error) {
         subsResult.data.forEach(function (s) { submissionsMap[s.assignment_id] = s })
+
+        const submissionIds = subsResult.data.map(function (s) { return s.id })
+        if (submissionIds.length > 0) {
+          const filesResult = await supabase.from('submission_files').select('submission_id').in('submission_id', submissionIds)
+          if (!filesResult.error) {
+            const conFotos = new Set(filesResult.data.map(function (f) { return f.submission_id }))
+            Object.values(submissionsMap).forEach(function (s) { s.tieneFotos = conFotos.has(s.id) })
+          }
+        }
       }
 
       const justResult = await supabase
@@ -109,7 +118,7 @@ export default function TareasPendientes() {
 
     assignResult.data.forEach(function (a) {
       const submission = submissionsMap[a.id]
-      if (submission && submission.file_url != null) return // ya lo entregó de verdad, no aparece aquí
+      if (submission && (submission.file_url != null || submission.link_url != null || submission.tieneFotos)) return // ya lo entregó de verdad, no aparece aquí
 
       const isPastDue = new Date(a.fecha_entrega) < now
       const justificacion = justMap[a.id]
@@ -137,60 +146,125 @@ export default function TareasPendientes() {
     setLoading(false)
   }
 
-  async function handleUpload(assignment, file) {
-    if (!file) return
+  async function handleUpload(assignment, filesList) {
+    if (!filesList || filesList.length === 0) return
+    const files = Array.from(filesList)
     setUploadingId(assignment.id)
     setError('')
 
-    const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')
-    const path = `${assignment.course_id}/${session.user.id}/${assignment.id}_${Date.now()}_${safeName}`
+    const existing = assignment.submission || null
+    let submissionId = existing?.id
+    let dbResult
 
-    const uploadResult = await supabase.storage.from('entregas').upload(path, file, { upsert: true })
-    if (uploadResult.error) {
-      setError('Error al subir el archivo: ' + uploadResult.error.message)
+    if (existing) {
+      dbResult = await supabase
+        .from('submissions')
+        .update({ submitted_at: new Date().toISOString() })
+        .eq('id', existing.id)
+    } else {
+      dbResult = await supabase.from('submissions').insert({
+        assignment_id: assignment.id,
+        student_id: session.user.id,
+        submitted_at: new Date().toISOString(),
+      }).select('id').single()
+      if (!dbResult.error) submissionId = dbResult.data.id
+    }
+
+    if (dbResult.error) {
+      setError('Error al registrar la entrega: ' + dbResult.error.message)
       setUploadingId(null)
       return
     }
+
+    if (existing) {
+      await supabase.from('submission_files').delete().eq('submission_id', submissionId)
+    }
+
+    const rutasSubidas = []
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')
+      const path = `${assignment.course_id}/${session.user.id}/${assignment.id}_${Date.now()}_${i}_${safeName}`
+      const uploadResult = await supabase.storage.from('entregas').upload(path, file, { upsert: true })
+      if (uploadResult.error) {
+        setError(`Error al subir la imagen ${i + 1}: ` + uploadResult.error.message)
+        setUploadingId(null)
+        return
+      }
+      rutasSubidas.push(path)
+    }
+
+    const filesPayload = rutasSubidas.map(function (path, i) {
+      return { submission_id: submissionId, file_url: path, orden: i }
+    })
+    const filesInsertResult = await supabase.from('submission_files').insert(filesPayload)
+    if (filesInsertResult.error) {
+      setError('Las fotos se subieron, pero no se pudieron registrar: ' + filesInsertResult.error.message)
+      setUploadingId(null)
+      return
+    }
+
+    if (assignment.tipo_entrega === 'grupal') {
+      await cascadearEntregaAGrupo(assignment, rutasSubidas)
+    }
+    if (existing) {
+      const courseResult = await supabase.from('courses').select('docente_id').eq('id', assignment.course_id).single()
+      if (courseResult.data?.docente_id) {
+        await supabase.from('notificaciones').insert({
+          user_id: courseResult.data.docente_id,
+          tipo: 'tarea_nueva',
+          titulo: 'Un estudiante volvió a subir una tarea',
+          mensaje: `${profile?.full_name || 'Un estudiante'} resubió: ${assignment.titulo}. Revisa y vuelve a calificarla.`,
+        })
+      }
+    }
+    cargarTodo()
+    setUploadingId(null)
+  }
+
+  async function handleEnviarLink(assignment, link) {
+    if (!link || !link.trim()) return
+    setUploadingId(assignment.id)
+    setError('')
 
     const existing = assignment.submission || null
     let dbResult
     if (existing) {
       dbResult = await supabase
         .from('submissions')
-        .update({ file_url: path, submitted_at: new Date().toISOString() })
+        .update({ link_url: link.trim(), submitted_at: new Date().toISOString() })
         .eq('id', existing.id)
     } else {
       dbResult = await supabase.from('submissions').insert({
         assignment_id: assignment.id,
         student_id: session.user.id,
-        file_url: path,
+        link_url: link.trim(),
         submitted_at: new Date().toISOString(),
       })
     }
 
     if (dbResult.error) {
-      setError('Error al registrar la entrega: ' + dbResult.error.message)
-    } else {
-      if (existing) {
-        const courseResult = await supabase.from('courses').select('docente_id').eq('id', assignment.course_id).single()
-        if (courseResult.data?.docente_id) {
-          await supabase.from('notificaciones').insert({
-            user_id: courseResult.data.docente_id,
-            tipo: 'tarea_nueva',
-            titulo: 'Un estudiante volvió a subir una tarea',
-            mensaje: `${profile?.full_name || 'Un estudiante'} resubió: ${assignment.titulo}. Revisa y vuelve a calificarla.`,
-          })
-        }
-      }
-      if (assignment.tipo_entrega === 'grupal') {
-        await cascadearEntregaAGrupo(assignment, path)
-      }
-      cargarTodo()
+      setError('Error al enviar el link: ' + dbResult.error.message)
+      setUploadingId(null)
+      return
     }
+
+    if (existing) {
+      const courseResult = await supabase.from('courses').select('docente_id').eq('id', assignment.course_id).single()
+      if (courseResult.data?.docente_id) {
+        await supabase.from('notificaciones').insert({
+          user_id: courseResult.data.docente_id,
+          tipo: 'tarea_nueva',
+          titulo: 'Un estudiante volvió a subir una tarea',
+          mensaje: `${profile?.full_name || 'Un estudiante'} resubió (link): ${assignment.titulo}. Revisa y vuelve a calificarla.`,
+        })
+      }
+    }
+    cargarTodo()
     setUploadingId(null)
   }
 
-  async function cascadearEntregaAGrupo(assignment, path) {
+  async function cascadearEntregaAGrupo(assignment, rutasSubidas) {
     const miembroResult = await supabase
       .from('grupos_trabajo_miembros')
       .select('grupo_id, grupo:grupos_trabajo!inner(course_id)')
@@ -217,11 +291,18 @@ export default function TareasPendientes() {
 
     if (faltantes.length > 0) {
       const nuevas = faltantes.map(function (studentId) {
-        return { assignment_id: assignment.id, student_id: studentId, file_url: path, submitted_at: new Date().toISOString() }
+        return { assignment_id: assignment.id, student_id: studentId, submitted_at: new Date().toISOString() }
       })
-      const cascadaResult = await supabase.from('submissions').insert(nuevas)
+      const cascadaResult = await supabase.from('submissions').insert(nuevas).select('id, student_id')
       if (cascadaResult.error) {
         setError('Tu entrega se guardó, pero no se pudo copiar a tus compañeros de grupo: ' + cascadaResult.error.message)
+        return
+      }
+      const filesParaCompaneros = cascadaResult.data.flatMap(function (s) {
+        return rutasSubidas.map(function (path, i) { return { submission_id: s.id, file_url: path, orden: i } })
+      })
+      if (filesParaCompaneros.length > 0) {
+        await supabase.from('submission_files').insert(filesParaCompaneros)
       }
     }
   }
@@ -349,7 +430,7 @@ export default function TareasPendientes() {
             {habilitadas.map(function (item) { return <TareaCard
               key={item.id}
               item={item} tipo="habilitada"
-              uploadingId={uploadingId} handleUpload={handleUpload}
+              uploadingId={uploadingId} handleUpload={handleUpload} handleEnviarLink={handleEnviarLink}
               justificandoId={justificandoId} abrirJustificacion={abrirJustificacion}
               justMensaje={justMensaje} setJustMensaje={setJustMensaje}
               justFile={justFile} setJustFile={setJustFile}
@@ -385,7 +466,7 @@ export default function TareasPendientes() {
             {pendientes.map(function (item) { return <TareaCard
               key={item.id}
               item={item} tipo="pendiente"
-              uploadingId={uploadingId} handleUpload={handleUpload}
+              uploadingId={uploadingId} handleUpload={handleUpload} handleEnviarLink={handleEnviarLink}
               justificandoId={justificandoId} abrirJustificacion={abrirJustificacion}
               justMensaje={justMensaje} setJustMensaje={setJustMensaje}
               justFile={justFile} setJustFile={setJustFile}
@@ -406,7 +487,7 @@ export default function TareasPendientes() {
 // ============================================================
 function TareaCard({
   item, tipo,
-  uploadingId, handleUpload,
+  uploadingId, handleUpload, handleEnviarLink,
   justificandoId, abrirJustificacion, setJustificandoId,
   justMensaje, setJustMensaje,
   justFile, setJustFile,
@@ -414,6 +495,9 @@ function TareaCard({
   ubicacionTexto,
 }) {
   const isUploading = uploadingId === item.id
+  const [linkAbierto, setLinkAbierto] = useState(false)
+  const [linkTexto, setLinkTexto] = useState('')
+
   return (
     <li className="rounded-xl p-4" style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}>
       <p className="text-xs text-slate-400 mb-1">{ubicacionTexto(item)}</p>
@@ -423,18 +507,59 @@ function TareaCard({
       </p>
 
       {(tipo === 'pendiente' || tipo === 'habilitada') && (
-        <label
-          className="mt-3 inline-block text-xs font-semibold px-3 py-1.5 rounded-lg text-white cursor-pointer transition hover:opacity-90"
-          style={{ backgroundColor: isUploading ? '#94A3B8' : GREEN }}
-        >
-          {isUploading ? 'Subiendo...' : 'Subir entrega'}
+        <div className="flex items-center gap-2 flex-wrap mt-3">
+          <label
+            className="inline-block text-xs font-semibold px-3 py-1.5 rounded-lg text-white cursor-pointer transition hover:opacity-90"
+            style={{ backgroundColor: isUploading ? '#94A3B8' : GREEN }}
+          >
+            {isUploading ? 'Subiendo...' : 'Subir fotos'}
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              disabled={isUploading}
+              onChange={function (e) { handleUpload(item, e.target.files) }}
+            />
+          </label>
+          {!linkAbierto && (
+            <button
+              onClick={function () { setLinkAbierto(true) }}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+              style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+            >
+              🔗 Enviar link (Drive)
+            </button>
+          )}
+        </div>
+      )}
+
+      {linkAbierto && (
+        <div className="mt-2 flex gap-2 flex-wrap items-center">
           <input
-            type="file"
-            className="hidden"
-            disabled={isUploading}
-            onChange={function (e) { handleUpload(item, e.target.files[0]) }}
+            type="url"
+            value={linkTexto}
+            onChange={function (e) { setLinkTexto(e.target.value) }}
+            placeholder="Pega aquí el link de Google Drive..."
+            className="flex-1 min-w-[220px] rounded-lg px-3 py-1.5 text-xs outline-none"
+            style={{ backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }}
           />
-        </label>
+          <button
+            onClick={function () { handleEnviarLink(item, linkTexto); setLinkAbierto(false); setLinkTexto('') }}
+            disabled={isUploading || !linkTexto.trim()}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+            style={{ backgroundColor: GREEN }}
+          >
+            Enviar
+          </button>
+          <button
+            onClick={function () { setLinkAbierto(false); setLinkTexto('') }}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+            style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #D6DCE5' }}
+          >
+            Cancelar
+          </button>
+        </div>
       )}
 
       {tipo === 'vencida' && (
