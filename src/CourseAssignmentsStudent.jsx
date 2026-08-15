@@ -468,10 +468,10 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
                       className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white cursor-pointer transition hover:opacity-90"
                       style={{ backgroundColor: isUploading ? '#94A3B8' : GREEN }}
                     >
-                      {isUploading ? 'Subiendo...' : hasSubmission ? 'Reemplazar entrega' : 'Subir tarea (fotos o PDF)'}
+                      {isUploading ? 'Subiendo...' : hasSubmission ? 'Reemplazar entrega' : 'Subir tarea (fotos)'}
                       <input
                         type="file"
-                        accept="image/*,application/pdf"
+                        accept="image/*"
                         multiple
                         className="hidden"
                         disabled={isUploading}
@@ -518,7 +518,7 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
                   </div>
                 )}
                 {(!isGraded || justificacionAprobada) && habilitadoParaSubir && (
-                  <p className="text-[11px] text-slate-400 mt-1.5">Puedes elegir varias fotos a la vez, tomar fotos con tu cámara, subir un PDF, o enviar un link de Drive.</p>
+                  <p className="text-[11px] text-slate-400 mt-1.5">Puedes elegir varias fotos a la vez, tomar fotos con tu cámara, o enviar un link de Drive.</p>
                 )}
 
                 {isPast && !hasRealSubmission && !justificacionAprobada && (
