@@ -18,10 +18,21 @@ function saludoSegunHora() {
   return 'Buenas noches'
 }
 
+function tiempoRelativo(fechaStr) {
+  const ahora = new Date()
+  const fecha = new Date(fechaStr)
+  const diffHoras = Math.floor((ahora - fecha) / (1000 * 60 * 60))
+  if (diffHoras < 1) return 'Hace un momento'
+  if (diffHoras < 24) return `Hace ${diffHoras} hora(s)`
+  const diffDias = Math.floor(diffHoras / 24)
+  return `Hace ${diffDias} día(s)`
+}
+
 export default function PanelInicioDocente({ onNavegar }) {
   const { session, profile } = useAuth()
   const [loading, setLoading] = useState(true)
   const [courses, setCourses] = useState([])
+  const [ultimasEntregas, setUltimasEntregas] = useState([])
   const [tareasPorRevisar, setTareasPorRevisar] = useState(0)
   const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0)
   const [gruposActivos, setGruposActivos] = useState(0)
@@ -45,9 +56,11 @@ export default function PanelInicioDocente({ onNavegar }) {
 
       const coursesData = coursesResult.data || []
       const courseIds = coursesData.map(function (c) { return c.id })
+      const coursesMap = {}
+      coursesData.forEach(function (c) { coursesMap[c.id] = c })
 
-      // Las 4 tareas de aquí abajo son independientes entre sí, así que corren todas a la vez (antes iban una por una, en fila)
-      const [promedios, totalPorRevisar, notifResult, gruposResult] = await Promise.all([
+      // Las tareas de aquí abajo son independientes entre sí, así que corren todas a la vez (antes iban una por una, en fila)
+      const [promedios, entregasInfo, notifResult, gruposResult] = await Promise.all([
         Promise.all(
           coursesData.map(async function (c) {
             const totalEstudiantes = c.enrollments?.[0]?.count || 0
@@ -72,17 +85,46 @@ export default function PanelInicioDocente({ onNavegar }) {
           })
         ),
         (async function () {
-          if (courseIds.length === 0) return 0
-          const assignResult2 = await supabase.from('assignments').select('id').in('course_id', courseIds)
-          const allAssignmentIds = (assignResult2.data || []).map(function (a) { return a.id })
-          if (allAssignmentIds.length === 0) return 0
-          const sinRevisarResult = await supabase
+          if (courseIds.length === 0) return { total: 0, ultimas: [] }
+          const assignResult2 = await supabase.from('assignments').select('id, titulo, course_id').in('course_id', courseIds)
+          const allAssignments = assignResult2.data || []
+          const allAssignmentIds = allAssignments.map(function (a) { return a.id })
+          if (allAssignmentIds.length === 0) return { total: 0, ultimas: [] }
+
+          const subsResult = await supabase
             .from('submissions')
-            .select('id', { count: 'exact', head: true })
+            .select('id, assignment_id, student_id, file_url, link_url, submitted_at, student:profiles!submissions_student_id_fkey(full_name)')
             .in('assignment_id', allAssignmentIds)
             .eq('publicado', false)
-            .not('file_url', 'is', null)
-          return sinRevisarResult.count || 0
+            .order('submitted_at', { ascending: false })
+
+          const todasSinPublicar = subsResult.data || []
+          const submissionIds = todasSinPublicar.map(function (s) { return s.id })
+          let idsConFotos = new Set()
+          if (submissionIds.length > 0) {
+            const filesResult = await supabase.from('submission_files').select('submission_id').in('submission_id', submissionIds)
+            idsConFotos = new Set((filesResult.data || []).map(function (f) { return f.submission_id }))
+          }
+
+          const entregasReales = todasSinPublicar.filter(function (s) {
+            return s.file_url != null || s.link_url != null || idsConFotos.has(s.id)
+          })
+
+          const assignMap = {}
+          allAssignments.forEach(function (a) { assignMap[a.id] = a })
+
+          const ultimas = entregasReales.slice(0, 5).map(function (s) {
+            const asg = assignMap[s.assignment_id]
+            return {
+              id: s.id,
+              titulo: asg?.titulo || '',
+              cursoNombre: coursesMap[asg?.course_id]?.nombre || '',
+              estudianteNombre: s.student?.full_name || '',
+              submitted_at: s.submitted_at,
+            }
+          })
+
+          return { total: entregasReales.length, ultimas: ultimas }
         })(),
         supabase
           .from('notificaciones')
@@ -95,7 +137,8 @@ export default function PanelInicioDocente({ onNavegar }) {
       ])
 
       setCourses(promedios)
-      setTareasPorRevisar(totalPorRevisar)
+      setTareasPorRevisar(entregasInfo.total)
+      setUltimasEntregas(entregasInfo.ultimas)
       setMensajesNoLeidos(notifResult.count || 0)
       setGruposActivos(gruposResult.count || 0)
     } catch (err) {
@@ -144,6 +187,32 @@ export default function PanelInicioDocente({ onNavegar }) {
         </button>
       </div>
 
+      {ultimasEntregas.length > 0 && (
+        <div className="mb-8">
+          <p className="text-sm font-semibold mb-3" style={{ color: NAVY_DARK }}>Últimas entregas sin revisar</p>
+          <div className="bg-white rounded-2xl overflow-hidden" style={{ border: '1px solid #E2E8F0' }}>
+            {ultimasEntregas.map(function (e, i) {
+              return (
+                <button
+                  key={e.id}
+                  onClick={function () { if (onNavegar) onNavegar('tareas') }}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
+                  style={{ borderBottom: i < ultimasEntregas.length - 1 ? '1px solid #F1F5F9' : 'none' }}
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: NAVY_DARK }}>{e.estudianteNombre} — {e.titulo}</p>
+                    <p className="text-xs text-slate-400 truncate">{e.cursoNombre}</p>
+                  </div>
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0" style={{ backgroundColor: '#EAF2FB', color: NAVY }}>
+                    {tiempoRelativo(e.submitted_at)}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       <p className="text-sm font-semibold mb-3" style={{ color: NAVY_DARK }}>Mis asignaturas</p>
 
       {courses.length === 0 ? (
@@ -151,26 +220,24 @@ export default function PanelInicioDocente({ onNavegar }) {
           <p className="text-slate-400 text-sm">Aún no tienes cursos asignados.</p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {courses.map(function (c) {
-            const areaNombre = c.asignaturas?.areas_curriculares?.nombre || ''
             return (
               <button
                 key={c.id}
                 onClick={function () { if (onNavegar) onNavegar('cursos') }}
-                className="text-left bg-white rounded-2xl overflow-hidden transition hover:-translate-y-0.5 flex gap-3 p-3"
+                className="text-left bg-white rounded-2xl overflow-hidden transition hover:-translate-y-0.5 flex items-center gap-3 p-3"
                 style={{ border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}
               >
-                <IconoAsignatura nombre={c.nombre} size={40} />
+                <IconoAsignatura nombre={c.nombre} size={36} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{c.nombre}</p>
-                  <p className="text-xs text-slate-400 mb-3">{gradoLabel(c.grado)} — Sección {c.grupo}{areaNombre ? ` · ${areaNombre}` : ''}</p>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs text-slate-400">{c.totalEstudiantes} estudiante(s)</span>
-                    <span className="text-xs font-semibold" style={{ color: GREEN }}>{c.progreso}%</span>
-                  </div>
-                  <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#E2E8F0' }}>
-                    <div className="h-full rounded-full" style={{ width: `${c.progreso}%`, backgroundColor: GREEN }} />
+                  <p className="text-sm font-semibold truncate" style={{ color: NAVY_DARK }}>{c.nombre}</p>
+                  <p className="text-xs text-slate-400">{gradoLabel(c.grado)} {c.grupo} · {c.totalEstudiantes} est.</p>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#E2E8F0' }}>
+                      <div className="h-full rounded-full" style={{ width: `${c.progreso}%`, backgroundColor: GREEN }} />
+                    </div>
+                    <span className="text-[11px] font-semibold flex-shrink-0" style={{ color: GREEN }}>{c.progreso}%</span>
                   </div>
                 </div>
               </button>
