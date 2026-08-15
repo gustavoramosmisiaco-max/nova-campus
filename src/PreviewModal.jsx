@@ -1,7 +1,10 @@
+const EXTENSIONES_IMAGEN = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg']
+
 export default function PreviewModal({ preview, onClose }) {
   if (!preview) return null
 
   const isPdf = preview.type === 'pdf'
+  const isImagen = EXTENSIONES_IMAGEN.includes((preview.type || '').toLowerCase())
   const gviewUrl = 'https://docs.google.com/gview?url=' + encodeURIComponent(preview.url) + '&embedded=true'
 
   return (
@@ -18,9 +21,12 @@ export default function PreviewModal({ preview, onClose }) {
             </button>
           </div>
         </div>
-        <div className="flex-1 bg-white rounded-b-2xl overflow-hidden">
+        <div className="flex-1 bg-white rounded-b-2xl overflow-hidden flex items-center justify-center">
           {isPdf && <iframe src={preview.url} title="preview" className="w-full h-full" />}
-          {!isPdf && <iframe src={gviewUrl} title="preview" className="w-full h-full" />}
+          {isImagen && (
+            <img src={preview.url} alt={preview.name} className="max-w-full max-h-full object-contain" />
+          )}
+          {!isPdf && !isImagen && <iframe src={gviewUrl} title="preview" className="w-full h-full" />}
         </div>
       </div>
     </div>
