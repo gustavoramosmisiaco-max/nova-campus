@@ -125,6 +125,16 @@ export default function CoordinadorDashboard() {
     // 2. Actividades de todos los cursos (para saber si avanzan según su Unidad activa)
     const actResult = await supabase.from('actividades').select('id, course_id, unidad_id, created_at').in('course_id', courseIds)
     const actividades = actResult.data || []
+    const actIds = actividades.map(function (a) { return a.id })
+
+    // 3b. Materiales compartidos (recursos de apoyo, no solo tareas)
+    let materiales = []
+    if (actIds.length > 0) {
+      const matResult = await supabase.from('materials').select('id, actividad_id').in('actividad_id', actIds)
+      materiales = matResult.data || []
+    }
+    const actividadPorIdParaMateriales = {}
+    actividades.forEach(function (a) { actividadPorIdParaMateriales[a.id] = a.course_id })
 
     // 3. Assignments (tareas) — instrumento usado y fecha de entrega, por curso
     const assignResult = await supabase.from('assignments').select('id, course_id, instrumento_evaluacion, fecha_entrega').in('course_id', courseIds)
@@ -220,7 +230,14 @@ export default function CoordinadorDashboard() {
         instrumentos = instrumentosUsados.size >= 2 ? 'verde' : instrumentosUsados.size === 1 ? 'ambar' : 'rojo'
       }
 
-      ejesPorCurso[curso.id] = { progreso, formativa, cierre, asistencia, instrumentos }
+      // Eje 6: Materiales compartidos (recursos de apoyo, no solo tareas)
+      const materialesDelCurso = materiales.filter(function (m) { return actividadPorIdParaMateriales[m.actividad_id] === curso.id })
+      let materialesEje = 'gris'
+      if (actividadesDelCurso.length > 0) {
+        materialesEje = materialesDelCurso.length > 0 ? 'verde' : 'rojo'
+      }
+
+      ejesPorCurso[curso.id] = { progreso, formativa, cierre, asistencia, instrumentos, materialesEje }
     })
 
     setMonitoreoEjes(ejesPorCurso)
@@ -894,6 +911,7 @@ export default function CoordinadorDashboard() {
             cierre: 'Cierre de Unidad — ¿ya evaluó las Unidades que ya terminaron?',
             asistencia: 'Asistencia registrada con regularidad',
             instrumentos: 'Variedad de instrumentos de evaluación',
+            materialesEje: 'Materiales compartidos — ¿sube recursos de apoyo, no solo tareas?',
           }
           const COLOR_SEMAFORO = { verde: '#22C55E', ambar: '#F59E0B', rojo: '#EF4444', gris: '#CBD5E1' }
 
