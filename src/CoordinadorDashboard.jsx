@@ -25,6 +25,21 @@ function gradoLabel(g) {
   return g ? `${g}° Secundaria` : 'Sin grado'
 }
 
+// Cuando hay muchísimos ids (cientos de Aulas), una sola consulta ".in()" puede superar
+// el límite de longitud de la URL y el servidor la rechaza (error 400). Esta función
+// divide la lista en bloques pequeños, consulta cada uno por separado, y junta todo.
+async function consultarEnBloques(supabase, tabla, campos, columnaFiltro, valores, tamanoBloque) {
+  if (!valores || valores.length === 0) return []
+  const bloque = tamanoBloque || 80
+  const resultados = []
+  for (let i = 0; i < valores.length; i += bloque) {
+    const trozo = valores.slice(i, i + bloque)
+    const result = await supabase.from(tabla).select(campos).in(columnaFiltro, trozo)
+    if (!result.error && result.data) resultados.push(...result.data)
+  }
+  return resultados
+}
+
 export default function CoordinadorDashboard() {
   const { session, profile, logout } = useAuth()
   const [loading, setLoading] = useState(true)
@@ -120,52 +135,37 @@ export default function CoordinadorDashboard() {
     const areaIds = [...new Set(cursos.map(function (c) { return c.asignaturas?.areas_curriculares?.id }).filter(Boolean))]
 
     // 1. Unidades de todas las Áreas de esta institución (para saber en qué fecha va cada una)
-    const unidadesResult = areaIds.length > 0
-      ? await supabase.from('unidades').select('id, area_id, grado, grupo, numero, fecha_inicio, fecha_fin').in('area_id', areaIds)
-      : { data: [] }
-    const unidades = unidadesResult.data || []
+    const unidades = await consultarEnBloques(supabase, 'unidades', 'id, area_id, grado, grupo, numero, fecha_inicio, fecha_fin', 'area_id', areaIds)
 
     // 2. Actividades de todos los cursos (para saber si avanzan según su Unidad activa)
-    const actResult = await supabase.from('actividades').select('id, course_id, unidad_id, created_at').in('course_id', courseIds)
-    const actividades = actResult.data || []
+    const actividades = await consultarEnBloques(supabase, 'actividades', 'id, course_id, unidad_id, created_at', 'course_id', courseIds)
     const actIds = actividades.map(function (a) { return a.id })
 
     // 3b. Materiales compartidos (recursos de apoyo, no solo tareas)
-    let materiales = []
-    if (actIds.length > 0) {
-      const matResult = await supabase.from('materials').select('id, actividad_id').in('actividad_id', actIds)
-      materiales = matResult.data || []
-      console.log('[DIAGNOSTICO Monitoreo] actIds enviados:', actIds.length, '| materiales.error:', matResult.error, '| materiales encontrados:', materiales.length, materiales)
-    }
+    const materiales = await consultarEnBloques(supabase, 'materials', 'id, actividad_id', 'actividad_id', actIds)
     const actividadPorIdParaMateriales = {}
     actividades.forEach(function (a) { actividadPorIdParaMateriales[a.id] = a.course_id })
 
     // 3. Assignments (tareas) — instrumento usado y fecha de entrega, por curso
-    const assignResult = await supabase.from('assignments').select('id, course_id, instrumento_evaluacion, fecha_entrega').in('course_id', courseIds)
-    const assignments = assignResult.data || []
+    const assignments = await consultarEnBloques(supabase, 'assignments', 'id, course_id, instrumento_evaluacion, fecha_entrega', 'course_id', courseIds)
     const assignmentIds = assignments.map(function (a) { return a.id })
 
     // 4. Submissions + cuándo se calificaron (evaluación formativa oportuna)
-    let submissions = []
-    if (assignmentIds.length > 0) {
-      const subsResult = await supabase.from('submissions').select('id, assignment_id, submitted_at, graded_at').in('assignment_id', assignmentIds)
-      submissions = subsResult.data || []
-    }
+    const submissions = await consultarEnBloques(supabase, 'submissions', 'id, assignment_id, submitted_at, graded_at', 'assignment_id', assignmentIds)
 
     // 5. Evaluación de cierre (best-effort — si la tabla tiene otra estructura, se ignora sin romper nada)
     let cierres = []
     try {
-      const cierreResult = await supabase.from('evaluacion_cierre').select('id, course_id, unidad_id').in('course_id', courseIds)
-      if (!cierreResult.error) cierres = cierreResult.data || []
+      cierres = await consultarEnBloques(supabase, 'evaluacion_cierre', 'id, course_id, unidad_id', 'course_id', courseIds)
     } catch (_e) { /* se ignora si la tabla no tiene esta forma */ }
 
     // 6. Última fecha de asistencia registrada, por Área+Grado+Sección
     let ultimaAsistenciaPorClave = {}
     if (areaIds.length > 0) {
-      const asisResult = await supabase.from('asistencias').select('area_id, grado, grupo, fecha').in('area_id', areaIds).order('fecha', { ascending: false })
-      ;(asisResult.data || []).forEach(function (a) {
+      const asisResult = await consultarEnBloques(supabase, 'asistencias', 'area_id, grado, grupo, fecha', 'area_id', areaIds)
+      ;(asisResult || []).forEach(function (a) {
         const key = `${a.area_id}__${a.grado}__${a.grupo}`
-        if (!ultimaAsistenciaPorClave[key]) ultimaAsistenciaPorClave[key] = a.fecha
+        if (!ultimaAsistenciaPorClave[key] || a.fecha > ultimaAsistenciaPorClave[key]) ultimaAsistenciaPorClave[key] = a.fecha
       })
     }
 
@@ -326,12 +326,12 @@ export default function CoordinadorDashboard() {
         setMonitoreoPorCurso(conteoPorCurso)
       }
 
-      const conductaResult = await supabase
-        .from('conductas_registro')
-        .select('id, descripcion, created_at, student_id, course_id')
-        .in('course_id', (cursosResult.data || []).map(function (c) { return c.id }))
-        .order('created_at', { ascending: false })
-        .limit(50)
+      const courseIdsParaConducta = (cursosResult.data || []).map(function (c) { return c.id })
+      const conductaDataBloques = await consultarEnBloques(supabase, 'conductas_registro', 'id, descripcion, created_at, student_id, course_id', 'course_id', courseIdsParaConducta)
+      const conductaResult = {
+        error: null,
+        data: conductaDataBloques.sort(function (a, b) { return new Date(b.created_at) - new Date(a.created_at) }).slice(0, 50),
+      }
       if (!conductaResult.error) {
         const studentIds = [...new Set(conductaResult.data.map(function (r) { return r.student_id }))]
         const cursosPorId = {}
