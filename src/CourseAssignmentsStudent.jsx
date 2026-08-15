@@ -26,6 +26,7 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
   const [justMensaje, setJustMensaje] = useState('')
   const [justFile, setJustFile] = useState(null)
   const [enviandoJust, setEnviandoJust] = useState(false)
+  const [mensajeExito, setMensajeExito] = useState('')
 
   useEffect(function () {
     loadAssignments()
@@ -187,6 +188,8 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
       }
     }
     loadAssignments()
+    setMensajeExito(`"${assignment.titulo}" — tarea enviada correctamente ✓`)
+    setTimeout(function () { setMensajeExito('') }, 5000)
     setUploadingId(null)
   }
 
@@ -232,6 +235,8 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
     setLinkTexto('')
     setLinkAbiertoId(null)
     loadAssignments()
+    setMensajeExito(`"${assignment.titulo}" — tarea enviada correctamente ✓`)
+    setTimeout(function () { setMensajeExito('') }, 5000)
     setEnviandoLink(null)
   }
 
@@ -352,6 +357,12 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
   return (
     <div>
       <h3 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>Tareas</h3>
+
+      {mensajeExito && (
+        <div className="rounded-xl p-3 mb-4 flex items-center gap-2" style={{ backgroundColor: '#E7F3E4', border: '1px solid #B7E4C7' }}>
+          <span className="text-sm font-semibold" style={{ color: '#16A34A' }}>{mensajeExito}</span>
+        </div>
+      )}
 
       {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
 
