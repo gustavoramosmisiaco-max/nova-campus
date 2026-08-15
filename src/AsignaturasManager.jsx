@@ -66,6 +66,18 @@ export default function AsignaturasManager({ institucionFija } = {}) {
     setCreando(false)
   }
 
+  async function eliminarAsignatura(asignaturaId, nombre) {
+    if (!confirm(`¿Eliminar la Asignatura "${nombre}"? Si ya tiene Aulas creadas con ella, no se podrá borrar hasta quitarlas primero.`)) return
+    setSaving(asignaturaId)
+    const result = await supabase.from('asignaturas').delete().eq('id', asignaturaId)
+    if (result.error) {
+      alert('No se pudo eliminar — probablemente ya tiene Aulas creadas con esta Asignatura. Quítalas primero desde Gestión de Aulas.\n\nDetalle: ' + result.error.message)
+    } else {
+      loadData()
+    }
+    setSaving(null)
+  }
+
   async function toggleAsignatura(asignaturaId, currentValue) {
     setSaving(asignaturaId)
     const result = await supabase
@@ -200,13 +212,24 @@ export default function AsignaturasManager({ institucionFija } = {}) {
                 {area.asignaturas.map(function (a) {
                   const isSaving = saving === a.id
                   if (institucionFija) {
+                    const esExclusivaSuya = a.institucion_id === institucionFija
                     return (
                       <div
                         key={a.id}
-                        className="rounded-xl px-3 py-2.5"
+                        className="rounded-xl px-3 py-2.5 flex items-center justify-between gap-2"
                         style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}
                       >
                         <span className="text-sm font-medium" style={{ color: NAVY_DARK }}>{a.nombre}</span>
+                        {esExclusivaSuya && (
+                          <button
+                            onClick={function () { eliminarAsignatura(a.id, a.nombre) }}
+                            disabled={isSaving}
+                            className="text-[11px] font-semibold px-2 py-1 rounded text-white transition hover:opacity-90 disabled:opacity-50 flex-shrink-0"
+                            style={{ backgroundColor: '#B91C1C' }}
+                          >
+                            {isSaving ? '...' : 'Eliminar'}
+                          </button>
+                        )}
                       </div>
                     )
                   }
