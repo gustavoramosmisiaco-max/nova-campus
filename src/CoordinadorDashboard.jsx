@@ -662,7 +662,8 @@ export default function CoordinadorDashboard() {
         <h2 className="text-2xl font-bold mb-1" style={{ color: NAVY_DARK }}>Panel de Supervisión</h2>
         <p className="text-sm text-slate-400 mb-6">Solo puedes ver información — cualquier edición de notas o asistencia la hace el docente correspondiente.</p>
 
-        <div className="flex gap-2 mb-6 border-b overflow-x-auto sticky top-0 z-20" style={{ borderColor: '#E5E9F0', backgroundColor: '#F4F6F9' }}>
+        <div className="sticky top-0 z-20 mb-6" style={{ backgroundColor: '#F4F6F9' }}>
+          <div className="flex gap-2 border-b overflow-x-auto" style={{ borderColor: '#E5E9F0' }}>
           {[
             { id: 'docentes', label: 'Docentes y Aulas' },
             { id: 'lista-docentes', label: 'Docentes' },
@@ -688,6 +689,7 @@ export default function CoordinadorDashboard() {
               </button>
             )
           })}
+          </div>
         </div>
 
         {tab === 'monitoreo' && (
