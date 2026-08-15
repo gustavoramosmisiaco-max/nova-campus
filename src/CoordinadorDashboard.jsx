@@ -100,6 +100,7 @@ export default function CoordinadorDashboard() {
     alert('Recordatorio enviado a ' + curso.docente.full_name)
   }
   const [tab, setTab] = useState('docentes')
+  const [menuFlotanteAbierto, setMenuFlotanteAbierto] = useState(false)
   const [cursoSel, setCursoSel] = useState(null)
   const [gradosProp, setGradosProp] = useState([])
   const [seccionesProp, setSeccionesProp] = useState([])
@@ -664,33 +665,86 @@ export default function CoordinadorDashboard() {
 
         <div className="sticky top-0 z-20 mb-6" style={{ backgroundColor: '#F4F6F9' }}>
           <div className="flex gap-2 border-b overflow-x-auto" style={{ borderColor: '#E5E9F0' }}>
-          {[
-            { id: 'docentes', label: 'Docentes y Aulas' },
-            { id: 'lista-docentes', label: 'Docentes' },
-            { id: 'lista-estudiantes', label: 'Estudiantes' },
-            { id: 'aulas', label: 'Gestión de Aulas' },
-            { id: 'grados-secciones', label: 'Grados y Secciones' },
-            { id: 'conducta', label: `Conducta ${conducta.length > 0 ? `(${conducta.length})` : ''}` },
-            { id: 'importar', label: 'Importar Estudiantes' },
-            { id: 'importar-docentes', label: 'Importar Docentes' },
-            { id: 'habilitar-cursos', label: 'Habilitar Cursos' },
-            { id: 'asignaturas', label: 'Asignaturas' },
-            { id: 'recreos', label: 'Recreos' },
-            { id: 'feriados', label: 'Feriados' },
-            { id: 'matriculas', label: 'Matrículas' },
-            { id: 'asistencia', label: 'Asistencia' },
-            { id: 'monitoreo', label: 'Monitoreo' },
-          ].map(function (t) {
-            const active = tab === t.id
-            return (
-              <button key={t.id} onClick={function () { setTab(t.id) }} className="px-4 py-2.5 text-sm font-semibold border-b-2 transition whitespace-nowrap"
-                style={active ? { borderColor: GREEN, color: NAVY_DARK } : { borderColor: 'transparent', color: '#94A3B8' }}>
-                {t.label}
-              </button>
-            )
-          })}
+          {(function () {
+            const pestañas = [
+              { id: 'docentes', label: 'Docentes y Aulas' },
+              { id: 'lista-docentes', label: 'Docentes' },
+              { id: 'lista-estudiantes', label: 'Estudiantes' },
+              { id: 'aulas', label: 'Gestión de Aulas' },
+              { id: 'grados-secciones', label: 'Grados y Secciones' },
+              { id: 'conducta', label: `Conducta ${conducta.length > 0 ? `(${conducta.length})` : ''}` },
+              { id: 'importar', label: 'Importar Estudiantes' },
+              { id: 'importar-docentes', label: 'Importar Docentes' },
+              { id: 'habilitar-cursos', label: 'Habilitar Cursos' },
+              { id: 'asignaturas', label: 'Asignaturas' },
+              { id: 'recreos', label: 'Recreos' },
+              { id: 'feriados', label: 'Feriados' },
+              { id: 'matriculas', label: 'Matrículas' },
+              { id: 'asistencia', label: 'Asistencia' },
+              { id: 'monitoreo', label: 'Monitoreo' },
+            ]
+            return pestañas.map(function (t) {
+              const active = tab === t.id
+              return (
+                <button key={t.id} onClick={function () { setTab(t.id) }} className="px-4 py-2.5 text-sm font-semibold border-b-2 transition whitespace-nowrap"
+                  style={active ? { borderColor: GREEN, color: NAVY_DARK } : { borderColor: 'transparent', color: '#94A3B8' }}>
+                  {t.label}
+                </button>
+              )
+            })
+          })()}
           </div>
         </div>
+
+        {/* Botón flotante — siempre visible, para cambiar de pestaña sin subir hasta arriba */}
+        <button
+          onClick={function () { setMenuFlotanteAbierto(!menuFlotanteAbierto) }}
+          className="fixed rounded-full flex items-center justify-center text-white shadow-lg transition hover:opacity-90"
+          style={{ bottom: 24, right: 24, width: 56, height: 56, backgroundColor: NAVY, zIndex: 40, boxShadow: '0 8px 20px rgba(37,99,235,0.4)' }}
+          title="Cambiar de pestaña"
+        >
+          <span style={{ fontSize: 22 }}>☰</span>
+        </button>
+
+        {menuFlotanteAbierto && (
+          <>
+            <div className="fixed inset-0" style={{ backgroundColor: 'rgba(15,42,74,0.3)', zIndex: 39 }} onClick={function () { setMenuFlotanteAbierto(false) }} />
+            <div
+              className="fixed rounded-2xl bg-white overflow-y-auto"
+              style={{ bottom: 90, right: 24, width: 260, maxHeight: '60vh', zIndex: 40, border: '1px solid #E5E9F0', boxShadow: '0 12px 32px rgba(15,42,74,0.2)' }}
+            >
+              {[
+                { id: 'docentes', label: 'Docentes y Aulas' },
+                { id: 'lista-docentes', label: 'Docentes' },
+                { id: 'lista-estudiantes', label: 'Estudiantes' },
+                { id: 'aulas', label: 'Gestión de Aulas' },
+                { id: 'grados-secciones', label: 'Grados y Secciones' },
+                { id: 'conducta', label: `Conducta ${conducta.length > 0 ? `(${conducta.length})` : ''}` },
+                { id: 'importar', label: 'Importar Estudiantes' },
+                { id: 'importar-docentes', label: 'Importar Docentes' },
+                { id: 'habilitar-cursos', label: 'Habilitar Cursos' },
+                { id: 'asignaturas', label: 'Asignaturas' },
+                { id: 'recreos', label: 'Recreos' },
+                { id: 'feriados', label: 'Feriados' },
+                { id: 'matriculas', label: 'Matrículas' },
+                { id: 'asistencia', label: 'Asistencia' },
+                { id: 'monitoreo', label: 'Monitoreo' },
+              ].map(function (t) {
+                const active = tab === t.id
+                return (
+                  <button
+                    key={t.id}
+                    onClick={function () { setTab(t.id); setMenuFlotanteAbierto(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium transition"
+                    style={active ? { backgroundColor: '#E7F3E4', color: GREEN_DARK } : { color: NAVY_DARK }}
+                  >
+                    {t.label}
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        )}
 
         {tab === 'monitoreo' && (
           areasLista.length === 0 ? (
