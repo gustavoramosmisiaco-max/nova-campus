@@ -329,23 +329,31 @@ export default function CoordinadorDashboard() {
         setMonitoreoPorCurso(conteoPorCurso)
       }
 
-      const courseIdsParaConducta = (cursosResult.data || []).map(function (c) { return c.id })
-      const conductaDataBloques = await consultarEnBloques(supabase, 'conductas_registro', 'id, descripcion, created_at, student_id, course_id', 'course_id', courseIdsParaConducta)
+      const conductaDirecta = await supabase
+        .from('conductas_registro')
+        .select('id, descripcion, created_at, student_id, area_id, grado, grupo')
+        .eq('institucion_id', institucionId)
+        .order('created_at', { ascending: false })
+        .limit(50)
       const conductaResult = {
-        error: null,
-        data: conductaDataBloques.sort(function (a, b) { return new Date(b.created_at) - new Date(a.created_at) }).slice(0, 50),
+        error: conductaDirecta.error,
+        data: conductaDirecta.data || [],
       }
       if (!conductaResult.error) {
         const studentIds = [...new Set(conductaResult.data.map(function (r) { return r.student_id }))]
-        const cursosPorId = {}
-        ;(cursosResult.data || []).forEach(function (c) { cursosPorId[c.id] = c })
+        const areaIdsParaConducta = [...new Set(conductaResult.data.map(function (r) { return r.area_id }).filter(Boolean))]
+        let areasPorId = {}
+        if (areaIdsParaConducta.length > 0) {
+          const areasNombreResult = await supabase.from('areas_curriculares').select('id, nombre').in('id', areaIdsParaConducta)
+          if (!areasNombreResult.error) areasNombreResult.data.forEach(function (a) { areasPorId[a.id] = a.nombre })
+        }
         let nombresMap = {}
         if (studentIds.length > 0) {
           const nombresResult = await supabase.from('profiles').select('id, full_name').in('id', studentIds)
           if (!nombresResult.error) nombresResult.data.forEach(function (p) { nombresMap[p.id] = p.full_name })
         }
         setConducta(conductaResult.data.map(function (r) {
-          return { ...r, studentNombre: nombresMap[r.student_id] || 'Estudiante', curso: cursosPorId[r.course_id] }
+          return { ...r, studentNombre: nombresMap[r.student_id] || 'Estudiante', curso: { nombre: areasPorId[r.area_id] || 'Sin área', grado: r.grado, grupo: r.grupo } }
         }))
       }
 
