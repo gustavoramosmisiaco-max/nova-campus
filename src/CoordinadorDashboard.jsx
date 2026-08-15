@@ -135,6 +135,55 @@ export default function CoordinadorDashboard() {
   const [siagieGrupo, setSiagieGrupo] = useState('A')
   const [siagieBimestre, setSiagieBimestre] = useState(1)
   const [siagieGenerando, setSiagieGenerando] = useState(false)
+  const [siagiePlantillaArchivo, setSiagiePlantillaArchivo] = useState(null)
+  const [siagiePlantillaEstructura, setSiagiePlantillaEstructura] = useState(null)
+  const [siagieLeyendoPlantilla, setSiagieLeyendoPlantilla] = useState(false)
+
+  // Lee el archivo real que el docente descarga del SIAGIE, y detecta su estructura
+  // (hojas, encabezados, cantidad de filas) — esto es lo que en el futuro se le pasará
+  // a la IA junto con las notas calculadas, para que rellene el archivo automáticamente.
+  async function leerPlantillaSIAGIE(file) {
+    setSiagieLeyendoPlantilla(true)
+    setSiagiePlantillaEstructura(null)
+    try {
+      const buffer = await file.arrayBuffer()
+      const workbook = new ExcelJS.Workbook()
+      await workbook.xlsx.load(buffer)
+
+      const hojas = workbook.worksheets.map(function (ws) {
+        const filasDeMuestra = []
+        ws.eachRow(function (row, rowNumber) {
+          if (rowNumber <= 6) {
+            const valores = []
+            row.eachCell({ includeEmpty: true }, function (cell) { valores.push(cell.value != null ? String(cell.value) : '') })
+            filasDeMuestra.push(valores)
+          }
+        })
+        return {
+          nombre: ws.name,
+          totalFilas: ws.rowCount,
+          totalColumnas: ws.columnCount,
+          filasDeMuestra: filasDeMuestra,
+        }
+      })
+
+      setSiagiePlantillaArchivo(file)
+      setSiagiePlantillaEstructura({ nombreArchivo: file.name, hojas: hojas })
+    } catch (err) {
+      alert('No se pudo leer ese archivo. Verifica que sea un Excel (.xlsx) válido. Detalle: ' + err.message)
+      setSiagiePlantillaArchivo(null)
+    }
+    setSiagieLeyendoPlantilla(false)
+  }
+
+  // TODO (futuro): cuando se conecte la API de IA, esta función va a tomar
+  // siagiePlantillaEstructura (la forma exacta del archivo real del SIAGIE) + los
+  // niveles de logro y competencias ya calculados en generarSIAGIE(), y le va a pedir
+  // a la IA que arme el archivo relleno respetando exactamente esa misma estructura,
+  // para descargarlo con el mismo nombre y poder subirlo directo al SIAGIE.
+  async function completarPlantillaConIA() {
+    alert('Esta función se conecta a la API de IA — todavía no está activa. La plantilla ya quedó leída y lista para cuando se conecte.')
+  }
 
   function nivelLogro(promedio) {
     if (promedio == null) return null
@@ -280,8 +329,10 @@ export default function CoordinadorDashboard() {
         if (competenciasDelArea.length === 0) return
 
         const ws = workbook.addWorksheet(areaNombre.slice(0, 31))
+        const colsPorCompetencia = 2 // Nivel + Conclusión descriptiva, según la norma (RVM 094-2020-MINEDU)
+        const totalColumnas = 1 + competenciasDelArea.length * colsPorCompetencia
 
-        ws.mergeCells(1, 1, 1, competenciasDelArea.length + 2)
+        ws.mergeCells(1, 1, 1, totalColumnas)
         const titulo = ws.getCell(1, 1)
         titulo.value = `${areaNombre} — ${gradoLabel(grado)} Sección ${grupo} — Bimestre ${bimestre}`
         titulo.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } }
@@ -289,42 +340,64 @@ export default function CoordinadorDashboard() {
         titulo.alignment = { horizontal: 'center', vertical: 'middle' }
         ws.getRow(1).height = 22
 
+        // Fila 2: nombre de cada Competencia, ocupando sus 2 columnas (Nivel + Conclusión)
+        const filaCompetencias = ws.getRow(2)
+        competenciasDelArea.forEach(function (comp, i) {
+          const colInicio = 2 + i * colsPorCompetencia
+          ws.mergeCells(2, colInicio, 2, colInicio + 1)
+          const cell = filaCompetencias.getCell(colInicio)
+          cell.value = comp.nombre
+          cell.alignment = { wrapText: true, vertical: 'middle', horizontal: 'center' }
+          cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } }
+        })
+        filaCompetencias.height = 30
+
         const headerRow = ws.getRow(3)
         headerRow.getCell(1).value = 'Estudiante'
         competenciasDelArea.forEach(function (comp, i) {
-          headerRow.getCell(2 + i).value = comp.nombre
-          headerRow.getCell(2 + i).alignment = { wrapText: true, vertical: 'middle', horizontal: 'center' }
+          const colInicio = 2 + i * colsPorCompetencia
+          headerRow.getCell(colInicio).value = 'Nivel'
+          headerRow.getCell(colInicio + 1).value = 'Conclusión descriptiva'
         })
-        headerRow.getCell(2 + competenciasDelArea.length).value = 'Conclusión descriptiva'
         headerRow.eachCell(function (cell) {
           cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E79' } }
+          cell.alignment = { horizontal: 'center', vertical: 'middle' }
         })
-        headerRow.height = 34
+        headerRow.height = 20
+        ws.mergeCells(2, 1, 3, 1) // "Estudiante" ocupa las 2 filas de encabezado
+
         ws.getColumn(1).width = 32
-        competenciasDelArea.forEach(function (_, i) { ws.getColumn(2 + i).width = 14 })
-        ws.getColumn(2 + competenciasDelArea.length).width = 45
+        competenciasDelArea.forEach(function (_, i) {
+          const colInicio = 2 + i * colsPorCompetencia
+          ws.getColumn(colInicio).width = 8
+          ws.getColumn(colInicio + 1).width = 40
+        })
 
         estudiantes.forEach(function (est, idx) {
           const row = ws.getRow(4 + idx)
           row.getCell(1).value = est.full_name
-          let algunNivelC = false
           competenciasDelArea.forEach(function (comp, i) {
+            const colInicio = 2 + i * colsPorCompetencia
             const key = `${est.id}__${comp.id}`
             const datos = acumulado[key]
             const promedio = datos && datos.cantidad > 0 ? datos.suma / datos.cantidad : null
             const nivel = nivelLogro(promedio)
-            const cell = row.getCell(2 + i)
-            cell.value = nivel || '—'
-            cell.alignment = { horizontal: 'center' }
-            if (nivel === 'C') { cell.font = { bold: true, color: { argb: 'FFB91C1C' } }; algunNivelC = true }
-            else if (nivel === 'AD') cell.font = { bold: true, color: { argb: 'FF16A34A' } }
-            else if (nivel) cell.font = { bold: true, color: { argb: 'FF2563EB' } }
+
+            const cellNivel = row.getCell(colInicio)
+            cellNivel.value = nivel || '—'
+            cellNivel.alignment = { horizontal: 'center' }
+            if (nivel === 'C') cellNivel.font = { bold: true, color: { argb: 'FFB91C1C' } }
+            else if (nivel === 'AD') cellNivel.font = { bold: true, color: { argb: 'FF16A34A' } }
+            else if (nivel) cellNivel.font = { bold: true, color: { argb: 'FF2563EB' } }
+
+            // Conclusión descriptiva: obligatoria por norma cuando el Nivel es "C" en ESA Competencia — vacía, lista para completar
+            const cellConclusion = row.getCell(colInicio + 1)
+            cellConclusion.value = ''
+            if (nivel === 'C') cellConclusion.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF7E6' } }
           })
-          const cellConclusion = row.getCell(2 + competenciasDelArea.length)
-          cellConclusion.value = ''
-          if (algunNivelC) cellConclusion.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF7E6' } }
-          for (let c = 1; c <= 2 + competenciasDelArea.length; c++) {
+          for (let c = 1; c <= totalColumnas; c++) {
             row.getCell(c).border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
           }
         })
@@ -1558,6 +1631,50 @@ export default function CoordinadorDashboard() {
               >
                 {siagieGenerando ? 'Generando...' : '📥 Descargar formato SIAGIE'}
               </button>
+            </div>
+
+            <div className="bg-white rounded-2xl p-5 max-w-lg mt-5" style={{ border: '1px solid #E5E9F0' }}>
+              <p className="text-sm font-bold mb-1" style={{ color: NAVY_DARK }}>Completar la plantilla oficial del SIAGIE con IA</p>
+              <p className="text-xs text-slate-400 mb-4">
+                Sube aquí el archivo Excel en blanco que descargaste directo del SIAGIE (Evaluación → Registro de calificaciones). El sistema detecta su estructura, y en el futuro la IA lo va a completar automáticamente con las notas ya calculadas — listo para descargar con el mismo nombre y subirlo de vuelta al SIAGIE.
+              </p>
+
+              <label className="inline-block text-xs font-semibold px-4 py-2.5 rounded-lg cursor-pointer transition hover:opacity-90" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>
+                {siagieLeyendoPlantilla ? 'Leyendo archivo...' : '📎 Subir plantilla del SIAGIE (.xlsx)'}
+                <input
+                  type="file"
+                  accept=".xlsx"
+                  className="hidden"
+                  onChange={function (e) { if (e.target.files[0]) leerPlantillaSIAGIE(e.target.files[0]) }}
+                  disabled={siagieLeyendoPlantilla}
+                />
+              </label>
+
+              {siagiePlantillaEstructura && (
+                <div className="mt-4">
+                  <p className="text-xs font-semibold mb-2" style={{ color: GREEN_DARK }}>
+                    ✓ Archivo leído: {siagiePlantillaEstructura.nombreArchivo}
+                  </p>
+                  <div className="space-y-2 mb-4">
+                    {siagiePlantillaEstructura.hojas.map(function (hoja, i) {
+                      return (
+                        <div key={i} className="rounded-lg p-2.5 text-xs" style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}>
+                          <p className="font-semibold" style={{ color: NAVY_DARK }}>Hoja: "{hoja.nombre}"</p>
+                          <p className="text-slate-400">{hoja.totalFilas} fila(s) × {hoja.totalColumnas} columna(s) detectadas</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <button
+                    onClick={completarPlantillaConIA}
+                    className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+                    style={{ backgroundColor: '#7C3AED' }}
+                  >
+                    🤖 Completar con IA (Próximamente)
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
