@@ -367,42 +367,7 @@ export default function CourseAssignmentsTeacher({ courseId }) {
                       )}
                     </div>
                     <div className="flex flex-wrap gap-1.5 justify-end">
-                      {(submissionFilesMap[s.id] || []).map(function (path, i) {
-                        const esPdf = path.toLowerCase().endsWith('.pdf')
-                        return (
-                          <button
-                            key={path}
-                            onClick={function () { handlePreview(path) }}
-                            className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
-                            style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
-                          >
-                            {esPdf ? '📄' : '📷'} Archivo {i + 1}
-                          </button>
-                        )
-                      })}
-                      {(!submissionFilesMap[s.id] || submissionFilesMap[s.id].length === 0) && s.file_url && (
-                        <button
-                          onClick={function () { handlePreview(s.file_url) }}
-                          className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
-                          style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
-                        >
-                          Ver archivo
-                        </button>
-                      )}
-                      {s.link_url && (
-                        <a
-                          href={s.link_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs font-semibold px-3 py-1.5 rounded-lg transition inline-block"
-                          style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
-                        >
-                          🔗 Ver link
-                        </a>
-                      )}
-                      {!s.file_url && s.link_url == null && (!submissionFilesMap[s.id] || submissionFilesMap[s.id].length === 0) && (
-                        <span className="text-xs text-slate-400">Sin archivo ni link</span>
-                      )}
+                      <BotonVerEntrega submission={s} filesMap={submissionFilesMap} setPreview={setPreview} />
                     </div>
                   </div>
 
@@ -663,5 +628,43 @@ export default function CourseAssignmentsTeacher({ courseId }) {
         </ul>
       )}
     </div>
+  )
+}
+
+// ============================================================
+// Botón que abre TODAS las fotos + link de una entrega juntos, en un solo clic
+// ============================================================
+function BotonVerEntrega({ submission, filesMap, setPreview }) {
+  const fotos = filesMap[submission.id] || []
+  const items = []
+  fotos.forEach(function (path) {
+    const esPdf = path.toLowerCase().endsWith('.pdf')
+    const parts = path.split('/')
+    items.push({ url: path, type: esPdf ? 'pdf' : path.split('.').pop().toLowerCase(), name: parts[parts.length - 1], esLink: false, esStorage: true })
+  })
+  if (fotos.length === 0 && submission.file_url) {
+    const parts = submission.file_url.split('/')
+    items.push({ url: submission.file_url, type: submission.file_url.split('.').pop().toLowerCase(), name: parts[parts.length - 1], esLink: false, esStorage: true })
+  }
+  if (submission.link_url) {
+    items.push({ url: submission.link_url, type: 'link', name: 'Link de Drive', esLink: true, esStorage: false })
+  }
+  if (items.length === 0) return <span className="text-xs text-slate-400">Sin archivo ni link</span>
+
+  return (
+    <button
+      onClick={async function () {
+        const itemsConUrlFirmada = await Promise.all(items.map(async function (it) {
+          if (!it.esStorage) return it
+          const result = await supabase.storage.from('entregas').createSignedUrl(it.url, 300)
+          return { ...it, url: result.data?.signedUrl || it.url }
+        }))
+        setPreview({ items: itemsConUrlFirmada, startIndex: 0 })
+      }}
+      className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+      style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+    >
+      Ver entrega {items.length > 1 ? `(${items.length})` : ''}
+    </button>
   )
 }

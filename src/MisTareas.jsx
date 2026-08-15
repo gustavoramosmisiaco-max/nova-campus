@@ -340,27 +340,36 @@ function CalificarTarea({ tarea, onBack }) {
 
   function BotonesEntrega({ submission }) {
     const fotos = submissionFilesMap[submission.id] || []
+    const items = []
+    fotos.forEach(function (path, i) {
+      const esPdf = path.toLowerCase().endsWith('.pdf')
+      const parts = path.split('/')
+      items.push({ url: path, type: esPdf ? 'pdf' : path.split('.').pop().toLowerCase(), name: parts[parts.length - 1], esLink: false, esStorage: true })
+    })
+    if (fotos.length === 0 && submission.file_url) {
+      const parts = submission.file_url.split('/')
+      items.push({ url: submission.file_url, type: submission.file_url.split('.').pop().toLowerCase(), name: parts[parts.length - 1], esLink: false, esStorage: true })
+    }
+    if (submission.link_url) {
+      items.push({ url: submission.link_url, type: 'link', name: 'Link de Drive', esLink: true, esStorage: false })
+    }
+    if (items.length === 0) return null
+
     return (
-      <div className="flex flex-wrap gap-1.5 justify-end">
-        {fotos.map(function (path, i) {
-          const esPdf = path.toLowerCase().endsWith('.pdf')
-          return (
-            <button key={path} onClick={function () { handlePreview(path) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>
-              {esPdf ? '📄' : '📷'} Archivo {i + 1}
-            </button>
-          )
-        })}
-        {fotos.length === 0 && submission.file_url && (
-          <button onClick={function () { handlePreview(submission.file_url) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>
-            Ver archivo
-          </button>
-        )}
-        {submission.link_url && (
-          <a href={submission.link_url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold px-3 py-1.5 rounded-lg transition inline-block" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>
-            🔗 Ver link
-          </a>
-        )}
-      </div>
+      <button
+        onClick={async function () {
+          const itemsConUrlFirmada = await Promise.all(items.map(async function (it) {
+            if (!it.esStorage) return it
+            const result = await supabase.storage.from('entregas').createSignedUrl(it.url, 300)
+            return { ...it, url: result.data?.signedUrl || it.url }
+          }))
+          setPreview({ items: itemsConUrlFirmada, startIndex: 0 })
+        }}
+        className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+        style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+      >
+        Ver entrega {items.length > 1 ? `(${items.length})` : ''}
+      </button>
     )
   }
 
