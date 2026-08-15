@@ -33,6 +33,8 @@ export default function InstitucionesManager() {
   const [nuevoCoordNombre, setNuevoCoordNombre] = useState('')
   const [nuevoCoordId, setNuevoCoordId] = useState('')
 
+  const [guardandoIaId, setGuardandoIaId] = useState(null)
+
   useEffect(function () {
     loadInstituciones()
   }, [])
@@ -96,6 +98,18 @@ export default function InstitucionesManager() {
     const result = await supabase.from('instituciones_educativas').delete().eq('id', id)
     if (result.error) alert('Error: ' + result.error.message)
     else loadInstituciones()
+  }
+
+  async function toggleIaHabilitada(inst) {
+    setGuardandoIaId(inst.id)
+    const nuevoValor = !inst.ia_habilitada
+    const result = await supabase.from('instituciones_educativas').update({ ia_habilitada: nuevoValor }).eq('id', inst.id)
+    if (result.error) {
+      alert('Error al cambiar el estado de la IA: ' + result.error.message)
+    } else {
+      setInstituciones(function (prev) { return prev.map(function (i) { return i.id === inst.id ? { ...i, ia_habilitada: nuevoValor } : i } ) })
+    }
+    setGuardandoIaId(null)
   }
 
   async function abrirGrados(institucionId) {
@@ -251,13 +265,33 @@ export default function InstitucionesManager() {
                     <p className="text-xs text-slate-500 mt-1">UGEL: {inst.ugel || '—'} · DRE: {inst.dre || '—'}</p>
                     <p className="text-xs text-slate-500">Director(a): {inst.director || '—'}</p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap justify-end">
                     <button onClick={function () { abrirGrados(inst.id) }} className="text-xs font-semibold px-2 py-1 rounded-lg transition" style={{ backgroundColor: 'white', color: '#B45309', border: '1px solid #D6DCE5' }}>Grados</button>
                     <button onClick={function () { abrirSecciones(inst.id) }} className="text-xs font-semibold px-2 py-1 rounded-lg transition" style={{ backgroundColor: 'white', color: '#8a5cb0', border: '1px solid #D6DCE5' }}>Secciones</button>
                     <button onClick={function () { abrirCoordinador(inst.id) }} className="text-xs font-semibold px-2 py-1 rounded-lg transition" style={{ backgroundColor: 'white', color: '#0F4C4C', border: '1px solid #D6DCE5' }}>Coordinador</button>
                     <button onClick={function () { openEdit(inst) }} className="text-xs font-semibold px-2 py-1 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>Editar</button>
                     <button onClick={function () { handleDelete(inst.id) }} className="text-xs font-semibold px-2 py-1 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: '#B91C1C' }}>Eliminar</button>
                   </div>
+                </div>
+
+                <div className="mt-3 pt-3 flex items-center justify-between" style={{ borderTop: '1px solid #F4F6F9' }}>
+                  <div>
+                    <p className="text-xs font-bold" style={{ color: NAVY_DARK }}>🤖 Funciones de IA</p>
+                    <p className="text-[11px] text-slate-400">
+                      {inst.ia_habilitada ? 'Habilitada — esta institución puede usar las funciones de IA' : 'Deshabilitada — la IA no aparece para nadie de esta institución'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={function () { toggleIaHabilitada(inst) }}
+                    disabled={guardandoIaId === inst.id}
+                    className="relative flex-shrink-0 rounded-full transition disabled:opacity-50"
+                    style={{ width: 44, height: 24, backgroundColor: inst.ia_habilitada ? GREEN : '#D6DCE5' }}
+                  >
+                    <span
+                      className="absolute rounded-full bg-white transition"
+                      style={{ width: 18, height: 18, top: 3, left: inst.ia_habilitada ? 23 : 3, boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
+                    />
+                  </button>
                 </div>
 
                 {gradosAbiertoPara === inst.id && (
