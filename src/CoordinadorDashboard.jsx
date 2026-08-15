@@ -127,6 +127,8 @@ export default function CoordinadorDashboard() {
   const [monitoreoCargado, setMonitoreoCargado] = useState(false)
   const monitoreoTurnoRef = useRef(0)
   const [docenteExpandido, setDocenteExpandido] = useState(null)
+  const [monitoreoVistaComparar, setMonitoreoVistaComparar] = useState(false)
+  const [monitoreoAreaComparar, setMonitoreoAreaComparar] = useState(null)
 
   // ============================================================
   // Bitácora de acompañamiento — notas del Coordinador por Docente
@@ -999,18 +1001,38 @@ export default function CoordinadorDashboard() {
           })
           const listaDocentes = Object.values(porDocente).sort(function (a, b) { return compararPorApellido ? compararPorApellido(a.docente.full_name, b.docente.full_name) : a.docente.full_name.localeCompare(b.docente.full_name) })
 
+          // Agrupar también por Área, para la vista de comparación
+          const porArea = {}
+          cursos.forEach(function (c) {
+            if (!c.docente) return
+            const areaNombre = c.asignaturas?.areas_curriculares?.nombre || 'Sin área'
+            if (!porArea[areaNombre]) porArea[areaNombre] = {}
+            if (!porArea[areaNombre][c.docente.id]) porArea[areaNombre][c.docente.id] = { docente: c.docente, cursos: [] }
+            porArea[areaNombre][c.docente.id].cursos.push(c)
+          })
+          const areasParaComparar = Object.keys(porArea).sort()
+
           return (
             <div>
               <div className="flex justify-between items-start gap-3 flex-wrap mb-1">
                 <p className="text-xs text-slate-400">Acompañamiento docente según el CNEB — el semáforo junto a cada nombre resume 6 ejes de su práctica en todas sus Asignaturas. Haz clic para ver el detalle.</p>
-                <button
-                  onClick={cargarMonitoreoCompleto}
-                  disabled={monitoreoCargando}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg transition hover:opacity-90 disabled:opacity-50 flex-shrink-0"
-                  style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
-                >
-                  {monitoreoCargando ? 'Actualizando...' : '🔄 Actualizar'}
-                </button>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={function () { setMonitoreoVistaComparar(!monitoreoVistaComparar); setMonitoreoAreaComparar(areasParaComparar[0] || null) }}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+                    style={monitoreoVistaComparar ? { backgroundColor: NAVY, color: 'white' } : { backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+                  >
+                    📊 {monitoreoVistaComparar ? 'Ver por Docente' : 'Comparar por Área'}
+                  </button>
+                  <button
+                    onClick={cargarMonitoreoCompleto}
+                    disabled={monitoreoCargando}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg transition hover:opacity-90 disabled:opacity-50"
+                    style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+                  >
+                    {monitoreoCargando ? 'Actualizando...' : '🔄 Actualizar'}
+                  </button>
+                </div>
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 mb-5 text-[11px] text-slate-400">
                 {Object.entries(LEYENDA_EJES).map(function ([key, texto]) {
@@ -1018,6 +1040,71 @@ export default function CoordinadorDashboard() {
                 })}
               </div>
 
+              {monitoreoVistaComparar ? (
+                <div>
+                  {areasParaComparar.length > 1 && (
+                    <div className="flex gap-1.5 flex-wrap mb-4">
+                      {areasParaComparar.map(function (areaNombre) {
+                        return (
+                          <button
+                            key={areaNombre}
+                            onClick={function () { setMonitoreoAreaComparar(areaNombre) }}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-full transition"
+                            style={monitoreoAreaComparar === areaNombre ? { backgroundColor: GREEN, color: 'white' } : { backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }}
+                          >
+                            {areaNombre}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {!monitoreoAreaComparar || !porArea[monitoreoAreaComparar] ? (
+                    <p className="text-slate-400 text-sm">No hay Áreas con Docentes asignados todavía.</p>
+                  ) : (
+                    <div className="bg-white rounded-2xl overflow-x-auto" style={{ border: '1px solid #E5E9F0' }}>
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid #E5E9F0' }}>
+                            <th className="text-left py-2.5 px-4 font-semibold" style={{ color: NAVY_DARK }}>Docente</th>
+                            {Object.keys(LEYENDA_EJES).map(function (key) {
+                              return <th key={key} className="text-center py-2.5 px-2 font-semibold text-[11px]" style={{ color: NAVY_DARK }} title={LEYENDA_EJES[key]}>{LEYENDA_EJES[key].split(' — ')[0]}</th>
+                            })}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.values(porArea[monitoreoAreaComparar])
+                            .sort(function (a, b) { return compararPorApellido ? compararPorApellido(a.docente.full_name, b.docente.full_name) : a.docente.full_name.localeCompare(b.docente.full_name) })
+                            .map(function (grupoDoc) {
+                              return (
+                                <tr key={grupoDoc.docente.id} style={{ borderBottom: '1px solid #F4F6F9' }}>
+                                  <td className="py-2.5 px-4 font-medium" style={{ color: NAVY_DARK }}>{grupoDoc.docente.full_name}</td>
+                                  {Object.keys(LEYENDA_EJES).map(function (key) {
+                                    // Resumen del eje: si algún curso de esta Área+Docente está en rojo, gana rojo; si no, ámbar; si no, verde; si no hay datos, gris
+                                    const valores = grupoDoc.cursos.map(function (c) { return monitoreoEjes[c.id]?.[key] }).filter(Boolean)
+                                    let resumen = 'gris'
+                                    if (valores.length > 0) {
+                                      if (valores.includes('rojo')) resumen = 'rojo'
+                                      else if (valores.includes('ambar')) resumen = 'ambar'
+                                      else if (valores.every(function (v) { return v === 'gris' })) resumen = 'gris'
+                                      else resumen = 'verde'
+                                    }
+                                    return (
+                                      <td key={key} className="text-center py-2.5 px-2">
+                                        <Punto color={resumen} titulo={LEYENDA_EJES[key]} />
+                                      </td>
+                                    )
+                                  })}
+                                </tr>
+                              )
+                            })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              ) : (
+              <>
               {monitoreoCargando && listaDocentes.length === 0 && <p className="text-slate-400 text-sm">Cargando...</p>}
               {!monitoreoCargando && listaDocentes.length === 0 && <p className="text-slate-400 text-sm">Aún no hay docentes con Aulas asignadas.</p>}
 
@@ -1092,6 +1179,8 @@ export default function CoordinadorDashboard() {
                   )
                 })}
               </div>
+              </>
+              )}
 
               {monitoreoCursoSel && (
                 <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={function () { setMonitoreoCursoSel(null) }}>
