@@ -18,10 +18,24 @@ function saludoSegunHora() {
   return 'Buenas noches'
 }
 
+function etiquetaTiempo(fechaEntrega) {
+  const ahora = new Date()
+  const fecha = new Date(fechaEntrega)
+  const diffMs = fecha - ahora
+  const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffMs < 0) return { texto: 'Vencida', color: '#B91C1C', fondo: '#FDECEC' }
+  if (diffDias === 0) return { texto: 'Hoy', color: '#B45309', fondo: '#FFF7E6' }
+  if (diffDias === 1) return { texto: 'Mañana', color: '#B45309', fondo: '#FFF7E6' }
+  if (diffDias <= 3) return { texto: `En ${diffDias} días`, color: '#2563EB', fondo: '#EAF2FB' }
+  return { texto: `En ${diffDias} días`, color: '#16A34A', fondo: '#E7F3E4' }
+}
+
 export default function PanelInicioEstudiante({ onNavegar }) {
   const { session, profile } = useAuth()
   const [loading, setLoading] = useState(true)
   const [courses, setCourses] = useState([])
+  const [proximasEntregas, setProximasEntregas] = useState([])
   const [tareasPendientes, setTareasPendientes] = useState(0)
   const [notifNoLeidas, setNotifNoLeidas] = useState(0)
   const [examenesProgramados, setExamenesProgramados] = useState(0)
@@ -51,10 +65,12 @@ export default function PanelInicioEstudiante({ onNavegar }) {
       const enrolls = enrollResult.data || []
       const coursesData = enrolls.map(function (e) { return e.course }).filter(Boolean)
       const courseIds = coursesData.map(function (c) { return c.id })
+      const coursesMap = {}
+      coursesData.forEach(function (c) { coursesMap[c.id] = c })
 
       let totalPendientes = 0
       if (courseIds.length > 0) {
-        const assignResult = await supabase.from('assignments').select('id, course_id').in('course_id', courseIds)
+        const assignResult = await supabase.from('assignments').select('id, titulo, fecha_entrega, course_id').in('course_id', courseIds)
         const assignments = assignResult.data || []
         const assignmentIds = assignments.map(function (a) { return a.id })
 
@@ -62,10 +78,19 @@ export default function PanelInicioEstudiante({ onNavegar }) {
         if (assignmentIds.length > 0) {
           const subsResult = await supabase
             .from('submissions')
-            .select('assignment_id, file_url')
+            .select('id, assignment_id, file_url, link_url')
             .eq('student_id', session.user.id)
             .in('assignment_id', assignmentIds)
-          ;(subsResult.data || []).forEach(function (s) { if (s.file_url) entregadosIds.add(s.assignment_id) })
+          const submissionIds = (subsResult.data || []).map(function (s) { return s.id })
+          let idsConFotos = new Set()
+          if (submissionIds.length > 0) {
+            const filesResult = await supabase.from('submission_files').select('submission_id').in('submission_id', submissionIds)
+            idsConFotos = new Set((filesResult.data || []).map(function (f) { return f.submission_id }))
+          }
+          ;(subsResult.data || []).forEach(function (s) {
+            const tieneEntrega = s.file_url != null || s.link_url != null || idsConFotos.has(s.id)
+            if (tieneEntrega) entregadosIds.add(s.assignment_id)
+          })
         }
         totalPendientes = assignments.filter(function (a) { return !entregadosIds.has(a.id) }).length
 
@@ -78,8 +103,17 @@ export default function PanelInicioEstudiante({ onNavegar }) {
           })
         )
         setCourses(promedios)
+
+        // Próximas entregas: las 5 tareas sin entregar más cercanas a vencer (o recién vencidas), de todos los cursos
+        const sinEntregar = assignments.filter(function (a) { return !entregadosIds.has(a.id) })
+        sinEntregar.sort(function (a, b) { return new Date(a.fecha_entrega) - new Date(b.fecha_entrega) })
+        const proximas = sinEntregar.slice(0, 5).map(function (a) {
+          return { ...a, cursoNombre: coursesMap[a.course_id]?.nombre || '' }
+        })
+        setProximasEntregas(proximas)
       } else {
         setCourses([])
+        setProximasEntregas([])
       }
       setTareasPendientes(totalPendientes)
 
@@ -148,6 +182,33 @@ export default function PanelInicioEstudiante({ onNavegar }) {
         </button>
       </div>
 
+      {proximasEntregas.length > 0 && (
+        <div className="mb-8">
+          <p className="text-sm font-semibold mb-3" style={{ color: NAVY_DARK }}>Próximas entregas</p>
+          <div className="bg-white rounded-2xl overflow-hidden" style={{ border: '1px solid #E2E8F0' }}>
+            {proximasEntregas.map(function (t, i) {
+              const et = etiquetaTiempo(t.fecha_entrega)
+              return (
+                <button
+                  key={t.id}
+                  onClick={function () { if (onNavegar) onNavegar('pendientes') }}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
+                  style={{ borderBottom: i < proximasEntregas.length - 1 ? '1px solid #F1F5F9' : 'none' }}
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: NAVY_DARK }}>{t.titulo}</p>
+                    <p className="text-xs text-slate-400 truncate">{t.cursoNombre}</p>
+                  </div>
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0" style={{ backgroundColor: et.fondo, color: et.color }}>
+                    {et.texto}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       <p className="text-sm font-semibold mb-3" style={{ color: NAVY_DARK }}>Mis asignaturas</p>
 
       {courses.length === 0 ? (
@@ -155,26 +216,23 @@ export default function PanelInicioEstudiante({ onNavegar }) {
           <p className="text-slate-400 text-sm">Aún no estás matriculado en ningún curso.</p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {courses.map(function (c) {
-            const areaNombre = c.asignaturas?.areas_curriculares?.nombre || ''
             return (
               <button
                 key={c.id}
                 onClick={function () { if (onNavegar) onNavegar('cursos') }}
-                className="text-left bg-white rounded-2xl overflow-hidden transition hover:-translate-y-0.5 flex gap-3 p-3"
+                className="text-left bg-white rounded-2xl overflow-hidden transition hover:-translate-y-0.5 flex items-center gap-3 p-3"
                 style={{ border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}
               >
-                <IconoAsignatura nombre={c.nombre} size={40} />
+                <IconoAsignatura nombre={c.nombre} size={36} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{c.nombre}</p>
-                  <p className="text-xs text-slate-400 mb-3">{gradoLabel(c.grado)} — Sección {c.grupo}{areaNombre ? ` · ${areaNombre}` : ''}</p>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs text-slate-400">Progreso de tareas</span>
-                    <span className="text-xs font-semibold" style={{ color: GREEN }}>{c.progreso}%</span>
-                  </div>
-                  <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#E2E8F0' }}>
-                    <div className="h-full rounded-full" style={{ width: `${c.progreso}%`, backgroundColor: GREEN }} />
+                  <p className="text-sm font-semibold truncate" style={{ color: NAVY_DARK }}>{c.nombre}</p>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#E2E8F0' }}>
+                      <div className="h-full rounded-full" style={{ width: `${c.progreso}%`, backgroundColor: GREEN }} />
+                    </div>
+                    <span className="text-[11px] font-semibold flex-shrink-0" style={{ color: GREEN }}>{c.progreso}%</span>
                   </div>
                 </div>
               </button>
