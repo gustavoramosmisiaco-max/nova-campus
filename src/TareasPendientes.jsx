@@ -23,6 +23,7 @@ export default function TareasPendientes() {
   const [justMensaje, setJustMensaje] = useState('')
   const [justFile, setJustFile] = useState(null)
   const [enviandoJust, setEnviandoJust] = useState(false)
+  const [mensajeExito, setMensajeExito] = useState('')
 
   useEffect(function () {
     cargarTodo()
@@ -219,6 +220,8 @@ export default function TareasPendientes() {
       }
     }
     cargarTodo()
+    setMensajeExito(`"${assignment.titulo}" — tarea enviada correctamente ✓`)
+    setTimeout(function () { setMensajeExito('') }, 5000)
     setUploadingId(null)
   }
 
@@ -261,6 +264,8 @@ export default function TareasPendientes() {
       }
     }
     cargarTodo()
+    setMensajeExito(`"${assignment.titulo}" — tarea enviada correctamente ✓`)
+    setTimeout(function () { setMensajeExito('') }, 5000)
     setUploadingId(null)
   }
 
@@ -398,6 +403,12 @@ export default function TareasPendientes() {
         Aquí ves todas tus tareas de todos tus cursos que aún no has entregado, sin entrar carpeta por carpeta.
         Las que ya subiste no aparecen aquí.
       </p>
+
+      {mensajeExito && (
+        <div className="rounded-xl p-3 mb-5 flex items-center gap-2" style={{ backgroundColor: '#E7F3E4', border: '1px solid #B7E4C7' }}>
+          <span className="text-sm font-semibold" style={{ color: '#16A34A' }}>{mensajeExito}</span>
+        </div>
+      )}
 
       {totalPendientesYVencidas === 0 && habilitadas.length === 0 && enRevision.length === 0 && (
         <div className="bg-white rounded-2xl p-10 text-center" style={{ border: '1px dashed #D6DCE5' }}>
