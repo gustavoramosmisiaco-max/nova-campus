@@ -31,6 +31,74 @@ export default function CoordinadorDashboard() {
   const [cursos, setCursos] = useState([])
   const [conducta, setConducta] = useState([])
   const [monitoreoPorCurso, setMonitoreoPorCurso] = useState({})
+  const [monitoreoCursoSel, setMonitoreoCursoSel] = useState(null)
+  const [monitoreoDetalle, setMonitoreoDetalle] = useState([])
+  const [monitoreoDetalleLoading, setMonitoreoDetalleLoading] = useState(false)
+  const [monitoreoUnidadAbierta, setMonitoreoUnidadAbierta] = useState(null)
+  const [recordandoId, setRecordandoId] = useState(null)
+
+  async function abrirDetalleMonitoreo(curso) {
+    setMonitoreoCursoSel(curso)
+    setMonitoreoDetalleLoading(true)
+    setMonitoreoUnidadAbierta(null)
+
+    const areaId = curso.asignaturas?.areas_curriculares?.id
+    const unidadesResult = await supabase
+      .from('unidades')
+      .select('id, tipo, numero, nombre, fecha_inicio, fecha_fin')
+      .eq('area_id', areaId)
+      .eq('grado', curso.grado)
+      .eq('grupo', curso.grupo)
+      .order('numero')
+    const unidades = unidadesResult.data || []
+    const unidadIds = unidades.map(function (u) { return u.id })
+
+    let actividades = []
+    if (unidadIds.length > 0) {
+      const actResult = await supabase
+        .from('actividades')
+        .select('id, nombre, numero_actividad, unidad_id, fecha_clase')
+        .eq('course_id', curso.id)
+        .in('unidad_id', unidadIds)
+        .order('numero_actividad')
+      actividades = actResult.data || []
+    }
+    const actIds = actividades.map(function (a) { return a.id })
+
+    let materiales = []
+    let tareas = []
+    if (actIds.length > 0) {
+      const matResult = await supabase.from('materials').select('id, titulo, actividad_id, file_url, link_url, created_at').in('actividad_id', actIds)
+      materiales = matResult.data || []
+      const tareasResult = await supabase.from('assignments').select('id, titulo, actividad_id, fecha_entrega').in('actividad_id', actIds)
+      tareas = tareasResult.data || []
+    }
+
+    const detalle = unidades.map(function (u) {
+      const actividadesDeUnidad = actividades.filter(function (a) { return a.unidad_id === u.id }).map(function (a) {
+        return {
+          ...a,
+          materiales: materiales.filter(function (m) { return m.actividad_id === a.id }),
+          tareas: tareas.filter(function (t) { return t.actividad_id === a.id }),
+        }
+      })
+      return { ...u, actividades: actividadesDeUnidad }
+    })
+    setMonitoreoDetalle(detalle)
+    setMonitoreoDetalleLoading(false)
+  }
+
+  async function recordarDocente(curso) {
+    setRecordandoId(curso.id)
+    await supabase.from('notificaciones').insert({
+      user_id: curso.docente.id,
+      tipo: 'recordatorio',
+      titulo: 'Recordatorio de tu Coordinador',
+      mensaje: `Por favor sube los materiales y actividades pendientes de "${curso.nombre}" (${gradoLabel(curso.grado)} Sección ${curso.grupo}) para que tus estudiantes puedan descargarlos.`,
+    })
+    setRecordandoId(null)
+    alert('Recordatorio enviado a ' + curso.docente.full_name)
+  }
   const [tab, setTab] = useState('docentes')
   const [cursoSel, setCursoSel] = useState(null)
   const [gradosProp, setGradosProp] = useState([])
@@ -594,7 +662,7 @@ export default function CoordinadorDashboard() {
         <h2 className="text-2xl font-bold mb-1" style={{ color: NAVY_DARK }}>Panel de Supervisión</h2>
         <p className="text-sm text-slate-400 mb-6">Solo puedes ver información — cualquier edición de notas o asistencia la hace el docente correspondiente.</p>
 
-        <div className="flex gap-2 mb-6 border-b overflow-x-auto" style={{ borderColor: '#E5E9F0' }}>
+        <div className="flex gap-2 mb-6 border-b overflow-x-auto sticky top-0 z-20" style={{ borderColor: '#E5E9F0', backgroundColor: '#F4F6F9' }}>
           {[
             { id: 'docentes', label: 'Docentes y Aulas' },
             { id: 'lista-docentes', label: 'Docentes' },
