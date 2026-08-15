@@ -12,6 +12,17 @@ const GREEN_DARK = '#16A34A'
 const GRADOS = [1, 2, 3, 4, 5]
 const SECCIONES = ['A', 'B', 'C', 'D', 'E']
 
+async function extraerMensajeError(fnError) {
+  if (!fnError) return 'Error desconocido'
+  try {
+    if (fnError.context && typeof fnError.context.json === 'function') {
+      const body = await fnError.context.json()
+      if (body?.error) return body.error
+    }
+  } catch (_e) { /* si no se puede leer el detalle, usamos el mensaje genérico */ }
+  return fnError.message || 'Error desconocido'
+}
+
 function FolderIcon({ color, big }) {
   const size = big ? 26 : 18
   return (
@@ -116,7 +127,8 @@ export default function EstudiantesList({ institucionFija, institucionFijaNombre
     })
 
     if (fnError) {
-      alert('Error al eliminar: ' + fnError.message)
+      const mensaje = await extraerMensajeError(fnError)
+      alert('Error al eliminar: ' + mensaje)
     } else if (data.error) {
       alert('Error al eliminar: ' + data.error)
     } else {
@@ -135,7 +147,8 @@ export default function EstudiantesList({ institucionFija, institucionFijaNombre
     })
 
     if (fnError) {
-      alert('Error al resetear: ' + fnError.message)
+      const mensaje = await extraerMensajeError(fnError)
+      alert('Error al resetear: ' + mensaje)
     } else if (data.error) {
       alert('Error al resetear: ' + data.error)
     } else {
