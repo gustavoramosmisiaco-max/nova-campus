@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext'
 import RegistroAuxiliarPorArea from './RegistroAuxiliarPorArea'
 import ImportarEstudiantes from './ImportarEstudiantes'
 import ExcelJS from 'exceljs'
+import { compararPorApellido } from './gradeUtils'
 
 const CoursesManager = lazy(function () { return import('./CoursesManager') })
 const ImportarDocentes = lazy(function () { return import('./ImportarDocentes') })
@@ -99,6 +100,134 @@ export default function CoordinadorDashboard() {
     setRecordandoId(null)
     alert('Recordatorio enviado a ' + curso.docente.full_name)
   }
+
+  // ============================================================
+  // Monitoreo — 5 ejes según el CNEB / Marco de Buen Desempeño Docente
+  // ============================================================
+  const [monitoreoEjes, setMonitoreoEjes] = useState({}) // { [courseId]: { progreso, formativa, cierre, asistencia, instrumentos } }
+  const [monitoreoCargando, setMonitoreoCargando] = useState(false)
+  const [monitoreoCargado, setMonitoreoCargado] = useState(false)
+  const [docenteExpandido, setDocenteExpandido] = useState(null)
+
+  async function cargarMonitoreoCompleto() {
+    if (monitoreoCargado || cursos.length === 0) return
+    setMonitoreoCargando(true)
+
+    const courseIds = cursos.map(function (c) { return c.id })
+    const areaIds = [...new Set(cursos.map(function (c) { return c.asignaturas?.areas_curriculares?.id }).filter(Boolean))]
+
+    // 1. Unidades de todas las Áreas de esta institución (para saber en qué fecha va cada una)
+    const unidadesResult = areaIds.length > 0
+      ? await supabase.from('unidades').select('id, area_id, grado, grupo, numero, fecha_inicio, fecha_fin').in('area_id', areaIds)
+      : { data: [] }
+    const unidades = unidadesResult.data || []
+
+    // 2. Actividades de todos los cursos (para saber si avanzan según su Unidad activa)
+    const actResult = await supabase.from('actividades').select('id, course_id, unidad_id, created_at').in('course_id', courseIds)
+    const actividades = actResult.data || []
+
+    // 3. Assignments (tareas) — instrumento usado y fecha de entrega, por curso
+    const assignResult = await supabase.from('assignments').select('id, course_id, instrumento_evaluacion, fecha_entrega').in('course_id', courseIds)
+    const assignments = assignResult.data || []
+    const assignmentIds = assignments.map(function (a) { return a.id })
+
+    // 4. Submissions + cuándo se calificaron (evaluación formativa oportuna)
+    let submissions = []
+    if (assignmentIds.length > 0) {
+      const subsResult = await supabase.from('submissions').select('id, assignment_id, submitted_at, graded_at').in('assignment_id', assignmentIds)
+      submissions = subsResult.data || []
+    }
+
+    // 5. Evaluación de cierre (best-effort — si la tabla tiene otra estructura, se ignora sin romper nada)
+    let cierres = []
+    try {
+      const cierreResult = await supabase.from('evaluacion_cierre').select('id, course_id, unidad_id').in('course_id', courseIds)
+      if (!cierreResult.error) cierres = cierreResult.data || []
+    } catch (_e) { /* se ignora si la tabla no tiene esta forma */ }
+
+    // 6. Última fecha de asistencia registrada, por Área+Grado+Sección
+    let ultimaAsistenciaPorClave = {}
+    if (areaIds.length > 0) {
+      const asisResult = await supabase.from('asistencias').select('area_id, grado, grupo, fecha').in('area_id', areaIds).order('fecha', { ascending: false })
+      ;(asisResult.data || []).forEach(function (a) {
+        const key = `${a.area_id}__${a.grado}__${a.grupo}`
+        if (!ultimaAsistenciaPorClave[key]) ultimaAsistenciaPorClave[key] = a.fecha
+      })
+    }
+
+    const hoy = new Date().toISOString().slice(0, 10)
+    const ejesPorCurso = {}
+
+    cursos.forEach(function (curso) {
+      const areaId = curso.asignaturas?.areas_curriculares?.id
+      const unidadesDelCurso = unidades.filter(function (u) { return u.area_id === areaId && u.grado === curso.grado && u.grupo === curso.grupo })
+      const actividadesDelCurso = actividades.filter(function (a) { return a.course_id === curso.id })
+      const assignmentsDelCurso = assignments.filter(function (a) { return a.course_id === curso.id })
+      const assignmentIdsDelCurso = assignmentsDelCurso.map(function (a) { return a.id })
+      const submissionsDelCurso = submissions.filter(function (s) { return assignmentIdsDelCurso.includes(s.assignment_id) })
+
+      // Eje 1: Progreso curricular
+      const unidadActiva = unidadesDelCurso.find(function (u) { return u.fecha_inicio <= hoy && hoy <= u.fecha_fin })
+      let progreso = 'gris'
+      if (unidadActiva) {
+        const actividadesEnUnidadActiva = actividadesDelCurso.filter(function (a) { return a.unidad_id === unidadActiva.id })
+        progreso = actividadesEnUnidadActiva.length > 0 ? 'verde' : 'ambar'
+      } else {
+        const unidadVencidaSinCerrar = unidadesDelCurso.find(function (u) {
+          return u.fecha_fin < hoy && actividadesDelCurso.filter(function (a) { return a.unidad_id === u.id }).length === 0
+        })
+        if (unidadVencidaSinCerrar) progreso = 'rojo'
+      }
+
+      // Eje 2: Evaluación formativa oportuna (¿califica rápido después de que entregan?)
+      const entregasCalificadas = submissionsDelCurso.filter(function (s) { return s.graded_at })
+      let formativa = 'gris'
+      if (submissionsDelCurso.length > 0) {
+        const diasPromedio = entregasCalificadas.length > 0
+          ? entregasCalificadas.reduce(function (acc, s) {
+              const dias = (new Date(s.graded_at) - new Date(s.submitted_at)) / (1000 * 60 * 60 * 24)
+              return acc + dias
+            }, 0) / entregasCalificadas.length
+          : null
+        const pctSinCalificar = 1 - (entregasCalificadas.length / submissionsDelCurso.length)
+        if (pctSinCalificar > 0.5) formativa = 'rojo'
+        else if (diasPromedio == null || diasPromedio > 7) formativa = 'ambar'
+        else formativa = 'verde'
+      }
+
+      // Eje 3: Cierre de Unidad (¿ya cerró las Unidades que ya vencieron?)
+      const unidadesVencidas = unidadesDelCurso.filter(function (u) { return u.fecha_fin < hoy })
+      let cierre = 'gris'
+      if (unidadesVencidas.length > 0) {
+        const unidadesConCierre = new Set(cierres.filter(function (c) { return c.course_id === curso.id }).map(function (c) { return c.unidad_id }))
+        const faltantes = unidadesVencidas.filter(function (u) { return !unidadesConCierre.has(u.id) })
+        cierre = faltantes.length === 0 ? 'verde' : 'rojo'
+      }
+
+      // Eje 4: Asistencia registrada con regularidad (últimos 10 días de clase)
+      const claveAsis = `${areaId}__${curso.grado}__${curso.grupo}`
+      const ultimaAsis = ultimaAsistenciaPorClave[claveAsis]
+      let asistencia = 'gris'
+      if (ultimaAsis) {
+        const diasDesde = (new Date(hoy) - new Date(ultimaAsis)) / (1000 * 60 * 60 * 24)
+        asistencia = diasDesde <= 10 ? 'verde' : diasDesde <= 20 ? 'ambar' : 'rojo'
+      }
+
+      // Eje 5: Variedad de instrumentos de evaluación
+      const instrumentosUsados = new Set(assignmentsDelCurso.map(function (a) { return a.instrumento_evaluacion }).filter(Boolean))
+      let instrumentos = 'gris'
+      if (assignmentsDelCurso.length > 0) {
+        instrumentos = instrumentosUsados.size >= 2 ? 'verde' : instrumentosUsados.size === 1 ? 'ambar' : 'rojo'
+      }
+
+      ejesPorCurso[curso.id] = { progreso, formativa, cierre, asistencia, instrumentos }
+    })
+
+    setMonitoreoEjes(ejesPorCurso)
+    setMonitoreoCargando(false)
+    setMonitoreoCargado(true)
+  }
+
   const [tab, setTab] = useState('docentes')
   const [menuFlotanteAbierto, setMenuFlotanteAbierto] = useState(false)
   const [cursoSel, setCursoSel] = useState(null)
@@ -119,6 +248,10 @@ export default function CoordinadorDashboard() {
   useEffect(function () {
     cargar()
   }, [])
+
+  useEffect(function () {
+    if (tab === 'monitoreo') cargarMonitoreoCompleto()
+  }, [tab, cursos])
 
   async function cargar() {
     setLoading(true)
@@ -700,7 +833,11 @@ export default function CoordinadorDashboard() {
         <button
           onClick={function () { setMenuFlotanteAbierto(!menuFlotanteAbierto) }}
           className="fixed rounded-full flex items-center justify-center text-white shadow-lg transition hover:opacity-90"
-          style={{ bottom: 24, right: 24, width: 56, height: 56, backgroundColor: NAVY, zIndex: 40, boxShadow: '0 8px 20px rgba(37,99,235,0.4)' }}
+          style={{
+            bottom: 'max(24px, env(safe-area-inset-bottom, 0px) + 16px)',
+            right: 'max(24px, env(safe-area-inset-right, 0px) + 16px)',
+            width: 56, height: 56, backgroundColor: NAVY, zIndex: 9999, boxShadow: '0 8px 20px rgba(37,99,235,0.4)',
+          }}
           title="Cambiar de pestaña"
         >
           <span style={{ fontSize: 22 }}>☰</span>
@@ -708,10 +845,14 @@ export default function CoordinadorDashboard() {
 
         {menuFlotanteAbierto && (
           <>
-            <div className="fixed inset-0" style={{ backgroundColor: 'rgba(15,42,74,0.3)', zIndex: 39 }} onClick={function () { setMenuFlotanteAbierto(false) }} />
+            <div className="fixed inset-0" style={{ backgroundColor: 'rgba(15,42,74,0.3)', zIndex: 9997 }} onClick={function () { setMenuFlotanteAbierto(false) }} />
             <div
               className="fixed rounded-2xl bg-white overflow-y-auto"
-              style={{ bottom: 90, right: 24, width: 260, maxHeight: '60vh', zIndex: 40, border: '1px solid #E5E9F0', boxShadow: '0 12px 32px rgba(15,42,74,0.2)' }}
+              style={{
+                bottom: 'max(90px, env(safe-area-inset-bottom, 0px) + 82px)',
+                right: 'max(24px, env(safe-area-inset-right, 0px) + 16px)',
+                width: 260, maxHeight: '60vh', zIndex: 9998, border: '1px solid #E5E9F0', boxShadow: '0 12px 32px rgba(15,42,74,0.2)',
+              }}
             >
               {[
                 { id: 'docentes', label: 'Docentes y Aulas' },
@@ -746,57 +887,173 @@ export default function CoordinadorDashboard() {
           </>
         )}
 
-        {tab === 'monitoreo' && (
-          areasLista.length === 0 ? (
-            <p className="text-slate-400 text-sm">Aún no hay Asignaturas creadas en esta institución.</p>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-xs text-slate-400">Muestra cuántas Actividades y Tareas ha creado cada docente en cada Asignatura — para detectar quién no ha registrado nada todavía.</p>
-              {areasLista.map(function (grupoArea) {
-                return (
-                  <div key={grupoArea.area} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E5E9F0' }}>
-                    <h3 className="text-sm font-bold mb-3 px-3 py-1 rounded-lg inline-block" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>{grupoArea.area}</h3>
-                    <div className="space-y-3">
-                      {grupoArea.docentesLista.map(function (grupoDoc) {
-                        return (
-                          <div key={grupoDoc.docente.id}>
-                            <p className="text-xs font-bold mb-2" style={{ color: NAVY }}>{grupoDoc.docente.full_name}</p>
-                            <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
-                              {grupoDoc.cursos.map(function (c) {
-                                const m = monitoreoPorCurso[c.id] || { actividades: 0, tareas: 0, ultimaFecha: null }
-                                const sinActividad = m.actividades === 0
-                                return (
-                                  <div
-                                    key={c.id}
-                                    className="rounded-xl p-3"
-                                    style={sinActividad ? { backgroundColor: '#FDECEC', border: '1px solid #F5C6C6' } : { backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}
-                                  >
+        {tab === 'monitoreo' && (function () {
+          const LEYENDA_EJES = {
+            progreso: 'Progreso curricular — ¿avanza según el cronograma de su Unidad?',
+            formativa: 'Evaluación formativa oportuna — ¿califica poco después de que entregan?',
+            cierre: 'Cierre de Unidad — ¿ya evaluó las Unidades que ya terminaron?',
+            asistencia: 'Asistencia registrada con regularidad',
+            instrumentos: 'Variedad de instrumentos de evaluación',
+          }
+          const COLOR_SEMAFORO = { verde: '#22C55E', ambar: '#F59E0B', rojo: '#EF4444', gris: '#CBD5E1' }
+
+          function Punto({ color, titulo }) {
+            return <span title={titulo} className="inline-block rounded-full flex-shrink-0" style={{ width: 10, height: 10, backgroundColor: COLOR_SEMAFORO[color] }} />
+          }
+
+          function semaforoGeneral(cursosDelDocente) {
+            const todosLosEjes = cursosDelDocente.flatMap(function (c) {
+              const e = monitoreoEjes[c.id]
+              return e ? Object.values(e) : []
+            })
+            if (todosLosEjes.length === 0) return 'gris'
+            if (todosLosEjes.includes('rojo')) return 'rojo'
+            if (todosLosEjes.includes('ambar')) return 'ambar'
+            if (todosLosEjes.every(function (e) { return e === 'gris' })) return 'gris'
+            return 'verde'
+          }
+
+          // Agrupar todos los cursos de la institución por Docente
+          const porDocente = {}
+          cursos.forEach(function (c) {
+            if (!c.docente) return
+            if (!porDocente[c.docente.id]) porDocente[c.docente.id] = { docente: c.docente, cursos: [] }
+            porDocente[c.docente.id].cursos.push(c)
+          })
+          const listaDocentes = Object.values(porDocente).sort(function (a, b) { return compararPorApellido ? compararPorApellido(a.docente.full_name, b.docente.full_name) : a.docente.full_name.localeCompare(b.docente.full_name) })
+
+          return (
+            <div>
+              <p className="text-xs text-slate-400 mb-1">Acompañamiento docente según el CNEB — el semáforo junto a cada nombre resume 5 ejes de su práctica en todas sus Asignaturas. Haz clic para ver el detalle.</p>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 mb-5 text-[11px] text-slate-400">
+                {Object.entries(LEYENDA_EJES).map(function ([key, texto]) {
+                  return <span key={key} className="flex items-center gap-1"><Punto color="verde" />{texto.split(' — ')[0]}</span>
+                })}
+              </div>
+
+              {monitoreoCargando && listaDocentes.length === 0 && <p className="text-slate-400 text-sm">Cargando...</p>}
+              {!monitoreoCargando && listaDocentes.length === 0 && <p className="text-slate-400 text-sm">Aún no hay docentes con Aulas asignadas.</p>}
+
+              <div className="space-y-3">
+                {listaDocentes.map(function (grupoDoc) {
+                  const abierto = docenteExpandido === grupoDoc.docente.id
+                  const general = semaforoGeneral(grupoDoc.cursos)
+                  return (
+                    <div key={grupoDoc.docente.id} className="bg-white rounded-2xl overflow-hidden" style={{ border: '1px solid #E5E9F0' }}>
+                      <button
+                        onClick={function () { setDocenteExpandido(abierto ? null : grupoDoc.docente.id) }}
+                        className="w-full flex items-center justify-between px-5 py-4 text-left"
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <Punto color={general} titulo="Resumen general" />
+                          <span className="text-sm font-bold" style={{ color: NAVY_DARK }}>{grupoDoc.docente.full_name}</span>
+                        </span>
+                        <span className="text-xs text-slate-400">{grupoDoc.cursos.length} asignatura(s) {abierto ? '▾' : '▸'}</span>
+                      </button>
+
+                      {abierto && (
+                        <div className="px-5 pb-5 space-y-2">
+                          {monitoreoCargando && <p className="text-xs text-slate-400">Calculando...</p>}
+                          {grupoDoc.cursos.map(function (c) {
+                            const e = monitoreoEjes[c.id]
+                            return (
+                              <div key={c.id} className="rounded-xl p-3" style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}>
+                                <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                                  <div>
                                     <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{c.nombre}</p>
                                     <p className="text-xs text-slate-400">{gradoLabel(c.grado)} — Sección {c.grupo}</p>
-                                    {sinActividad ? (
-                                      <p className="text-xs mt-1.5 font-semibold" style={{ color: '#B91C1C' }}>Sin actividad registrada</p>
-                                    ) : (
-                                      <>
-                                        <p className="text-xs mt-1.5" style={{ color: GREEN_DARK }}>{m.actividades} actividad(es) · {m.tareas} tarea(s)</p>
-                                        {m.ultimaFecha && (
-                                          <p className="text-[11px] text-slate-400 mt-0.5">Última: {new Date(m.ultimaFecha).toLocaleDateString('es-PE')}</p>
-                                        )}
-                                      </>
-                                    )}
                                   </div>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        )
-                      })}
+                                  <button
+                                    onClick={function () { abrirDetalleMonitoreo(c) }}
+                                    className="text-[11px] font-semibold px-2.5 py-1 rounded-lg transition"
+                                    style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+                                  >
+                                    Ver detalle completo
+                                  </button>
+                                </div>
+                                {!e ? (
+                                  <p className="text-xs text-slate-400">Sin datos suficientes todavía.</p>
+                                ) : (
+                                  <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                                    {Object.entries(LEYENDA_EJES).map(function ([key, texto]) {
+                                      return (
+                                        <span key={key} className="flex items-center gap-1.5 text-xs" style={{ color: NAVY_DARK }} title={texto}>
+                                          <Punto color={e[key]} titulo={texto} />
+                                          {texto.split(' — ')[0]}
+                                        </span>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
+                  )
+                })}
+              </div>
+
+              {monitoreoCursoSel && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={function () { setMonitoreoCursoSel(null) }}>
+                  <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto" style={{ border: '1px solid #E5E9F0' }} onClick={function (e) { e.stopPropagation() }}>
+                    <div className="flex justify-between items-start mb-1">
+                      <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>{monitoreoCursoSel.nombre}</h3>
+                      <button onClick={function () { setMonitoreoCursoSel(null) }} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+                    </div>
+                    <p className="text-xs text-slate-400 mb-4">{gradoLabel(monitoreoCursoSel.grado)} — Sección {monitoreoCursoSel.grupo} · {monitoreoCursoSel.docente?.full_name}</p>
+
+                    <button
+                      onClick={function () { recordarDocente(monitoreoCursoSel) }}
+                      disabled={recordandoId === monitoreoCursoSel.id}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50 mb-4"
+                      style={{ backgroundColor: '#B45309' }}
+                    >
+                      {recordandoId === monitoreoCursoSel.id ? 'Enviando...' : '🔔 Recordar al docente'}
+                    </button>
+
+                    {monitoreoDetalleLoading ? (
+                      <p className="text-slate-400 text-sm">Cargando...</p>
+                    ) : monitoreoDetalle.length === 0 ? (
+                      <p className="text-slate-400 text-sm">Sin Unidades configuradas todavía para esta Asignatura.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {monitoreoDetalle.map(function (u) {
+                          const uAbierta = monitoreoUnidadAbierta === u.id
+                          return (
+                            <div key={u.id} className="rounded-xl overflow-hidden" style={{ border: '1px solid #E5E9F0' }}>
+                              <button onClick={function () { setMonitoreoUnidadAbierta(uAbierta ? null : u.id) }} className="w-full flex justify-between items-center px-3 py-2.5 text-left" style={{ backgroundColor: '#F4F6F9' }}>
+                                <span className="text-xs font-bold" style={{ color: NAVY }}>{u.tipo} {u.numero}{u.nombre ? ' — ' + u.nombre : ''}</span>
+                                <span className="text-[11px] text-slate-400">{u.actividades.length} actividad(es) {uAbierta ? '▾' : '▸'}</span>
+                              </button>
+                              {uAbierta && (
+                                <div className="p-3 space-y-2">
+                                  {u.actividades.length === 0 ? (
+                                    <p className="text-xs text-slate-400">Sin actividades registradas en esta Unidad.</p>
+                                  ) : (
+                                    u.actividades.map(function (a) {
+                                      return (
+                                        <div key={a.id} className="rounded-lg p-2.5" style={{ backgroundColor: '#FAFBFC', border: '1px solid #F4F6F9' }}>
+                                          <p className="text-xs font-semibold" style={{ color: NAVY_DARK }}>Actividad {a.numero_actividad} — {a.nombre}</p>
+                                          <p className="text-[11px] text-slate-400 mt-0.5">{a.materiales.length} material(es) · {a.tareas.length} tarea(s)</p>
+                                        </div>
+                                      )
+                                    })
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
-                )
-              })}
+                </div>
+              )}
             </div>
           )
-        )}
+        })()}
 
         {tab === 'lista-docentes' && (
           <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>

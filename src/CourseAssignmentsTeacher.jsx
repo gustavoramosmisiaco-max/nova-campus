@@ -10,6 +10,17 @@ const GREEN = '#22C55E'
 
 const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }
 
+const INSTRUMENTOS_EVALUACION = [
+  'Lista de cotejo',
+  'Rúbrica',
+  'Escala de valoración',
+  'Registro anecdótico',
+  'Ficha de observación',
+  'Portafolio',
+  'Prueba escrita',
+  'Guía de entrevista',
+]
+
 export default function CourseAssignmentsTeacher({ courseId }) {
   const { session } = useAuth()
   const [activities, setActivities] = useState([])
@@ -544,14 +555,15 @@ export default function CourseAssignmentsTeacher({ courseId }) {
             <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>
               Instrumento de evaluación
             </label>
-            <input
-              type="text"
+            <select
               value={instrumento}
               onChange={function (e) { setInstrumento(e.target.value) }}
-              placeholder="Ej: Lista de cotejo, Rúbrica, Prueba escrita"
               className="w-full rounded-lg px-3 py-2 text-sm outline-none"
               style={inputStyle}
-            />
+            >
+              <option value="">-- Selecciona --</option>
+              {INSTRUMENTOS_EVALUACION.map(function (i) { return <option key={i} value={i}>{i}</option> })}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
