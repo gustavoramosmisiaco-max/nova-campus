@@ -135,6 +135,7 @@ export default function CoordinadorDashboard() {
     if (actIds.length > 0) {
       const matResult = await supabase.from('materials').select('id, actividad_id').in('actividad_id', actIds)
       materiales = matResult.data || []
+      console.log('[DIAGNOSTICO Monitoreo] actIds enviados:', actIds.length, '| materiales.error:', matResult.error, '| materiales encontrados:', materiales.length, materiales)
     }
     const actividadPorIdParaMateriales = {}
     actividades.forEach(function (a) { actividadPorIdParaMateriales[a.id] = a.course_id })
