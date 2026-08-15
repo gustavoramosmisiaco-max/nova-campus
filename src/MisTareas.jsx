@@ -107,10 +107,17 @@ export default function MisTareas({ tareaDestacadaId, onTareaDestacadaAtendida }
     const assignmentIds = assignResult.data.map(function (a) { return a.id })
     let countMap = {}
     if (assignmentIds.length > 0) {
-      const subsResult = await supabase.from('submissions').select('assignment_id, file_url').in('assignment_id', assignmentIds)
+      const subsResult = await supabase.from('submissions').select('id, assignment_id, file_url, link_url').in('assignment_id', assignmentIds)
       if (!subsResult.error) {
+        const idsConFotos = new Set()
+        const submissionIdsTodas = subsResult.data.map(function (s) { return s.id })
+        if (submissionIdsTodas.length > 0) {
+          const filesResult = await supabase.from('submission_files').select('submission_id').in('submission_id', submissionIdsTodas)
+          if (!filesResult.error) filesResult.data.forEach(function (f) { idsConFotos.add(f.submission_id) })
+        }
         subsResult.data.forEach(function (s) {
-          if (s.file_url == null) return
+          const tieneEntrega = s.file_url != null || s.link_url != null || idsConFotos.has(s.id)
+          if (!tieneEntrega) return
           countMap[s.assignment_id] = (countMap[s.assignment_id] || 0) + 1
         })
       }
@@ -245,6 +252,7 @@ function CalificarTarea({ tarea, onBack }) {
     .sort(function (a, b) { return (a.orden || 0) - (b.orden || 0) })
 
   const [submissions, setSubmissions] = useState([])
+  const [submissionFilesMap, setSubmissionFilesMap] = useState({})
   const [submissionScoresMap, setSubmissionScoresMap] = useState({})
   const [justificaciones, setJustificaciones] = useState([])
   const [enrolledStudents, setEnrolledStudents] = useState([])
@@ -270,6 +278,23 @@ function CalificarTarea({ tarea, onBack }) {
     setSubmissions(result.data)
 
     const submissionIds = result.data.map(function (s) { return s.id })
+
+    let filesMap = {}
+    if (submissionIds.length > 0) {
+      const filesResult = await supabase
+        .from('submission_files')
+        .select('submission_id, file_url, orden')
+        .in('submission_id', submissionIds)
+        .order('orden')
+      if (!filesResult.error) {
+        filesResult.data.forEach(function (f) {
+          if (!filesMap[f.submission_id]) filesMap[f.submission_id] = []
+          filesMap[f.submission_id].push(f.file_url)
+        })
+      }
+    }
+    setSubmissionFilesMap(filesMap)
+
     let scoresMap = {}
     if (submissionIds.length > 0) {
       const scoresResult = await supabase.from('submission_scores').select('submission_id, capacidad_id, score').in('submission_id', submissionIds)
@@ -311,6 +336,32 @@ function CalificarTarea({ tarea, onBack }) {
     const name = parts[parts.length - 1]
     const ext = name.split('.').pop().toLowerCase()
     setPreview({ url: result.data.signedUrl, type: ext, name: name })
+  }
+
+  function BotonesEntrega({ submission }) {
+    const fotos = submissionFilesMap[submission.id] || []
+    return (
+      <div className="flex flex-wrap gap-1.5 justify-end">
+        {fotos.map(function (path, i) {
+          const esPdf = path.toLowerCase().endsWith('.pdf')
+          return (
+            <button key={path} onClick={function () { handlePreview(path) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>
+              {esPdf ? '📄' : '📷'} Archivo {i + 1}
+            </button>
+          )
+        })}
+        {fotos.length === 0 && submission.file_url && (
+          <button onClick={function () { handlePreview(submission.file_url) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>
+            Ver archivo
+          </button>
+        )}
+        {submission.link_url && (
+          <a href={submission.link_url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold px-3 py-1.5 rounded-lg transition inline-block" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>
+            🔗 Ver link
+          </a>
+        )}
+      </div>
+    )
   }
 
   async function handleRevisarJustificacion(justId, nuevoEstado) {
@@ -537,8 +588,8 @@ function CalificarTarea({ tarea, onBack }) {
                           <span className="text-xs font-semibold px-2 py-0.5 rounded-full inline-block mt-1 ml-1" style={{ backgroundColor: '#FDECEC', color: '#B91C1C' }}>Sin publicar</span>
                         )}
                       </div>
-                      {representante.file_url && (
-                        <button onClick={function () { handlePreview(representante.file_url) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>Ver archivo</button>
+                      {(representante.file_url || representante.link_url || (submissionFilesMap[representante.id] || []).length > 0) && (
+                        <BotonesEntrega submission={representante} />
                       )}
                     </div>
                     <div className="space-y-2">
@@ -594,7 +645,7 @@ function CalificarTarea({ tarea, onBack }) {
                     <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{s.student?.full_name}</p>
                     {s.score != null ? (
                       <p className={'text-xs font-semibold ' + getLetterColor(s.score)}>
-                        Promedio: {getLetterGrade(s.score)}{s.file_url == null ? ' (no entregó)' : ''}
+                        Promedio: {getLetterGrade(s.score)}{(s.file_url == null && s.link_url == null && (submissionFilesMap[s.id] || []).length === 0) ? ' (no entregó)' : ''}
                       </p>
                     ) : (
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full inline-block mt-1" style={{ backgroundColor: '#FFF7E6', color: '#B45309' }}>Sin calificar</span>
@@ -603,8 +654,8 @@ function CalificarTarea({ tarea, onBack }) {
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full inline-block mt-1 ml-1" style={{ backgroundColor: '#FDECEC', color: '#B91C1C' }}>Sin publicar</span>
                     )}
                   </div>
-                  {s.file_url && (
-                    <button onClick={function () { handlePreview(s.file_url) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>Ver archivo</button>
+                  {(s.file_url || s.link_url || (submissionFilesMap[s.id] || []).length > 0) && (
+                    <BotonesEntrega submission={s} />
                   )}
                 </div>
                 <div className="space-y-2">
