@@ -262,7 +262,7 @@ export default function CoordinadorDashboard() {
     if (institucionId) {
       const cursosResult = await supabase
         .from('courses')
-        .select('id, nombre, grado, grupo, docente:profiles(id, full_name), asignaturas(areas_curriculares(nombre)), enrollments(count)')
+        .select('id, nombre, grado, grupo, docente:profiles(id, full_name), asignaturas(areas_curriculares(id, nombre)), enrollments(count)')
         .eq('institucion_id', institucionId)
         .order('grado')
         .order('grupo')
