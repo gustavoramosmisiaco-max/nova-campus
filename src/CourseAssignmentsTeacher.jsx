@@ -31,6 +31,7 @@ export default function CourseAssignmentsTeacher({ courseId }) {
   const [selectedAssignment, setSelectedAssignment] = useState(null)
   const [assignmentCapacidades, setAssignmentCapacidades] = useState([])
   const [submissions, setSubmissions] = useState([])
+  const [submissionFilesMap, setSubmissionFilesMap] = useState({})
   const [submissionScoresMap, setSubmissionScoresMap] = useState({})
   const [loadingSubs, setLoadingSubs] = useState(false)
   const [subsError, setSubsError] = useState('')
@@ -221,6 +222,23 @@ export default function CourseAssignmentsTeacher({ courseId }) {
     setSubmissions(result.data)
 
     const submissionIds = result.data.map(function (s) { return s.id })
+
+    let filesMap = {}
+    if (submissionIds.length > 0) {
+      const filesResult = await supabase
+        .from('submission_files')
+        .select('submission_id, file_url, orden')
+        .in('submission_id', submissionIds)
+        .order('orden')
+      if (!filesResult.error) {
+        filesResult.data.forEach(function (f) {
+          if (!filesMap[f.submission_id]) filesMap[f.submission_id] = []
+          filesMap[f.submission_id].push(f.file_url)
+        })
+      }
+    }
+    setSubmissionFilesMap(filesMap)
+
     let scoresMap = {}
     if (submissionIds.length > 0) {
       const scoresResult = await supabase
@@ -337,13 +355,44 @@ export default function CourseAssignmentsTeacher({ courseId }) {
                         </p>
                       )}
                     </div>
-                    <button
-                      onClick={function () { handlePreview(s.file_url) }}
-                      className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
-                      style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
-                    >
-                      Ver archivo
-                    </button>
+                    <div className="flex flex-wrap gap-1.5 justify-end">
+                      {(submissionFilesMap[s.id] || []).map(function (path, i) {
+                        const esPdf = path.toLowerCase().endsWith('.pdf')
+                        return (
+                          <button
+                            key={path}
+                            onClick={function () { handlePreview(path) }}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+                            style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+                          >
+                            {esPdf ? '📄' : '📷'} Archivo {i + 1}
+                          </button>
+                        )
+                      })}
+                      {(!submissionFilesMap[s.id] || submissionFilesMap[s.id].length === 0) && s.file_url && (
+                        <button
+                          onClick={function () { handlePreview(s.file_url) }}
+                          className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+                          style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+                        >
+                          Ver archivo
+                        </button>
+                      )}
+                      {s.link_url && (
+                        <a
+                          href={s.link_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-semibold px-3 py-1.5 rounded-lg transition inline-block"
+                          style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+                        >
+                          🔗 Ver link
+                        </a>
+                      )}
+                      {!s.file_url && s.link_url == null && (!submissionFilesMap[s.id] || submissionFilesMap[s.id].length === 0) && (
+                        <span className="text-xs text-slate-400">Sin archivo ni link</span>
+                      )}
+                    </div>
                   </div>
 
                   {assignmentCapacidades.length === 0 ? (
