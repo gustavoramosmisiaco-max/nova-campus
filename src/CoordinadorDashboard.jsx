@@ -128,6 +128,47 @@ export default function CoordinadorDashboard() {
   const monitoreoTurnoRef = useRef(0)
   const [docenteExpandido, setDocenteExpandido] = useState(null)
 
+  // ============================================================
+  // Bitácora de acompañamiento — notas del Coordinador por Docente
+  // ============================================================
+  const [notasDocenteAbierto, setNotasDocenteAbierto] = useState(null)
+  const [notasCargando, setNotasCargando] = useState(false)
+  const [notasLista, setNotasLista] = useState([])
+  const [notaTexto, setNotaTexto] = useState('')
+  const [guardandoNota, setGuardandoNota] = useState(false)
+
+  async function abrirNotasDocente(docenteId) {
+    setNotasDocenteAbierto(docenteId)
+    setNotaTexto('')
+    setNotasCargando(true)
+    const result = await supabase
+      .from('notas_acompanamiento')
+      .select('id, texto, created_at')
+      .eq('docente_id', docenteId)
+      .eq('institucion_id', institucion.id)
+      .order('created_at', { ascending: false })
+    setNotasLista(result.data || [])
+    setNotasCargando(false)
+  }
+
+  async function guardarNota(docenteId) {
+    if (!notaTexto.trim()) return
+    setGuardandoNota(true)
+    const result = await supabase.from('notas_acompanamiento').insert({
+      coordinador_id: session.user.id,
+      docente_id: docenteId,
+      institucion_id: institucion.id,
+      texto: notaTexto.trim(),
+    })
+    if (result.error) {
+      alert('Error al guardar la nota: ' + result.error.message)
+    } else {
+      setNotaTexto('')
+      abrirNotasDocente(docenteId)
+    }
+    setGuardandoNota(false)
+  }
+
   async function cargarMonitoreoCompleto() {
     if (cursos.length === 0) return
     setMonitoreoCargando(true)
@@ -986,16 +1027,27 @@ export default function CoordinadorDashboard() {
                   const general = semaforoGeneral(grupoDoc.cursos)
                   return (
                     <div key={grupoDoc.docente.id} className="bg-white rounded-2xl overflow-hidden" style={{ border: '1px solid #E5E9F0' }}>
-                      <button
-                        onClick={function () { setDocenteExpandido(abierto ? null : grupoDoc.docente.id) }}
-                        className="w-full flex items-center justify-between px-5 py-4 text-left"
-                      >
-                        <span className="flex items-center gap-2.5">
+                      <div className="w-full flex items-center justify-between px-5 py-4">
+                        <button
+                          onClick={function () { setDocenteExpandido(abierto ? null : grupoDoc.docente.id) }}
+                          className="flex items-center gap-2.5 text-left flex-1"
+                        >
                           <Punto color={general} titulo="Resumen general" />
                           <span className="text-sm font-bold" style={{ color: NAVY_DARK }}>{grupoDoc.docente.full_name}</span>
+                        </button>
+                        <span className="text-xs text-slate-400 flex items-center gap-3 flex-shrink-0">
+                          <button
+                            onClick={function () { abrirNotasDocente(grupoDoc.docente.id) }}
+                            className="font-semibold px-2 py-1 rounded-lg transition"
+                            style={{ backgroundColor: '#EAF2FB', color: NAVY }}
+                          >
+                            📝 Notas
+                          </button>
+                          <button onClick={function () { setDocenteExpandido(abierto ? null : grupoDoc.docente.id) }}>
+                            {grupoDoc.cursos.length} asignatura(s) {abierto ? '▾' : '▸'}
+                          </button>
                         </span>
-                        <span className="text-xs text-slate-400">{grupoDoc.cursos.length} asignatura(s) {abierto ? '▾' : '▸'}</span>
-                      </button>
+                      </div>
 
                       {abierto && (
                         <div className="px-5 pb-5 space-y-2">
@@ -1089,6 +1141,59 @@ export default function CoordinadorDashboard() {
                                   )}
                                 </div>
                               )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {notasDocenteAbierto && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={function () { setNotasDocenteAbierto(null) }}>
+                  <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto flex flex-col" style={{ border: '1px solid #E5E9F0' }} onClick={function (e) { e.stopPropagation() }}>
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>Bitácora de acompañamiento</h3>
+                        <p className="text-xs text-slate-400">
+                          {listaDocentes.find(function (g) { return g.docente.id === notasDocenteAbierto })?.docente.full_name}
+                        </p>
+                      </div>
+                      <button onClick={function () { setNotasDocenteAbierto(null) }} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+                    </div>
+
+                    <div className="space-y-2 mb-4">
+                      <textarea
+                        value={notaTexto}
+                        onChange={function (e) { setNotaTexto(e.target.value) }}
+                        placeholder="Ej: Hablé con él sobre el atraso en 3°C. Se comprometió a subir la actividad esta semana. Seguimiento: 22/08."
+                        rows={3}
+                        className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                        style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }}
+                      />
+                      <button
+                        onClick={function () { guardarNota(notasDocenteAbierto) }}
+                        disabled={guardandoNota || !notaTexto.trim()}
+                        className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+                        style={{ backgroundColor: GREEN }}
+                      >
+                        {guardandoNota ? 'Guardando...' : '+ Agregar nota'}
+                      </button>
+                    </div>
+
+                    <p className="text-xs font-bold mb-2" style={{ color: NAVY_DARK }}>Historial</p>
+                    {notasCargando ? (
+                      <p className="text-xs text-slate-400">Cargando...</p>
+                    ) : notasLista.length === 0 ? (
+                      <p className="text-xs text-slate-400">Todavía no hay notas para este docente.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {notasLista.map(function (n) {
+                          return (
+                            <div key={n.id} className="rounded-lg p-3" style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}>
+                              <p className="text-[11px] text-slate-400 mb-1">{new Date(n.created_at).toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                              <p className="text-sm" style={{ color: NAVY_DARK }}>{n.texto}</p>
                             </div>
                           )
                         })}
