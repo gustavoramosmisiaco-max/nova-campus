@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from 'react'
+import { useEffect, useState, useRef, lazy, Suspense } from 'react'
 import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 import RegistroAuxiliarPorArea from './RegistroAuxiliarPorArea'
@@ -107,11 +107,14 @@ export default function CoordinadorDashboard() {
   const [monitoreoEjes, setMonitoreoEjes] = useState({}) // { [courseId]: { progreso, formativa, cierre, asistencia, instrumentos } }
   const [monitoreoCargando, setMonitoreoCargando] = useState(false)
   const [monitoreoCargado, setMonitoreoCargado] = useState(false)
+  const monitoreoTurnoRef = useRef(0)
   const [docenteExpandido, setDocenteExpandido] = useState(null)
 
   async function cargarMonitoreoCompleto() {
     if (cursos.length === 0) return
     setMonitoreoCargando(true)
+    const miTurno = Date.now()
+    monitoreoTurnoRef.current = miTurno
 
     const courseIds = cursos.map(function (c) { return c.id })
     const areaIds = [...new Set(cursos.map(function (c) { return c.asignaturas?.areas_curriculares?.id }).filter(Boolean))]
@@ -239,6 +242,9 @@ export default function CoordinadorDashboard() {
 
       ejesPorCurso[curso.id] = { progreso, formativa, cierre, asistencia, instrumentos, materialesEje }
     })
+
+    // Si mientras tanto se disparó otra actualización más nueva, esta respuesta ya está vieja — se descarta
+    if (monitoreoTurnoRef.current !== miTurno) return
 
     setMonitoreoEjes(ejesPorCurso)
     setMonitoreoCargando(false)
