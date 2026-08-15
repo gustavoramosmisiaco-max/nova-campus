@@ -19,6 +19,9 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
   const [error, setError] = useState('')
   const [uploadingId, setUploadingId] = useState(null)
   const [preview, setPreview] = useState(null)
+  const [linkAbiertoId, setLinkAbiertoId] = useState(null)
+  const [linkTexto, setLinkTexto] = useState('')
+  const [enviandoLink, setEnviandoLink] = useState(null)
   const [justificandoId, setJustificandoId] = useState(null)
   const [justMensaje, setJustMensaje] = useState('')
   const [justFile, setJustFile] = useState(null)
@@ -187,6 +190,51 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
     setUploadingId(null)
   }
 
+  async function handleEnviarLink(assignment) {
+    if (!linkTexto.trim()) return
+    setEnviandoLink(assignment.id)
+    setError('')
+
+    const existing = submissionsMap[assignment.id]
+    let dbResult
+    if (existing) {
+      dbResult = await supabase
+        .from('submissions')
+        .update({ link_url: linkTexto.trim(), submitted_at: new Date().toISOString() })
+        .eq('id', existing.id)
+    } else {
+      dbResult = await supabase.from('submissions').insert({
+        assignment_id: assignment.id,
+        student_id: session.user.id,
+        link_url: linkTexto.trim(),
+        submitted_at: new Date().toISOString(),
+      })
+    }
+
+    if (dbResult.error) {
+      setError('Error al enviar el link: ' + dbResult.error.message)
+      setEnviandoLink(null)
+      return
+    }
+
+    if (existing) {
+      const courseResult = await supabase.from('courses').select('docente_id').eq('id', assignment.course_id).single()
+      if (courseResult.data?.docente_id) {
+        await supabase.from('notificaciones').insert({
+          user_id: courseResult.data.docente_id,
+          tipo: 'tarea_nueva',
+          titulo: 'Un estudiante volvió a subir una tarea',
+          mensaje: `${profile?.full_name || 'Un estudiante'} resubió (link): ${assignment.titulo}. Revisa y vuelve a calificarla.`,
+        })
+      }
+    }
+
+    setLinkTexto('')
+    setLinkAbiertoId(null)
+    loadAssignments()
+    setEnviandoLink(null)
+  }
+
   async function cascadearEntregaAGrupo(assignment, rutasSubidas) {
     const miembroResult = await supabase
       .from('grupos_trabajo_miembros')
@@ -318,7 +366,7 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
             const isPast = dueDate < new Date()
             const hasSubmission = Boolean(submission)
             const misFotos = submission?.files || []
-            const hasRealSubmission = Boolean(submission) && (misFotos.length > 0 || submission.file_url != null)
+            const hasRealSubmission = Boolean(submission) && (misFotos.length > 0 || submission.file_url != null || submission.link_url != null)
             const isGraded = hasSubmission && submission.score != null
             const isUploading = uploadingId === a.id
             const justificacionAprobada = justificacion?.estado === 'aprobada'
@@ -403,6 +451,17 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
                       Ver mi archivo
                     </button>
                   )}
+                  {hasRealSubmission && submission.link_url && (
+                    <a
+                      href={submission.link_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg transition inline-block"
+                      style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+                    >
+                      🔗 Ver mi link
+                    </a>
+                  )}
 
                   {(!isGraded || justificacionAprobada) && habilitadoParaSubir && (
                     <label
@@ -420,9 +479,46 @@ export default function CourseAssignmentsStudent({ courseId, actividadId }) {
                       />
                     </label>
                   )}
+
+                  {(!isGraded || justificacionAprobada) && habilitadoParaSubir && linkAbiertoId !== a.id && (
+                    <button
+                      onClick={function () { setLinkAbiertoId(a.id); setLinkTexto(submission?.link_url || '') }}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+                      style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+                    >
+                      🔗 Enviar link (Drive)
+                    </button>
+                  )}
                 </div>
+                {linkAbiertoId === a.id && (
+                  <div className="mt-2 flex gap-2 flex-wrap items-center">
+                    <input
+                      type="url"
+                      value={linkTexto}
+                      onChange={function (e) { setLinkTexto(e.target.value) }}
+                      placeholder="Pega aquí el link de Google Drive..."
+                      className="flex-1 min-w-[220px] rounded-lg px-3 py-1.5 text-xs outline-none"
+                      style={{ backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }}
+                    />
+                    <button
+                      onClick={function () { handleEnviarLink(a) }}
+                      disabled={enviandoLink === a.id || !linkTexto.trim()}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+                      style={{ backgroundColor: GREEN }}
+                    >
+                      {enviandoLink === a.id ? 'Enviando...' : 'Enviar'}
+                    </button>
+                    <button
+                      onClick={function () { setLinkAbiertoId(null); setLinkTexto('') }}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+                      style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #D6DCE5' }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                )}
                 {(!isGraded || justificacionAprobada) && habilitadoParaSubir && (
-                  <p className="text-[11px] text-slate-400 mt-1.5">Puedes elegir varias fotos a la vez, tomar fotos con tu cámara, o subir un PDF.</p>
+                  <p className="text-[11px] text-slate-400 mt-1.5">Puedes elegir varias fotos a la vez, tomar fotos con tu cámara, subir un PDF, o enviar un link de Drive.</p>
                 )}
 
                 {isPast && !hasRealSubmission && !justificacionAprobada && (
