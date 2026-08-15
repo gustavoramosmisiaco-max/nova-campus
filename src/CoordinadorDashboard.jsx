@@ -110,7 +110,7 @@ export default function CoordinadorDashboard() {
   const [docenteExpandido, setDocenteExpandido] = useState(null)
 
   async function cargarMonitoreoCompleto() {
-    if (monitoreoCargado || cursos.length === 0) return
+    if (cursos.length === 0) return
     setMonitoreoCargando(true)
 
     const courseIds = cursos.map(function (c) { return c.id })
@@ -942,7 +942,17 @@ export default function CoordinadorDashboard() {
 
           return (
             <div>
-              <p className="text-xs text-slate-400 mb-1">Acompañamiento docente según el CNEB — el semáforo junto a cada nombre resume 5 ejes de su práctica en todas sus Asignaturas. Haz clic para ver el detalle.</p>
+              <div className="flex justify-between items-start gap-3 flex-wrap mb-1">
+                <p className="text-xs text-slate-400">Acompañamiento docente según el CNEB — el semáforo junto a cada nombre resume 6 ejes de su práctica en todas sus Asignaturas. Haz clic para ver el detalle.</p>
+                <button
+                  onClick={cargarMonitoreoCompleto}
+                  disabled={monitoreoCargando}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg transition hover:opacity-90 disabled:opacity-50 flex-shrink-0"
+                  style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+                >
+                  {monitoreoCargando ? 'Actualizando...' : '🔄 Actualizar'}
+                </button>
+              </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 mb-5 text-[11px] text-slate-400">
                 {Object.entries(LEYENDA_EJES).map(function ([key, texto]) {
                   return <span key={key} className="flex items-center gap-1"><Punto color="verde" />{texto.split(' — ')[0]}</span>
