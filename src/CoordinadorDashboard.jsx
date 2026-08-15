@@ -5,6 +5,7 @@ import RegistroAuxiliarPorArea from './RegistroAuxiliarPorArea'
 import ImportarEstudiantes from './ImportarEstudiantes'
 import ExcelJS from 'exceljs'
 import { compararPorApellido } from './gradeUtils'
+import { llamarIA } from './aiClient'
 
 const CoursesManager = lazy(function () { return import('./CoursesManager') })
 const ImportarDocentes = lazy(function () { return import('./ImportarDocentes') })
@@ -135,6 +136,11 @@ export default function CoordinadorDashboard() {
   const [siagieGrupo, setSiagieGrupo] = useState('A')
   const [siagieBimestre, setSiagieBimestre] = useState(1)
   const [siagieGenerando, setSiagieGenerando] = useState(false)
+  const [siagieDatos, setSiagieDatos] = useState(null)
+  const [siagieConclusionesIA, setSiagieConclusionesIA] = useState({})
+  const [siagieGenerandoConclusiones, setSiagieGenerandoConclusiones] = useState(false)
+  const [siagieProgresoConclusiones, setSiagieProgresoConclusiones] = useState({ hechas: 0, total: 0 })
+  const [siagieDescargando, setSiagieDescargando] = useState(false)
   const [siagiePlantillaArchivo, setSiagiePlantillaArchivo] = useState(null)
   const [siagiePlantillaEstructura, setSiagiePlantillaEstructura] = useState(null)
   const [siagieLeyendoPlantilla, setSiagieLeyendoPlantilla] = useState(false)
@@ -178,7 +184,7 @@ export default function CoordinadorDashboard() {
 
   // TODO (futuro): cuando se conecte la API de IA, esta función va a tomar
   // siagiePlantillaEstructura (la forma exacta del archivo real del SIAGIE) + los
-  // niveles de logro y competencias ya calculados en generarSIAGIE(), y le va a pedir
+  // niveles de logro y competencias ya calculados en calcularDatosSIAGIE(), y le va a pedir
   // a la IA que arme el archivo relleno respetando exactamente esa misma estructura,
   // para descargarlo con el mismo nombre y poder subirlo directo al SIAGIE.
   async function completarPlantillaConIA() {
@@ -193,8 +199,10 @@ export default function CoordinadorDashboard() {
     return 'C'
   }
 
-  async function generarSIAGIE() {
+  async function calcularDatosSIAGIE() {
     setSiagieGenerando(true)
+    setSiagieDatos(null)
+    setSiagieConclusionesIA({})
     try {
       const grado = siagieGrado
       const grupo = siagieGrupo
@@ -267,22 +275,26 @@ export default function CoordinadorDashboard() {
       if (unidadIds.length > 0 && courseIds.length > 0) {
         for (let i = 0; i < courseIds.length; i += 80) {
           const trozo = courseIds.slice(i, i + 80)
-          const actResult = await supabase.from('actividades').select('id, course_id, unidad_id').in('course_id', trozo).in('unidad_id', unidadIds)
+          const actResult = await supabase.from('actividades').select('id, course_id, unidad_id, nombre').in('course_id', trozo).in('unidad_id', unidadIds)
           actividades = actividades.concat(actResult.data || [])
         }
       }
       const actividadIds = actividades.map(function (a) { return a.id })
+      const actividadPorId = {}
+      actividades.forEach(function (a) { actividadPorId[a.id] = a })
 
       // 6. Tareas de esas Actividades
       let assignments = []
       if (actividadIds.length > 0) {
         for (let i = 0; i < actividadIds.length; i += 80) {
           const trozo = actividadIds.slice(i, i + 80)
-          const assignResult = await supabase.from('assignments').select('id, actividad_id').in('actividad_id', trozo)
+          const assignResult = await supabase.from('assignments').select('id, actividad_id, titulo').in('actividad_id', trozo)
           assignments = assignments.concat(assignResult.data || [])
         }
       }
       const assignmentIds = assignments.map(function (a) { return a.id })
+      const assignmentPorId = {}
+      assignments.forEach(function (a) { assignmentPorId[a.id] = a })
 
       // 7. Entregas y sus notas por Capacidad, para calcular el promedio por Estudiante+Competencia
       let submissions = []
@@ -309,8 +321,9 @@ export default function CoordinadorDashboard() {
       const capacidadPorId = {}
       capacidades.forEach(function (c) { capacidadPorId[c.id] = c })
 
-      // Promedio por Estudiante+Competencia
+      // Promedio por Estudiante+Competencia, y evidencias (para pasarle a la IA después)
       const acumulado = {}
+      const evidenciasPorClave = {}
       scores.forEach(function (sc) {
         const submission = submissionPorId[sc.submission_id]
         const capacidad = capacidadPorId[sc.capacidad_id]
@@ -319,7 +332,83 @@ export default function CoordinadorDashboard() {
         if (!acumulado[key]) acumulado[key] = { suma: 0, cantidad: 0 }
         acumulado[key].suma += sc.score
         acumulado[key].cantidad += 1
+
+        const assignment = assignmentPorId[submission.assignment_id]
+        if (assignment) {
+          if (!evidenciasPorClave[key]) evidenciasPorClave[key] = []
+          evidenciasPorClave[key].push({ titulo: assignment.titulo, score: sc.score })
+        }
       })
+
+      setSiagieDatos({
+        grado: grado,
+        grupo: grupo,
+        bimestre: bimestre,
+        estudiantes: estudiantes,
+        areaNombres: areaNombres,
+        competencias: competencias,
+        acumulado: acumulado,
+        evidenciasPorClave: evidenciasPorClave,
+      })
+    } catch (err) {
+      alert('Error al calcular los datos del SIAGIE: ' + err.message)
+    }
+    setSiagieGenerando(false)
+  }
+
+  // ¿Cuántos pares Estudiante+Competencia tienen Nivel "C"? — la norma exige Conclusión Descriptiva ahí sí o sí.
+  function paresConNivelC() {
+    if (!siagieDatos) return []
+    const pares = []
+    siagieDatos.estudiantes.forEach(function (est) {
+      siagieDatos.competencias.forEach(function (comp) {
+        const key = `${est.id}__${comp.id}`
+        const datos = siagieDatos.acumulado[key]
+        const promedio = datos && datos.cantidad > 0 ? datos.suma / datos.cantidad : null
+        const nivel = nivelLogro(promedio)
+        if (nivel === 'C') pares.push({ key: key, estudiante: est, competencia: comp })
+      })
+    })
+    return pares
+  }
+
+  async function generarConclusionesConIA() {
+    const pares = paresConNivelC()
+    if (pares.length === 0) {
+      alert('No hay ningún caso con Nivel "C" en esta Área/Grado/Sección — no hace falta generar conclusiones obligatorias.')
+      return
+    }
+    setSiagieGenerandoConclusiones(true)
+    setSiagieProgresoConclusiones({ hechas: 0, total: pares.length })
+
+    for (let i = 0; i < pares.length; i++) {
+      const par = pares[i]
+      const areaDeLaCompetencia = par.competencia.area
+      const evidencias = siagieDatos.evidenciasPorClave[par.key] || []
+
+      const resultado = await llamarIA('conclusion_descriptiva', {
+        estudianteNombre: par.estudiante.full_name,
+        competenciaNombre: par.competencia.nombre,
+        areaNombre: areaDeLaCompetencia,
+        nivelLogro: 'C',
+        bimestre: siagieDatos.bimestre,
+        notasActividades: evidencias,
+      })
+
+      if (!resultado.error) {
+        setSiagieConclusionesIA(function (prev) { return { ...prev, [par.key]: resultado.data.conclusion } })
+      }
+      setSiagieProgresoConclusiones({ hechas: i + 1, total: pares.length })
+    }
+
+    setSiagieGenerandoConclusiones(false)
+  }
+
+  async function descargarExcelSIAGIE() {
+    if (!siagieDatos) return
+    setSiagieDescargando(true)
+    try {
+      const { grado, grupo, bimestre, estudiantes, areaNombres, competencias, acumulado } = siagieDatos
 
       // 8. Armar el Excel: una hoja por Área
       const workbook = new ExcelJS.Workbook()
@@ -372,7 +461,7 @@ export default function CoordinadorDashboard() {
         competenciasDelArea.forEach(function (_, i) {
           const colInicio = 2 + i * colsPorCompetencia
           ws.getColumn(colInicio).width = 8
-          ws.getColumn(colInicio + 1).width = 40
+          ws.getColumn(colInicio + 1).width = 45
         })
 
         estudiantes.forEach(function (est, idx) {
@@ -392,9 +481,11 @@ export default function CoordinadorDashboard() {
             else if (nivel === 'AD') cellNivel.font = { bold: true, color: { argb: 'FF16A34A' } }
             else if (nivel) cellNivel.font = { bold: true, color: { argb: 'FF2563EB' } }
 
-            // Conclusión descriptiva: obligatoria por norma cuando el Nivel es "C" en ESA Competencia — vacía, lista para completar
+            // Conclusión descriptiva: obligatoria por norma cuando el Nivel es "C" en ESA Competencia
+            // — se usa el texto generado por la IA (o editado a mano) si existe, si no queda en blanco
             const cellConclusion = row.getCell(colInicio + 1)
-            cellConclusion.value = ''
+            cellConclusion.value = siagieConclusionesIA[key] || ''
+            cellConclusion.alignment = { wrapText: true, vertical: 'middle' }
             if (nivel === 'C') cellConclusion.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF7E6' } }
           })
           for (let c = 1; c <= totalColumnas; c++) {
@@ -416,7 +507,7 @@ export default function CoordinadorDashboard() {
     } catch (err) {
       alert('Error al generar el formato: ' + err.message)
     }
-    setSiagieGenerando(false)
+    setSiagieDescargando(false)
   }
   const [monitoreoVistaComparar, setMonitoreoVistaComparar] = useState(false)
   const [monitoreoAreaComparar, setMonitoreoAreaComparar] = useState(null)
@@ -1624,14 +1715,74 @@ export default function CoordinadorDashboard() {
               </div>
 
               <button
-                onClick={generarSIAGIE}
+                onClick={calcularDatosSIAGIE}
                 disabled={siagieGenerando}
                 className="text-sm font-semibold px-5 py-2.5 rounded-xl text-white transition hover:opacity-90 disabled:opacity-50"
                 style={{ background: `linear-gradient(90deg, ${NAVY}, ${GREEN})`, boxShadow: '0 8px 20px rgba(37,99,235,0.3)' }}
               >
-                {siagieGenerando ? 'Generando...' : '📥 Descargar formato SIAGIE'}
+                {siagieGenerando ? 'Calculando...' : '🧮 Calcular niveles de logro'}
               </button>
             </div>
+
+            {siagieDatos && (function () {
+              const pendientesC = paresConNivelC()
+              return (
+                <div className="bg-white rounded-2xl p-5 max-w-2xl mt-5" style={{ border: '1px solid #E5E9F0' }}>
+                  <p className="text-sm font-bold mb-1" style={{ color: NAVY_DARK }}>
+                    {gradoLabel(siagieDatos.grado)} Sección {siagieDatos.grupo} — {siagieDatos.estudiantes.length} estudiante(s)
+                  </p>
+                  <p className="text-xs text-slate-400 mb-4">
+                    {pendientesC.length === 0
+                      ? 'No hay ningún caso con Nivel "C" en este Bimestre — no hay Conclusiones obligatorias pendientes.'
+                      : `${pendientesC.length} caso(s) con Nivel "C" necesitan Conclusión Descriptiva obligatoria (según RVM N° 094-2020-MINEDU).`}
+                  </p>
+
+                  {pendientesC.length > 0 && (
+                    <button
+                      onClick={generarConclusionesConIA}
+                      disabled={siagieGenerandoConclusiones}
+                      className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50 mb-4"
+                      style={{ backgroundColor: '#7C3AED' }}
+                    >
+                      {siagieGenerandoConclusiones
+                        ? `Generando... (${siagieProgresoConclusiones.hechas}/${siagieProgresoConclusiones.total})`
+                        : '🤖 Generar conclusiones con IA'}
+                    </button>
+                  )}
+
+                  {pendientesC.length > 0 && (
+                    <div className="space-y-3 mb-5 max-h-96 overflow-y-auto">
+                      {pendientesC.map(function (par) {
+                        return (
+                          <div key={par.key} className="rounded-lg p-3" style={{ backgroundColor: '#FFF7E6', border: '1px solid #FDE4B5' }}>
+                            <p className="text-xs font-semibold mb-1" style={{ color: NAVY_DARK }}>
+                              {par.estudiante.full_name} — {par.competencia.nombre}
+                            </p>
+                            <textarea
+                              value={siagieConclusionesIA[par.key] || ''}
+                              onChange={function (e) { setSiagieConclusionesIA(function (prev) { return { ...prev, [par.key]: e.target.value } }) }}
+                              placeholder="Todavía sin conclusión — usa el botón de arriba, o escríbela a mano aquí"
+                              rows={2}
+                              className="w-full rounded-lg px-2 py-1.5 text-xs outline-none"
+                              style={{ backgroundColor: 'white', border: '1px solid #D6DCE5', color: NAVY_DARK }}
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={descargarExcelSIAGIE}
+                    disabled={siagieDescargando}
+                    className="text-sm font-semibold px-5 py-2.5 rounded-xl text-white transition hover:opacity-90 disabled:opacity-50"
+                    style={{ background: `linear-gradient(90deg, ${NAVY}, ${GREEN})`, boxShadow: '0 8px 20px rgba(37,99,235,0.3)' }}
+                  >
+                    {siagieDescargando ? 'Generando Excel...' : '📥 Descargar formato SIAGIE'}
+                  </button>
+                </div>
+              )
+            })()}
 
             <div className="bg-white rounded-2xl p-5 max-w-lg mt-5" style={{ border: '1px solid #E5E9F0' }}>
               <p className="text-sm font-bold mb-1" style={{ color: NAVY_DARK }}>Completar la plantilla oficial del SIAGIE con IA</p>
