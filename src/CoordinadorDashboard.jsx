@@ -35,6 +35,9 @@ async function consultarEnBloques(supabase, tabla, campos, columnaFiltro, valore
   for (let i = 0; i < valores.length; i += bloque) {
     const trozo = valores.slice(i, i + bloque)
     const result = await supabase.from(tabla).select(campos).in(columnaFiltro, trozo)
+    if (result.error) {
+      console.log('[DIAGNOSTICO] Error en tabla', tabla, '— mensaje:', result.error.message, '— código:', result.error.code, '— detalle completo:', result.error)
+    }
     if (!result.error && result.data) resultados.push(...result.data)
   }
   return resultados
