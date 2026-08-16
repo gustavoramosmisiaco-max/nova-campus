@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
+import { useAuth } from './AuthContext'
 import { getLetterGrade, getLetterColor, compararPorApellido } from './gradeUtils'
 import ExcelJS from 'exceljs'
 
@@ -47,6 +48,7 @@ function ciclo(grado) {
 }
 
 export default function RegistroAuxiliarPorArea({ courseId }) {
+  const { session } = useAuth()
   const [bimestre, setBimestre] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -54,6 +56,8 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
   const [competenciasData, setCompetenciasData] = useState([])
   const [students, setStudents] = useState([])
   const [abierto, setAbierto] = useState(null)
+  const [enviandoRegistro, setEnviandoRegistro] = useState(false)
+  const [yaEnviado, setYaEnviado] = useState(false)
 
   useEffect(function () {
     cargarTodo()
@@ -62,6 +66,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
   async function cargarTodo() {
     setLoading(true)
     setError('')
+    setYaEnviado(false)
 
     const courseResult = await supabase
       .from('courses')
@@ -78,6 +83,7 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
     const areaNombre = courseResult.data.asignaturas.areas_curriculares?.nombre
     const grado = courseResult.data.grado
     const grupo = courseResult.data.grupo
+    const institucionId = courseResult.data.institucion_id
 
     let institucion = null
     if (courseResult.data.institucion_id) {
@@ -107,6 +113,20 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
     coursesResult.data.forEach(function (c) {
       mapaAbreviaturas[c.id] = (c.nombre || '').slice(0, 3)
     })
+
+    // Verificar si ya se envió el Registro de esta Área+Grado+Sección+Bimestre al Coordinador
+    if (session?.user?.id) {
+      const envioResult = await supabase
+        .from('registros_auxiliares_enviados')
+        .select('id')
+        .eq('docente_id', session.user.id)
+        .eq('area_id', areaId)
+        .eq('grado', grado)
+        .eq('grupo', grupo)
+        .eq('bimestre', bimestre)
+        .maybeSingle()
+      setYaEnviado(!!envioResult.data)
+    }
 
     // Competencias y capacidades del área
     const compResult = await supabase.from('competencias').select('*').eq('area', areaNombre).order('codigo')
@@ -323,6 +343,8 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
     setCompetenciasData(estructura)
     setFicha({
       institucion: institucion?.nombre || '',
+      institucionId: institucionId,
+      areaId: areaId,
       ugel: institucion?.ugel || '',
       dre: institucion?.dre || '',
       director: institucion?.director || '',
@@ -408,6 +430,56 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
 
   const [exportando, setExportando] = useState(false)
   const [vista, setVista] = useState('registro')
+
+  // ============================================================
+  // Enviar el Registro Auxiliar de esta Área+Grado+Sección+Bimestre al Coordinador,
+  // dentro de la plataforma — sin usar correo ni WhatsApp.
+  // ============================================================
+  async function enviarRegistroAlCoordinador() {
+    if (!ficha || !session?.user?.id) return
+    if (!confirm(`¿Enviar el Registro Auxiliar de ${ficha.area} — ${ficha.grado}° "${ficha.grupo}" (${NOMBRE_BIMESTRE[bimestre]}) al Coordinador?`)) return
+
+    setEnviandoRegistro(true)
+    try {
+      const datosParaEnviar = students.map(function (s) {
+        return {
+          estudianteId: s.id,
+          estudianteNombre: s.full_name,
+          competencias: competenciasData.map(function (comp) {
+            const promedio = promedioCompetencia(s.id, comp)
+            return {
+              competenciaId: comp.id,
+              nombre: comp.nombre,
+              promedio: promedio,
+              nivel: promedio != null ? getLetterGrade(promedio) : null,
+            }
+          }),
+        }
+      })
+
+      const result = await supabase.from('registros_auxiliares_enviados').insert({
+        docente_id: session.user.id,
+        institucion_id: ficha.institucionId,
+        course_id: courseId,
+        area_id: ficha.areaId,
+        grado: ficha.grado,
+        grupo: ficha.grupo,
+        bimestre: bimestre,
+        datos: { area: ficha.area, estudiantes: datosParaEnviar },
+        estado: 'enviado',
+      })
+
+      if (result.error) {
+        alert('Error al enviar: ' + result.error.message)
+      } else {
+        setYaEnviado(true)
+        alert('Registro enviado al Coordinador correctamente.')
+      }
+    } catch (err) {
+      alert('Error al enviar: ' + err.message)
+    }
+    setEnviandoRegistro(false)
+  }
 
   async function exportExcel() {
     setExportando(true)
@@ -765,14 +837,24 @@ export default function RegistroAuxiliarPorArea({ courseId }) {
     <div>
       <div className="flex justify-between items-center flex-wrap gap-3 mb-4">
         <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>Registro Auxiliar</h3>
-        <button
-          onClick={exportExcel}
-          disabled={exportando}
-          className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
-          style={{ backgroundColor: '#2563EB' }}
-        >
-          {exportando ? 'Generando...' : 'Exportar Excel'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={enviarRegistroAlCoordinador}
+            disabled={enviandoRegistro || yaEnviado}
+            className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+            style={{ backgroundColor: yaEnviado ? '#16A34A' : '#7C3AED' }}
+          >
+            {yaEnviado ? '✓ Enviado al Coordinador' : enviandoRegistro ? 'Enviando...' : '📤 Enviar al Coordinador'}
+          </button>
+          <button
+            onClick={exportExcel}
+            disabled={exportando}
+            className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+            style={{ backgroundColor: '#2563EB' }}
+          >
+            {exportando ? 'Generando...' : 'Exportar Excel'}
+          </button>
+        </div>
       </div>
 
       <div className="mb-5 max-w-md">
