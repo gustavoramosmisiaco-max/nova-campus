@@ -8,6 +8,7 @@ import CourseMaterials from './CourseMaterials'
 import EvaluacionCierre from './EvaluacionCierre'
 import ImportarUnidadWord from './ImportarUnidadWord'
 import { llamarIA } from './aiClient'
+import PracticaManager from './PracticaManager'
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
@@ -827,7 +828,7 @@ function ActividadContenido({ actividad, onBack }) {
       </h3>
 
       <div className="flex gap-2 mb-6 border-b" style={{ borderColor: '#E5E9F0' }}>
-        {[{ id: 'materiales', label: 'Materiales' }, { id: 'tareas', label: 'Tareas' }, { id: 'notasclase', label: 'Notas de Clase' }].map(function (t) {
+        {[{ id: 'materiales', label: 'Materiales' }, { id: 'tareas', label: 'Tareas' }, { id: 'practica', label: 'Práctica' }, { id: 'notasclase', label: 'Notas de Clase' }].map(function (t) {
           const active = tab === t.id
           return (
             <button key={t.id} onClick={function () { setTab(t.id) }}
@@ -841,6 +842,7 @@ function ActividadContenido({ actividad, onBack }) {
 
       {tab === 'materiales' && <CourseMaterials courseId={actividad.course_id} actividadId={actividad.id} canUpload={true} />}
       {tab === 'tareas' && <ActividadTareas actividad={actividad} />}
+      {tab === 'practica' && <PracticaManager actividad={actividad} />}
       {tab === 'notasclase' && <NotasClasePorActividad actividad={actividad} />}
     </div>
   )
