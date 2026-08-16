@@ -7,6 +7,7 @@ import PreviewModal from './PreviewModal'
 import CourseMaterials from './CourseMaterials'
 import EvaluacionCierre from './EvaluacionCierre'
 import ImportarUnidadWord from './ImportarUnidadWord'
+import { llamarIA } from './aiClient'
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
@@ -388,6 +389,7 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
   const [proposito, setProposito] = useState('')
   const [competenciaId, setCompetenciaId] = useState('')
   const [detalles, setDetalles] = useState({})
+  const [completandoRubricaId, setCompletandoRubricaId] = useState(null)
 
   useEffect(function () {
     init()
@@ -507,6 +509,30 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
       const lista = (prev[capId]?.criteriosLista || ['']).filter(function (_c, i) { return i !== index })
       return { ...prev, [capId]: { ...prev[capId], criteriosLista: lista.length > 0 ? lista : [''] } }
     })
+  }
+
+  // Completa las 4 descripciones (AD/A/B/C) de la Rúbrica con IA, a partir del criterio que ya escribió el docente
+  async function completarRubricaConIA(capId, capNombre) {
+    const criterioActual = detalles[capId]?.criterio || ''
+    if (!criterioActual.trim()) {
+      alert('Primero escribe el criterio de evaluación — la IA lo usa como base para redactar los 4 niveles.')
+      return
+    }
+    setCompletandoRubricaId(capId)
+    const competenciaNombreActual = competencias.find(function (c) { return c.id === competenciaId })?.nombre || ''
+    const resultado = await llamarIA('completar_rubrica', {
+      criterio: criterioActual,
+      capacidadNombre: capNombre,
+      competenciaNombre: competenciaNombreActual,
+    })
+    if (resultado.error) {
+      alert('No se pudo completar con IA: ' + resultado.error)
+    } else {
+      setDetalles(function (prev) {
+        return { ...prev, [capId]: { ...prev[capId], desc_ad: resultado.data.desc_ad, desc_a: resultado.data.desc_a, desc_b: resultado.data.desc_b, desc_c: resultado.data.desc_c } }
+      })
+    }
+    setCompletandoRubricaId(null)
   }
 
   async function handleSubmit(e) {
@@ -692,6 +718,16 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
                         <div className="mt-2 pl-6 space-y-2">
                           {tipoInstrumento === 'Rúbrica' ? (
                             <>
+                              <input type="text" value={det?.criterio || ''} onChange={function (e) { updateDetalle(cap.id, 'criterio', e.target.value) }} placeholder="Criterio de evaluación (base para la IA)" className="w-full rounded-lg px-3 py-1.5 text-xs outline-none" style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }} />
+                              <button
+                                type="button"
+                                onClick={function () { completarRubricaConIA(cap.id, cap.nombre) }}
+                                disabled={completandoRubricaId === cap.id}
+                                className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+                                style={{ backgroundColor: '#7C3AED' }}
+                              >
+                                {completandoRubricaId === cap.id ? 'Completando...' : '✨ Completar con IA'}
+                              </button>
                               <textarea value={det?.desc_ad || ''} onChange={function (e) { updateDetalle(cap.id, 'desc_ad', e.target.value) }} placeholder="Descripción nivel AD" rows={2} className="w-full rounded-lg px-3 py-1.5 text-xs outline-none" style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }} />
                               <textarea value={det?.desc_a || ''} onChange={function (e) { updateDetalle(cap.id, 'desc_a', e.target.value) }} placeholder="Descripción nivel A" rows={2} className="w-full rounded-lg px-3 py-1.5 text-xs outline-none" style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }} />
                               <textarea value={det?.desc_b || ''} onChange={function (e) { updateDetalle(cap.id, 'desc_b', e.target.value) }} placeholder="Descripción nivel B" rows={2} className="w-full rounded-lg px-3 py-1.5 text-xs outline-none" style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }} />
@@ -839,6 +875,7 @@ function ActividadTareas({ actividad }) {
   const [submissionScoresMap, setSubmissionScoresMap] = useState({})
   const [criteriosPorCapacidad, setCriteriosPorCapacidad] = useState({})
   const [criterioChecksMap, setCriterioChecksMap] = useState({})
+  const [descripcionesRubricaPorCapacidad, setDescripcionesRubricaPorCapacidad] = useState({})
   const [justificaciones, setJustificaciones] = useState([])
   const [enrolledStudents, setEnrolledStudents] = useState([])
   const [gruposCurso, setGruposCurso] = useState([])
@@ -1035,6 +1072,14 @@ function ActividadTareas({ actividad }) {
       })
     }
     setCriteriosPorCapacidad(criteriosPorCapacidad)
+
+    // Descripciones AD/A/B/C de la Rúbrica, si esta Actividad las tiene
+    let descRubricaPorCapacidad = {}
+    if (actividad.tipo_instrumento === 'Rúbrica') {
+      const rubricaResult = await supabase.from('actividad_capacidades').select('capacidad_id, desc_ad, desc_a, desc_b, desc_c').eq('actividad_id', actividad.id)
+      ;(rubricaResult.data || []).forEach(function (r) { descRubricaPorCapacidad[r.capacidad_id] = r })
+    }
+    setDescripcionesRubricaPorCapacidad(descRubricaPorCapacidad)
 
     const result = await supabase.from('submissions').select('*, student:profiles!submissions_student_id_fkey(full_name, email)').eq('assignment_id', a.id).order('submitted_at', { ascending: false })
     if (result.error) { setSubmissions([]); setLoadingSubs(false); return }
@@ -1435,6 +1480,7 @@ function ActividadTareas({ actividad }) {
                               onToggleCriterio={handleToggleCriterio}
                               onGradeNumerico={handleGradeCapacidad}
                               onElegirNivelMaximo={handleElegirNivelMaximo}
+                              descripcionesRubrica={descripcionesRubricaPorCapacidad}
                             />
                           )
                         })}
@@ -1461,6 +1507,7 @@ function ActividadTareas({ actividad }) {
                               onToggleCriterio={handleToggleCriterio}
                               onGradeNumerico={handleGradeCapacidad}
                               onElegirNivelMaximo={handleElegirNivelMaximo}
+                              descripcionesRubrica={descripcionesRubricaPorCapacidad}
                             />
                           )
                         })}
@@ -1517,6 +1564,7 @@ function ActividadTareas({ actividad }) {
                           onToggleCriterio={handleToggleCriterio}
                           onGradeNumerico={handleGradeCapacidad}
                           onElegirNivelMaximo={handleElegirNivelMaximo}
+                              descripcionesRubrica={descripcionesRubricaPorCapacidad}
                         />
                       )
                     })}
@@ -1662,10 +1710,43 @@ function ActividadTareas({ actividad }) {
 // Fila para calificar una Capacidad — si tiene varios criterios de Lista de Cotejo,
 // muestra casillas para marcar y calcula la nota sugerida sola; si no, el número de siempre.
 // ============================================================
-function CapacidadGradeRow({ cap, submission, criteriosPorCapacidad, criterioChecksMap, submissionScoresMap, onToggleCriterio, onGradeNumerico, onElegirNivelMaximo }) {
+function CapacidadGradeRow({ cap, submission, criteriosPorCapacidad, criterioChecksMap, submissionScoresMap, onToggleCriterio, onGradeNumerico, onElegirNivelMaximo, descripcionesRubrica }) {
   const criterios = criteriosPorCapacidad[cap.id] || []
   const key = `${submission.id}__${cap.id}`
   const currentScore = submissionScoresMap[key]
+  const descRubrica = descripcionesRubrica?.[cap.id]
+
+  if (descRubrica) {
+    const NOTA_POR_NIVEL_LOCAL = { AD: 19, A: 16, B: 12, C: 8 }
+    const nivelActual = currentScore != null ? getLetterGrade(currentScore) : null
+    const niveles = [
+      { letra: 'AD', desc: descRubrica.desc_ad, color: '#2F7A1F' },
+      { letra: 'A', desc: descRubrica.desc_a, color: '#1D5C8F' },
+      { letra: 'B', desc: descRubrica.desc_b, color: '#B45309' },
+      { letra: 'C', desc: descRubrica.desc_c, color: '#B91C1C' },
+    ]
+    return (
+      <div className="rounded-lg p-3" style={{ backgroundColor: 'white', border: '1px solid #E5E9F0' }}>
+        <p className="text-xs font-semibold mb-2" style={{ color: NAVY_DARK }}>{cap.nombre}</p>
+        <div className="space-y-1.5">
+          {niveles.map(function (n) {
+            const activo = nivelActual === n.letra
+            return (
+              <button
+                key={n.letra}
+                type="button"
+                onClick={function () { onGradeNumerico(submission.id, cap.id, String(NOTA_POR_NIVEL_LOCAL[n.letra])) }}
+                className="w-full text-left rounded-lg px-3 py-2 text-xs transition"
+                style={activo ? { backgroundColor: n.color, color: 'white' } : { backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #E5E9F0' }}
+              >
+                <span className="font-bold">{n.letra}</span> — {n.desc || '(sin descripción)'}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
 
   if (criterios.length <= 1) {
     return (
