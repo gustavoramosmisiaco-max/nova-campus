@@ -141,39 +141,45 @@ export default function CoordinadorDashboard() {
   const [siagieGenerandoConclusiones, setSiagieGenerandoConclusiones] = useState(false)
   const [siagieProgresoConclusiones, setSiagieProgresoConclusiones] = useState({ hechas: 0, total: 0 })
   const [siagieDescargando, setSiagieDescargando] = useState(false)
+  const [registrosRecibidos, setRegistrosRecibidos] = useState([])
+  const [registrosCargando, setRegistrosCargando] = useState(false)
+  const [registrosCargados, setRegistrosCargados] = useState(false)
   const [siagiePlantillaArchivo, setSiagiePlantillaArchivo] = useState(null)
   const [siagiePlantillaEstructura, setSiagiePlantillaEstructura] = useState(null)
+  const [siagiePlantillaWorkbook, setSiagiePlantillaWorkbook] = useState(null) // el archivo Excel real, en memoria, listo para escribirle encima
   const [siagieLeyendoPlantilla, setSiagieLeyendoPlantilla] = useState(false)
+  const [siagieCompletandoConIA, setSiagieCompletandoConIA] = useState(false)
 
-  // Lee el archivo real que el docente descarga del SIAGIE, y detecta su estructura
-  // (hojas, encabezados, cantidad de filas) — esto es lo que en el futuro se le pasará
-  // a la IA junto con las notas calculadas, para que rellene el archivo automáticamente.
+  // Lee el archivo real que el docente descarga del SIAGIE, guarda TODAS sus filas
+  // (para que la IA pueda encontrar la fila exacta de cada estudiante) y también guarda
+  // el propio Workbook en memoria, para poder escribirle encima más adelante sin perder
+  // su formato original.
   async function leerPlantillaSIAGIE(file) {
     setSiagieLeyendoPlantilla(true)
     setSiagiePlantillaEstructura(null)
+    setSiagiePlantillaWorkbook(null)
     try {
       const buffer = await file.arrayBuffer()
       const workbook = new ExcelJS.Workbook()
       await workbook.xlsx.load(buffer)
 
       const hojas = workbook.worksheets.map(function (ws) {
-        const filasDeMuestra = []
-        ws.eachRow(function (row, rowNumber) {
-          if (rowNumber <= 6) {
-            const valores = []
-            row.eachCell({ includeEmpty: true }, function (cell) { valores.push(cell.value != null ? String(cell.value) : '') })
-            filasDeMuestra.push(valores)
-          }
+        const todasLasFilas = []
+        ws.eachRow({ includeEmpty: true }, function (row, rowNumber) {
+          const valores = []
+          row.eachCell({ includeEmpty: true }, function (cell) { valores.push(cell.value != null ? String(cell.value) : '') })
+          todasLasFilas.push({ fila: rowNumber, valores: valores })
         })
         return {
           nombre: ws.name,
           totalFilas: ws.rowCount,
           totalColumnas: ws.columnCount,
-          filasDeMuestra: filasDeMuestra,
+          filas: todasLasFilas,
         }
       })
 
       setSiagiePlantillaArchivo(file)
+      setSiagiePlantillaWorkbook(workbook)
       setSiagiePlantillaEstructura({ nombreArchivo: file.name, hojas: hojas })
     } catch (err) {
       alert('No se pudo leer ese archivo. Verifica que sea un Excel (.xlsx) válido. Detalle: ' + err.message)
@@ -182,13 +188,80 @@ export default function CoordinadorDashboard() {
     setSiagieLeyendoPlantilla(false)
   }
 
-  // TODO (futuro): cuando se conecte la API de IA, esta función va a tomar
-  // siagiePlantillaEstructura (la forma exacta del archivo real del SIAGIE) + los
-  // niveles de logro y competencias ya calculados en calcularDatosSIAGIE(), y le va a pedir
-  // a la IA que arme el archivo relleno respetando exactamente esa misma estructura,
-  // para descargarlo con el mismo nombre y poder subirlo directo al SIAGIE.
+  // Le pide a la IA que analice la estructura real de la plantilla + los datos ya
+  // calculados (niveles de logro y conclusiones), y devuelva en qué fila/columna de
+  // CADA hoja va cada valor. Con esa lista, se escribe directo sobre el archivo
+  // original (sin tocar su formato) y se descarga listo para subir al SIAGIE.
   async function completarPlantillaConIA() {
-    alert('Esta función se conecta a la API de IA — todavía no está activa. La plantilla ya quedó leída y lista para cuando se conecte.')
+    if (!siagiePlantillaEstructura || !siagiePlantillaWorkbook) {
+      alert('Primero sube la plantilla del SIAGIE.')
+      return
+    }
+    if (!siagieDatos) {
+      alert('Primero calcula los niveles de logro (arriba, con el botón "Calcular niveles de logro") para esta misma Aula y Bimestre.')
+      return
+    }
+
+    setSiagieCompletandoConIA(true)
+    try {
+      const datosParaLaIA = siagieDatos.estudiantes.map(function (est) {
+        const porCompetencia = siagieDatos.competencias.map(function (comp) {
+          const key = `${est.id}__${comp.id}`
+          const datos = siagieDatos.acumulado[key]
+          const promedio = datos && datos.cantidad > 0 ? datos.suma / datos.cantidad : null
+          const nivel = nivelLogro(promedio)
+          return {
+            competencia: comp.nombre,
+            area: comp.area,
+            nivel: nivel || null,
+            conclusion: siagieConclusionesIA[key] || null,
+          }
+        })
+        return { estudiante: est.full_name, competencias: porCompetencia }
+      })
+
+      const resultado = await llamarIA('completar_plantilla_siagie', {
+        estructura: siagiePlantillaEstructura,
+        datos: datosParaLaIA,
+      })
+
+      if (resultado.error) {
+        alert('Error al completar la plantilla: ' + resultado.error)
+        setSiagieCompletandoConIA(false)
+        return
+      }
+
+      const asignaciones = resultado.data?.asignaciones || []
+      if (asignaciones.length === 0) {
+        alert('La IA no encontró dónde ubicar los datos en esta plantilla. Puede que su estructura sea distinta a la esperada — revisa el archivo manualmente.')
+        setSiagieCompletandoConIA(false)
+        return
+      }
+
+      // Escribir cada valor directo sobre el Workbook real, sin tocar su formato
+      let escritos = 0
+      asignaciones.forEach(function (asig) {
+        const ws = siagiePlantillaWorkbook.worksheets.find(function (h) { return h.name === asig.hoja })
+        if (!ws) return
+        const cell = ws.getRow(asig.fila).getCell(asig.columna)
+        cell.value = asig.valor
+        escritos++
+      })
+
+      const buffer = await siagiePlantillaWorkbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = siagiePlantillaArchivo.name // mismo nombre exacto del archivo original del SIAGIE
+      a.click()
+      URL.revokeObjectURL(url)
+
+      alert(`Listo — se completaron ${escritos} celda(s) en la plantilla. Revisa el archivo descargado antes de subirlo al SIAGIE.`)
+    } catch (err) {
+      alert('Error al completar la plantilla: ' + err.message)
+    }
+    setSiagieCompletandoConIA(false)
   }
 
   function nivelLogro(promedio) {
@@ -354,6 +427,96 @@ export default function CoordinadorDashboard() {
       alert('Error al calcular los datos del SIAGIE: ' + err.message)
     }
     setSiagieGenerando(false)
+  }
+
+  // ============================================================
+  // Registros Auxiliares que los Docentes ya enviaron dentro de la plataforma —
+  // se agrupan por Área → Grado → Sección → Bimestre.
+  // ============================================================
+  async function cargarRegistrosRecibidos() {
+    setRegistrosCargando(true)
+    const result = await supabase
+      .from('registros_auxiliares_enviados')
+      .select('id, docente_id, area_id, grado, grupo, bimestre, fecha_envio, estado, datos, docente:profiles(full_name), area:areas_curriculares(nombre)')
+      .eq('institucion_id', institucion.id)
+      .order('fecha_envio', { ascending: false })
+    if (!result.error) {
+      setRegistrosRecibidos(result.data || [])
+    } else {
+      alert('Error al cargar los registros recibidos: ' + result.error.message)
+    }
+    setRegistrosCargados(true)
+    setRegistrosCargando(false)
+  }
+
+  // Agrupa los envíos por Área → Grado → Sección → Bimestre, y arma la lista de quién ya envió
+  function agruparRegistrosRecibidos() {
+    const grupos = {}
+    registrosRecibidos.forEach(function (r) {
+      const key = `${r.area_id}__${r.grado}__${r.grupo}__${r.bimestre}`
+      if (!grupos[key]) {
+        grupos[key] = {
+          areaId: r.area_id,
+          areaNombre: r.area?.nombre || 'Área',
+          grado: r.grado,
+          grupo: r.grupo,
+          bimestre: r.bimestre,
+          envios: [],
+        }
+      }
+      grupos[key].envios.push(r)
+    })
+    return Object.values(grupos).sort(function (a, b) {
+      if (a.areaNombre !== b.areaNombre) return a.areaNombre.localeCompare(b.areaNombre)
+      if (a.grado !== b.grado) return a.grado - b.grado
+      return a.grupo.localeCompare(b.grupo)
+    })
+  }
+
+  // Toma el envío más reciente de ese Área+Grado+Sección+Bimestre (todos representan la
+  // misma foto del Área completa, ya que el Registro Auxiliar de cada Docente ya combina
+  // las Asignaturas de toda el Área, no solo la suya) y lo convierte al mismo formato que
+  // usa calcularDatosSIAGIE(), para reutilizar exactamente los mismos botones de generar
+  // conclusiones con IA y descargar el Excel.
+  function extraerParaSIAGIE(grupo) {
+    const envioMasReciente = grupo.envios[0] // ya vienen ordenados del más nuevo al más viejo
+    const datos = envioMasReciente.datos
+
+    const estudiantes = (datos.estudiantes || []).map(function (e) { return { id: e.estudianteId, full_name: e.estudianteNombre } })
+
+    const competenciasMap = {}
+    ;(datos.estudiantes || []).forEach(function (e) {
+      ;(e.competencias || []).forEach(function (c) {
+        if (!competenciasMap[c.competenciaId]) competenciasMap[c.competenciaId] = { id: c.competenciaId, nombre: c.nombre, area: datos.area }
+      })
+    })
+    const competencias = Object.values(competenciasMap)
+
+    const acumulado = {}
+    ;(datos.estudiantes || []).forEach(function (e) {
+      ;(e.competencias || []).forEach(function (c) {
+        if (c.promedio == null) return
+        const key = `${e.estudianteId}__${c.competenciaId}`
+        acumulado[key] = { suma: c.promedio, cantidad: 1 } // ya viene promediado desde el Registro Auxiliar
+      })
+    })
+
+    setSiagieGrado(grupo.grado)
+    setSiagieGrupo(grupo.grupo)
+    setSiagieBimestre(grupo.bimestre)
+    setSiagieConclusionesIA({})
+    setSiagieDatos({
+      grado: grupo.grado,
+      grupo: grupo.grupo,
+      bimestre: grupo.bimestre,
+      estudiantes: estudiantes,
+      areaNombres: [datos.area],
+      competencias: competencias,
+      acumulado: acumulado,
+      evidenciasPorClave: {}, // el Registro Auxiliar ya envía solo el promedio final, sin el detalle de cada actividad
+    })
+
+    alert(`Extraído: ${grupo.areaNombre} — ${gradoLabel(grupo.grado)} Sección ${grupo.grupo}, con datos de ${grupo.envios.length} envío(s). Baja para generar conclusiones y descargar el Excel.`)
   }
 
   // ¿Cuántos pares Estudiante+Competencia tienen Nivel "C"? — la norma exige Conclusión Descriptiva ahí sí o sí.
@@ -1682,10 +1845,78 @@ export default function CoordinadorDashboard() {
         {tab === 'siagie' && (
           <div>
             <h2 className="text-2xl font-bold mb-2" style={{ color: NAVY_DARK }}>Formato SIAGIE por Bimestre</h2>
-            <p className="text-sm text-slate-400 mb-1">
+            <p className="text-sm text-slate-400 mb-6">
               Genera el Excel con el nivel de logro (AD, A, B, C) de cada Competencia, por Grado y Sección — listo para pasar al SIAGIE.
             </p>
-            <p className="text-xs text-slate-400 mb-6">
+
+            <div className="bg-white rounded-2xl p-5 mb-6" style={{ border: '1px solid #E5E9F0' }}>
+              <div className="flex justify-between items-center flex-wrap gap-2 mb-1">
+                <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>📥 Registros Auxiliares recibidos</p>
+                <button
+                  onClick={cargarRegistrosRecibidos}
+                  disabled={registrosCargando}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                  style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+                >
+                  {registrosCargando ? 'Cargando...' : registrosCargados ? '🔄 Actualizar' : 'Ver registros recibidos'}
+                </button>
+              </div>
+              <p className="text-xs text-slate-400 mb-4">
+                Lo que los Docentes ya enviaron desde su Registro Auxiliar, agrupado por Área → Grado → Sección.
+              </p>
+
+              {registrosCargados && (function () {
+                const grupos = agruparRegistrosRecibidos()
+                if (grupos.length === 0) {
+                  return <p className="text-slate-400 text-sm">Todavía no hay ningún Registro Auxiliar enviado.</p>
+                }
+
+                const porArea = {}
+                grupos.forEach(function (g) {
+                  if (!porArea[g.areaNombre]) porArea[g.areaNombre] = []
+                  porArea[g.areaNombre].push(g)
+                })
+
+                return (
+                  <div className="space-y-4">
+                    {Object.entries(porArea).map(function ([areaNombre, gruposDelArea]) {
+                      return (
+                        <div key={areaNombre} className="rounded-xl p-3" style={{ backgroundColor: '#F4F6F9' }}>
+                          <p className="text-xs font-bold mb-2" style={{ color: NAVY_DARK }}>{areaNombre}</p>
+                          <div className="space-y-2">
+                            {gruposDelArea.map(function (g) {
+                              const docentesUnicos = [...new Set(g.envios.map(function (e) { return e.docente?.full_name || 'Docente' }))]
+                              return (
+                                <div key={`${g.areaId}_${g.grado}_${g.grupo}_${g.bimestre}`} className="bg-white rounded-lg p-3 flex justify-between items-center flex-wrap gap-2" style={{ border: '1px solid #E5E9F0' }}>
+                                  <div>
+                                    <p className="text-xs font-semibold" style={{ color: NAVY_DARK }}>
+                                      {gradoLabel(g.grado)} Sección {g.grupo} — Bimestre {g.bimestre}
+                                    </p>
+                                    <p className="text-[11px] text-slate-400">
+                                      Enviado por: {docentesUnicos.join(', ')}
+                                    </p>
+                                  </div>
+                                  <button
+                                    onClick={function () { extraerParaSIAGIE(g) }}
+                                    className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90"
+                                    style={{ backgroundColor: '#7C3AED' }}
+                                  >
+                                    Extraer para SIAGIE
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
+
+            <p className="text-sm font-bold mb-2" style={{ color: NAVY_DARK }}>O calcula manualmente</p>
+            <p className="text-xs text-slate-400 mb-4">
               Según la RVM N° 094-2020-MINEDU: la Conclusión Descriptiva es obligatoria cuando el nivel de logro es "C" (resaltada en naranja) — queda en blanco por ahora, lista para completarse.
             </p>
 
@@ -1819,11 +2050,17 @@ export default function CoordinadorDashboard() {
 
                   <button
                     onClick={completarPlantillaConIA}
-                    className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+                    disabled={siagieCompletandoConIA}
+                    className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
                     style={{ backgroundColor: '#7C3AED' }}
                   >
-                    🤖 Completar con IA (Próximamente)
+                    {siagieCompletandoConIA ? 'Completando...' : '🤖 Completar con IA'}
                   </button>
+                  {!siagieDatos && (
+                    <p className="text-[11px] text-slate-400 mt-2">
+                      Nota: primero calcula los niveles de logro arriba (misma Aula y Bimestre) para poder completar esta plantilla.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
