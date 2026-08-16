@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient'
 import { compararPorApellido } from './gradeUtils'
 import { estaEnLinea } from './PresenceHeartbeat'
 import { usePresence } from './PresenceContext'
+import { llamarIA } from './aiClient'
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
@@ -181,6 +182,82 @@ export default function EstudiantesList({ institucionFija, institucionFijaNombre
     loadStudents()
   }
 
+  // ============================================================
+  // Generar reporte para padres con IA — Función 3 del plan de IA.
+  // Junta asistencia, conducta y tareas del estudiante, se lo manda a la IA,
+  // y guarda el texto en reportes_padres para que el Portal de Padres lo muestre.
+  // ============================================================
+  const [generandoReporteId, setGenerandoReporteId] = useState(null)
+  const [reporteAbierto, setReporteAbierto] = useState(null) // { studentId, nombre, texto }
+  const [guardandoReporte, setGuardandoReporte] = useState(false)
+
+  async function handleGenerarReporte(studentId, nombre) {
+    setGenerandoReporteId(studentId)
+    try {
+      const asisResult = await supabase
+        .from('asistencias')
+        .select('estado, fecha')
+        .eq('student_id', studentId)
+        .order('fecha', { ascending: false })
+        .limit(30)
+
+      const conductaResult = await supabase
+        .from('conductas_registro')
+        .select('descripcion, created_at')
+        .eq('student_id', studentId)
+        .order('created_at', { ascending: false })
+        .limit(10)
+
+      const enrollResult = await supabase.from('enrollments').select('course_id').eq('student_id', studentId).eq('status', 'activo')
+      const courseIds = (enrollResult.data || []).map(function (e) { return e.course_id })
+
+      let tareas = []
+      if (courseIds.length > 0) {
+        const assignResult = await supabase.from('assignments').select('id, titulo').in('course_id', courseIds)
+        const assignmentIds = (assignResult.data || []).map(function (a) { return a.id })
+        const submissionsResult = assignmentIds.length > 0
+          ? await supabase.from('submissions').select('assignment_id, file_url, link_url').eq('student_id', studentId).in('assignment_id', assignmentIds)
+          : { data: [] }
+        const entregadosSet = new Set((submissionsResult.data || []).filter(function (s) { return s.file_url != null || s.link_url != null }).map(function (s) { return s.assignment_id }))
+        tareas = (assignResult.data || []).map(function (a) { return { titulo: a.titulo, entregado: entregadosSet.has(a.id) } })
+      }
+
+      const resultado = await llamarIA('reporte_padres', {
+        estudianteNombre: nombre,
+        asistencias: asisResult.data || [],
+        conductas: conductaResult.data || [],
+        tareas: tareas,
+      })
+
+      if (resultado.error) {
+        alert('Error al generar el reporte: ' + resultado.error)
+      } else {
+        setReporteAbierto({ studentId: studentId, nombre: nombre, texto: resultado.data.reporte })
+      }
+    } catch (err) {
+      alert('Error al generar el reporte: ' + err.message)
+    }
+    setGenerandoReporteId(null)
+  }
+
+  async function guardarReportePadres() {
+    if (!reporteAbierto) return
+    setGuardandoReporte(true)
+    const { data: userData } = await supabase.auth.getUser()
+    const result = await supabase.from('reportes_padres').insert({
+      student_id: reporteAbierto.studentId,
+      generado_por: userData?.user?.id,
+      texto: reporteAbierto.texto,
+    })
+    if (result.error) {
+      alert('Error al guardar: ' + result.error.message)
+    } else {
+      alert('Reporte guardado — ya está visible en el Portal de Padres de este estudiante.')
+      setReporteAbierto(null)
+    }
+    setGuardandoReporte(false)
+  }
+
   if (loading) return <p className="text-slate-400 text-sm">Cargando estudiantes...</p>
   if (error) return <p className="text-red-500 text-sm">Error: {error}</p>
 
@@ -259,6 +336,14 @@ export default function EstudiantesList({ institucionFija, institucionFijaNombre
                     <td className="py-2 text-right">
                       <div className="flex gap-2 justify-end">
                         <button
+                          onClick={function () { handleGenerarReporte(s.id, s.full_name) }}
+                          disabled={generandoReporteId === s.id}
+                          className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+                          style={{ backgroundColor: '#7C3AED' }}
+                        >
+                          {generandoReporteId === s.id ? 'Generando...' : '🤖 Reporte para padres'}
+                        </button>
+                        <button
                           onClick={function () { handleResetPassword(s.id, s.full_name) }}
                           disabled={reseteandoId === s.id}
                           className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
@@ -282,6 +367,35 @@ export default function EstudiantesList({ institucionFija, institucionFijaNombre
             </tbody>
           </table>
         </div>
+
+        {reporteAbierto && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={function () { setReporteAbierto(null) }}>
+            <div className="bg-white rounded-2xl p-6 w-full max-w-lg" style={{ border: '1px solid #E5E9F0' }} onClick={function (e) { e.stopPropagation() }}>
+              <h3 className="text-lg font-bold mb-1" style={{ color: NAVY_DARK }}>Reporte para la familia de {reporteAbierto.nombre}</h3>
+              <p className="text-xs text-slate-400 mb-4">Revisa el texto, edítalo si quieres, y guárdalo para que aparezca en el Portal de Padres.</p>
+              <textarea
+                value={reporteAbierto.texto}
+                onChange={function (e) { setReporteAbierto(function (prev) { return { ...prev, texto: e.target.value } }) }}
+                rows={6}
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none mb-4"
+                style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }}
+              />
+              <div className="flex gap-2 justify-end">
+                <button onClick={function () { setReporteAbierto(null) }} className="text-xs font-semibold px-4 py-2 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY_DARK, border: '1px solid #D6DCE5' }}>
+                  Cancelar
+                </button>
+                <button
+                  onClick={guardarReportePadres}
+                  disabled={guardandoReporte}
+                  className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+                  style={{ backgroundColor: GREEN }}
+                >
+                  {guardandoReporte ? 'Guardando...' : '✓ Guardar y mostrar a la familia'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
