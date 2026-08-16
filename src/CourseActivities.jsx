@@ -1083,6 +1083,29 @@ function ActividadTareas({ actividad }) {
     }
     setDescripcionesRubricaPorCapacidad(descRubricaPorCapacidad)
 
+    // Estudiantes matriculados — se necesita antes de las entregas, para "Exposición oral"
+    const enrollResult = await supabase
+      .from('enrollments')
+      .select('student:profiles(id, full_name)')
+      .eq('course_id', actividad.course_id)
+      .eq('status', 'activo')
+    const estudiantesMatriculados = !enrollResult.error ? enrollResult.data.map(function (e) { return e.student }).filter(Boolean) : []
+    setEnrolledStudents(estudiantesMatriculados)
+
+    // Exposición oral: el estudiante no sube nada — se crea su "entrega" automáticamente
+    // para que el docente pueda calificarla en vivo, sin esperar ninguna acción de su parte.
+    if (a.tipo_entrega === 'exposicion' && estudiantesMatriculados.length > 0) {
+      const existentesResult = await supabase.from('submissions').select('student_id').eq('assignment_id', a.id)
+      const idsConEntrega = new Set((existentesResult.data || []).map(function (s) { return s.student_id }))
+      const faltantes = estudiantesMatriculados.filter(function (s) { return !idsConEntrega.has(s.id) })
+      if (faltantes.length > 0) {
+        const payload = faltantes.map(function (s) {
+          return { assignment_id: a.id, student_id: s.id, file_url: null, submitted_at: new Date().toISOString(), publicado: false }
+        })
+        await supabase.from('submissions').insert(payload)
+      }
+    }
+
     const result = await supabase.from('submissions').select('*, student:profiles!submissions_student_id_fkey(full_name, email)').eq('assignment_id', a.id).order('submitted_at', { ascending: false })
     if (result.error) { setSubmissions([]); setLoadingSubs(false); return }
     setSubmissions(result.data)
@@ -1110,13 +1133,6 @@ function ActividadTareas({ actividad }) {
       .order('created_at', { ascending: false })
     if (justResult.error) console.error('Error cargando justificaciones:', justResult.error)
     setJustificaciones(!justResult.error ? justResult.data : [])
-
-    const enrollResult = await supabase
-      .from('enrollments')
-      .select('student:profiles(id, full_name)')
-      .eq('course_id', actividad.course_id)
-      .eq('status', 'activo')
-    setEnrolledStudents(!enrollResult.error ? enrollResult.data.map(function (e) { return e.student }) : [])
 
     if (a.tipo_entrega === 'grupal') {
       const gruposResult = await supabase
@@ -1530,7 +1546,7 @@ function ActividadTareas({ actividad }) {
                       <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{s.student?.full_name}</p>
                       {s.score != null ? (
                         <p className={'text-xs font-semibold ' + getLetterColor(s.score)}>
-                          Promedio: {getLetterGrade(s.score)}{s.file_url == null ? ' (no entregó)' : ''}
+                          Promedio: {getLetterGrade(s.score)}{s.file_url == null && selectedAssignment?.tipo_entrega !== 'exposicion' ? ' (no entregó)' : ''}
                         </p>
                       ) : (
                         <span
@@ -1626,8 +1642,8 @@ function ActividadTareas({ actividad }) {
           <input type="text" value={instrumento} onChange={function (e) { setInstrumento(e.target.value) }} placeholder="Instrumento de evaluación" className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Tipo de entrega</label>
-            <div className="flex gap-2">
-              {[{ id: 'individual', label: 'Individual' }, { id: 'grupal', label: 'Grupal' }].map(function (op) {
+            <div className="flex gap-2 flex-wrap">
+              {[{ id: 'individual', label: 'Individual' }, { id: 'grupal', label: 'Grupal' }, { id: 'exposicion', label: 'Exposición oral' }].map(function (op) {
                 const active = tipoEntrega === op.id
                 return (
                   <button
@@ -1645,6 +1661,11 @@ function ActividadTareas({ actividad }) {
             {tipoEntrega === 'grupal' && (
               <p className="text-xs mt-1" style={{ color: '#B45309' }}>
                 Un integrante del grupo sube la tarea y cuenta como entregada para todo el grupo; al calificar a uno, se califica a todos.
+              </p>
+            )}
+            {tipoEntrega === 'exposicion' && (
+              <p className="text-xs mt-1" style={{ color: '#7C3AED' }}>
+                El estudiante no sube nada — al entrar a "Ver entregas" verás a todos tus estudiantes listos para calificar en vivo, mientras exponen.
               </p>
             )}
           </div>
