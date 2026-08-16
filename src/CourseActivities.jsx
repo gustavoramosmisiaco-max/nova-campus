@@ -450,11 +450,21 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
     const compId = a.competencia ? competencias.find(function (c) { return c.nombre === a.competencia.nombre })?.id : ''
     setCompetenciaId(compId || '')
     if (compId) await loadCapacidadesFor(compId)
+
+    // Criterios individuales de la Lista de Cotejo (si esta Actividad ya los tenía)
+    const criteriosResult = await supabase.from('criterios_cotejo').select('capacidad_id, texto, orden').eq('actividad_id', a.id).order('orden')
+    const criteriosPorCapacidad = {}
+    ;(criteriosResult.data || []).forEach(function (c) {
+      if (!criteriosPorCapacidad[c.capacidad_id]) criteriosPorCapacidad[c.capacidad_id] = []
+      criteriosPorCapacidad[c.capacidad_id].push(c.texto)
+    })
+
     const newDetalles = {}
     ;(a.actividad_capacidades || []).forEach(function (ac) {
       newDetalles[ac.capacidad.id] = {
         checked: true, criterio: ac.criterio || '', desempeno: ac.desempeno || '',
         desc_ad: ac.desc_ad || '', desc_a: ac.desc_a || '', desc_b: ac.desc_b || '', desc_c: ac.desc_c || '',
+        criteriosLista: criteriosPorCapacidad[ac.capacidad.id] && criteriosPorCapacidad[ac.capacidad.id].length > 0 ? criteriosPorCapacidad[ac.capacidad.id] : [''],
       }
     })
     setDetalles(newDetalles)
@@ -465,12 +475,38 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
     setDetalles(function (prev) {
       const existing = prev[id]
       if (existing && existing.checked) return { ...prev, [id]: { ...existing, checked: false } }
-      return { ...prev, [id]: { checked: true, criterio: existing?.criterio || '', desempeno: existing?.desempeno || '', desc_ad: existing?.desc_ad || '', desc_a: existing?.desc_a || '', desc_b: existing?.desc_b || '', desc_c: existing?.desc_c || '' } }
+      return { ...prev, [id]: { checked: true, criterio: existing?.criterio || '', desempeno: existing?.desempeno || '', desc_ad: existing?.desc_ad || '', desc_a: existing?.desc_a || '', desc_b: existing?.desc_b || '', desc_c: existing?.desc_c || '', criteriosLista: existing?.criteriosLista || [''] } }
     })
   }
 
   function updateDetalle(id, field, value) {
     setDetalles(function (prev) { return { ...prev, [id]: { ...prev[id], [field]: value } } })
+  }
+
+  // ============================================================
+  // Criterios individuales de la Lista de Cotejo — cada uno se podrá
+  // marcar por separado al calificar, en vez de escribir una nota directa.
+  // ============================================================
+  function agregarCriterioLista(capId) {
+    setDetalles(function (prev) {
+      const lista = prev[capId]?.criteriosLista || ['']
+      return { ...prev, [capId]: { ...prev[capId], criteriosLista: [...lista, ''] } }
+    })
+  }
+
+  function actualizarCriterioLista(capId, index, valor) {
+    setDetalles(function (prev) {
+      const lista = [...(prev[capId]?.criteriosLista || [''])]
+      lista[index] = valor
+      return { ...prev, [capId]: { ...prev[capId], criteriosLista: lista } }
+    })
+  }
+
+  function quitarCriterioLista(capId, index) {
+    setDetalles(function (prev) {
+      const lista = (prev[capId]?.criteriosLista || ['']).filter(function (_c, i) { return i !== index })
+      return { ...prev, [capId]: { ...prev[capId], criteriosLista: lista.length > 0 ? lista : [''] } }
+    })
   }
 
   async function handleSubmit(e) {
@@ -506,6 +542,7 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
 
     if (editingId) {
       await supabase.from('actividad_capacidades').delete().eq('actividad_id', actividadId)
+      await supabase.from('criterios_cotejo').delete().eq('actividad_id', actividadId)
     }
     const selectedIds = Object.keys(detalles).filter(function (id) { return detalles[id].checked })
     if (selectedIds.length > 0) {
@@ -519,6 +556,21 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
       })
       const capsResult = await supabase.from('actividad_capacidades').insert(capsPayload)
       if (capsResult.error) { setError(capsResult.error.message); return }
+
+      // Si es Lista de cotejo, guardar los criterios individuales de cada Capacidad seleccionada
+      if (tipoInstrumento === 'Lista de cotejo') {
+        const criteriosPayload = []
+        selectedIds.forEach(function (capId) {
+          const lista = (detalles[capId].criteriosLista || []).filter(function (texto) { return texto.trim() })
+          lista.forEach(function (texto, i) {
+            criteriosPayload.push({ actividad_id: actividadId, capacidad_id: capId, texto: texto.trim(), orden: i + 1 })
+          })
+        })
+        if (criteriosPayload.length > 0) {
+          const critResult = await supabase.from('criterios_cotejo').insert(criteriosPayload)
+          if (critResult.error) { setError(critResult.error.message); return }
+        }
+      }
     }
 
     resetForm()
@@ -645,6 +697,33 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
                               <textarea value={det?.desc_b || ''} onChange={function (e) { updateDetalle(cap.id, 'desc_b', e.target.value) }} placeholder="Descripción nivel B" rows={2} className="w-full rounded-lg px-3 py-1.5 text-xs outline-none" style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }} />
                               <textarea value={det?.desc_c || ''} onChange={function (e) { updateDetalle(cap.id, 'desc_c', e.target.value) }} placeholder="Descripción nivel C" rows={2} className="w-full rounded-lg px-3 py-1.5 text-xs outline-none" style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }} />
                             </>
+                          ) : tipoInstrumento === 'Lista de cotejo' ? (
+                            <>
+                              <p className="text-[11px] text-slate-500 mb-1">
+                                Escribe cada criterio por separado — al calificar, se marcarán uno por uno. Con 1 solo criterio, la nota queda a tu criterio; con varios, se sugiere según cuántos cumplió.
+                              </p>
+                              {(det?.criteriosLista || ['']).map(function (texto, i) {
+                                return (
+                                  <div key={i} className="flex gap-1.5 items-center">
+                                    <input
+                                      type="text"
+                                      value={texto}
+                                      onChange={function (e) { actualizarCriterioLista(cap.id, i, e.target.value) }}
+                                      placeholder={`Criterio ${i + 1}`}
+                                      className="flex-1 rounded-lg px-3 py-1.5 text-xs outline-none"
+                                      style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }}
+                                    />
+                                    {(det?.criteriosLista || ['']).length > 1 && (
+                                      <button type="button" onClick={function () { quitarCriterioLista(cap.id, i) }} className="text-xs font-semibold px-2 py-1 rounded text-white flex-shrink-0" style={{ backgroundColor: '#B91C1C' }}>×</button>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                              <button type="button" onClick={function () { agregarCriterioLista(cap.id) }} className="text-xs font-semibold px-2 py-1 rounded-lg transition" style={{ backgroundColor: 'white', color: GREEN_DARK, border: '1px solid #D6DCE5' }}>
+                                + Agregar criterio
+                              </button>
+                              <input type="text" value={det?.desempeno || ''} onChange={function (e) { updateDetalle(cap.id, 'desempeno', e.target.value) }} placeholder="Desempeño (opcional)" className="w-full rounded-lg px-3 py-1.5 text-xs outline-none mt-2" style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }} />
+                            </>
                           ) : (
                             <>
                               <input type="text" value={det?.criterio || ''} onChange={function (e) { updateDetalle(cap.id, 'criterio', e.target.value) }} placeholder="Criterio de evaluación" className="w-full rounded-lg px-3 py-1.5 text-xs outline-none" style={{ backgroundColor: '#F4F6F9', border: '1px solid #D6DCE5', color: NAVY_DARK }} />
@@ -758,6 +837,8 @@ function ActividadTareas({ actividad }) {
   const [assignmentCapacidades, setAssignmentCapacidades] = useState([])
   const [submissions, setSubmissions] = useState([])
   const [submissionScoresMap, setSubmissionScoresMap] = useState({})
+  const [criteriosPorCapacidad, setCriteriosPorCapacidad] = useState({})
+  const [criterioChecksMap, setCriterioChecksMap] = useState({})
   const [justificaciones, setJustificaciones] = useState([])
   const [enrolledStudents, setEnrolledStudents] = useState([])
   const [gruposCurso, setGruposCurso] = useState([])
@@ -944,6 +1025,17 @@ function ActividadTareas({ actividad }) {
       : []
     setAssignmentCapacidades(caps)
 
+    // Criterios individuales de la Lista de Cotejo, si esta Actividad los tiene
+    let criteriosPorCapacidad = {}
+    if (actividad.tipo_instrumento === 'Lista de cotejo' && caps.length > 0) {
+      const critResult = await supabase.from('criterios_cotejo').select('id, capacidad_id, texto, orden').eq('actividad_id', actividad.id).order('orden')
+      ;(critResult.data || []).forEach(function (c) {
+        if (!criteriosPorCapacidad[c.capacidad_id]) criteriosPorCapacidad[c.capacidad_id] = []
+        criteriosPorCapacidad[c.capacidad_id].push(c)
+      })
+    }
+    setCriteriosPorCapacidad(criteriosPorCapacidad)
+
     const result = await supabase.from('submissions').select('*, student:profiles!submissions_student_id_fkey(full_name, email)').eq('assignment_id', a.id).order('submitted_at', { ascending: false })
     if (result.error) { setSubmissions([]); setLoadingSubs(false); return }
     setSubmissions(result.data)
@@ -955,6 +1047,14 @@ function ActividadTareas({ actividad }) {
       if (!scoresResult.error) scoresResult.data.forEach(function (s) { scoresMap[`${s.submission_id}__${s.capacidad_id}`] = s.score })
     }
     setSubmissionScoresMap(scoresMap)
+
+    // Checks de criterios ya marcados, por Entrega
+    let checksMap = {}
+    if (submissionIds.length > 0) {
+      const checksResult = await supabase.from('submission_criterio_checks').select('submission_id, criterio_id, cumplido').in('submission_id', submissionIds)
+      ;(checksResult.data || []).forEach(function (c) { checksMap[`${c.submission_id}__${c.criterio_id}`] = c.cumplido })
+    }
+    setCriterioChecksMap(checksMap)
 
     const justResult = await supabase
       .from('justificaciones')
@@ -1051,6 +1151,45 @@ function ActividadTareas({ actividad }) {
     }
 
     openSubmissions(selectedAssignment)
+  }
+
+  // ============================================================
+  // Nota equivalente por nivel, para cuando se califica marcando criterios
+  // (Lista de Cotejo) en vez de escribir un número directo.
+  // ============================================================
+  const NOTA_POR_NIVEL = { AD: 19, A: 16, B: 12, C: 8 }
+
+  // Marca/desmarca un criterio de la Lista de Cotejo, y calcula la nota sugerida
+  // según cuántos de los criterios de esa Capacidad ya están marcados:
+  // 0 marcados → C · algunos (menos de la mitad) → B · algunos (la mitad o más) → A
+  // todos marcados → se le pregunta al docente si es AD o A (mejor logro, a su criterio)
+  async function handleToggleCriterio(submissionId, criterioId, capacidadId) {
+    const key = `${submissionId}__${criterioId}`
+    const nuevoValor = !criterioChecksMap[key]
+
+    const result = await supabase.from('submission_criterio_checks').upsert(
+      { submission_id: submissionId, criterio_id: criterioId, cumplido: nuevoValor },
+      { onConflict: 'submission_id,criterio_id' }
+    )
+    if (result.error) { alert('Error al guardar: ' + result.error.message); return }
+
+    const nuevoMapa = { ...criterioChecksMap, [key]: nuevoValor }
+    setCriterioChecksMap(nuevoMapa)
+
+    const criteriosDeLaCapacidad = criteriosPorCapacidad[capacidadId] || []
+    const total = criteriosDeLaCapacidad.length
+    const cumplidos = criteriosDeLaCapacidad.filter(function (c) { return nuevoMapa[`${submissionId}__${c.id}`] }).length
+
+    if (total === 0) return
+    if (cumplidos === total) return // todos cumplidos: se espera que el docente elija AD o A con el botón de abajo
+
+    const ratio = cumplidos / total
+    const nivelSugerido = cumplidos === 0 ? 'C' : (ratio < 0.5 ? 'B' : 'A')
+    await handleGradeCapacidad(submissionId, capacidadId, String(NOTA_POR_NIVEL[nivelSugerido]))
+  }
+
+  async function handleElegirNivelMaximo(submissionId, capacidadId, nivel) {
+    await handleGradeCapacidad(submissionId, capacidadId, String(NOTA_POR_NIVEL[nivel]))
   }
 
   async function registrarCeroParaEstudiante(studentId) {
@@ -1285,15 +1424,18 @@ function ActividadTareas({ actividad }) {
                       </div>
                       <div className="space-y-2">
                         {assignmentCapacidades.map(function (cap) {
-                          const key = `${representante.id}__${cap.id}`
-                          const currentScore = submissionScoresMap[key]
                           return (
-                            <div key={cap.id} className="flex justify-between items-center rounded-lg px-3 py-2" style={{ backgroundColor: 'white', border: '1px solid #E5E9F0' }}>
-                              <span className="text-xs" style={{ color: NAVY_DARK }}>{cap.nombre}</span>
-                              <input type="number" min="0" max="20" step="0.5" defaultValue={currentScore != null ? currentScore : ''} placeholder="Nota"
-                                className="w-16 rounded-lg text-sm px-2 py-1 outline-none" style={inputStyle}
-                                onBlur={function (e) { if (e.target.value) handleGradeCapacidad(representante.id, cap.id, e.target.value) }} />
-                            </div>
+                            <CapacidadGradeRow
+                              key={cap.id}
+                              cap={cap}
+                              submission={representante}
+                              criteriosPorCapacidad={criteriosPorCapacidad}
+                              criterioChecksMap={criterioChecksMap}
+                              submissionScoresMap={submissionScoresMap}
+                              onToggleCriterio={handleToggleCriterio}
+                              onGradeNumerico={handleGradeCapacidad}
+                              onElegirNivelMaximo={handleElegirNivelMaximo}
+                            />
                           )
                         })}
                       </div>
@@ -1308,15 +1450,18 @@ function ActividadTareas({ actividad }) {
                       <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{s.student?.full_name}</p>
                       <div className="space-y-2 mt-2">
                         {assignmentCapacidades.map(function (cap) {
-                          const key = `${s.id}__${cap.id}`
-                          const currentScore = submissionScoresMap[key]
                           return (
-                            <div key={cap.id} className="flex justify-between items-center rounded-lg px-3 py-2" style={{ backgroundColor: 'white', border: '1px solid #E5E9F0' }}>
-                              <span className="text-xs" style={{ color: NAVY_DARK }}>{cap.nombre}</span>
-                              <input type="number" min="0" max="20" step="0.5" defaultValue={currentScore != null ? currentScore : ''} placeholder="Nota"
-                                className="w-16 rounded-lg text-sm px-2 py-1 outline-none" style={inputStyle}
-                                onBlur={function (e) { if (e.target.value) handleGradeCapacidad(s.id, cap.id, e.target.value) }} />
-                            </div>
+                            <CapacidadGradeRow
+                              key={cap.id}
+                              cap={cap}
+                              submission={s}
+                              criteriosPorCapacidad={criteriosPorCapacidad}
+                              criterioChecksMap={criterioChecksMap}
+                              submissionScoresMap={submissionScoresMap}
+                              onToggleCriterio={handleToggleCriterio}
+                              onGradeNumerico={handleGradeCapacidad}
+                              onElegirNivelMaximo={handleElegirNivelMaximo}
+                            />
                           )
                         })}
                       </div>
@@ -1361,15 +1506,18 @@ function ActividadTareas({ actividad }) {
                   </div>
                   <div className="space-y-2">
                     {assignmentCapacidades.map(function (cap) {
-                      const key = `${s.id}__${cap.id}`
-                      const currentScore = submissionScoresMap[key]
                       return (
-                        <div key={cap.id} className="flex justify-between items-center rounded-lg px-3 py-2" style={{ backgroundColor: 'white', border: '1px solid #E5E9F0' }}>
-                          <span className="text-xs" style={{ color: NAVY_DARK }}>{cap.nombre}</span>
-                          <input type="number" min="0" max="20" step="0.5" defaultValue={currentScore != null ? currentScore : ''} placeholder="Nota"
-                            className="w-16 rounded-lg text-sm px-2 py-1 outline-none" style={inputStyle}
-                            onBlur={function (e) { if (e.target.value) handleGradeCapacidad(s.id, cap.id, e.target.value) }} />
-                        </div>
+                        <CapacidadGradeRow
+                          key={cap.id}
+                          cap={cap}
+                          submission={s}
+                          criteriosPorCapacidad={criteriosPorCapacidad}
+                          criterioChecksMap={criterioChecksMap}
+                          submissionScoresMap={submissionScoresMap}
+                          onToggleCriterio={handleToggleCriterio}
+                          onGradeNumerico={handleGradeCapacidad}
+                          onElegirNivelMaximo={handleElegirNivelMaximo}
+                        />
                       )
                     })}
                   </div>
@@ -1508,6 +1656,65 @@ function ActividadTareas({ actividad }) {
       )}
     </div>
   )
+}
+
+// ============================================================
+// Fila para calificar una Capacidad — si tiene varios criterios de Lista de Cotejo,
+// muestra casillas para marcar y calcula la nota sugerida sola; si no, el número de siempre.
+// ============================================================
+function CapacidadGradeRow({ cap, submission, criteriosPorCapacidad, criterioChecksMap, submissionScoresMap, onToggleCriterio, onGradeNumerico, onElegirNivelMaximo }) {
+  const criterios = criteriosPorCapacidad[cap.id] || []
+  const key = `${submission.id}__${cap.id}`
+  const currentScore = submissionScoresMap[key]
+
+  if (criterios.length <= 1) {
+    return (
+      <div className="flex justify-between items-center rounded-lg px-3 py-2" style={{ backgroundColor: 'white', border: '1px solid #E5E9F0' }}>
+        <span className="text-xs" style={{ color: NAVY_DARK }}>{cap.nombre}</span>
+        <input type="number" min="0" max="20" step="0.5" defaultValue={currentScore != null ? currentScore : ''} placeholder="Nota"
+          className="w-16 rounded-lg text-sm px-2 py-1 outline-none" style={inputStyle}
+          onBlur={function (e) { if (e.target.value) onGradeNumerico(submission.id, cap.id, e.target.value) }} />
+      </div>
+    )
+  }
+
+  const cumplidos = criterios.filter(function (c) { return criterioChecksMap[`${submission.id}__${c.id}`] }).length
+  const total = criterios.length
+  const todosMarcados = cumplidos === total
+
+  return (
+    <div className="rounded-lg p-3" style={{ backgroundColor: 'white', border: '1px solid #E5E9F0' }}>
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-xs font-semibold" style={{ color: NAVY_DARK }}>{cap.nombre}</span>
+        <span className="text-xs font-bold" style={{ color: currentScore != null ? getLetterColorHex(currentScore) : '#94A3B8' }}>
+          {currentScore != null ? getLetterGrade(currentScore) : '—'} ({cumplidos}/{total})
+        </span>
+      </div>
+      <div className="space-y-1">
+        {criterios.map(function (c) {
+          const marcado = !!criterioChecksMap[`${submission.id}__${c.id}`]
+          return (
+            <label key={c.id} className="flex items-start gap-2 text-xs cursor-pointer" style={{ color: NAVY_DARK }}>
+              <input type="checkbox" checked={marcado} onChange={function () { onToggleCriterio(submission.id, c.id, cap.id) }} className="mt-0.5" />
+              <span>{c.texto}</span>
+            </label>
+          )
+        })}
+      </div>
+      {todosMarcados && (
+        <div className="flex gap-2 mt-2">
+          <p className="text-[11px] text-slate-500 flex-1">Cumplió todos los criterios — elige el nivel de logro:</p>
+          <button type="button" onClick={function () { onElegirNivelMaximo(submission.id, cap.id, 'A') }} className="text-xs font-semibold px-2 py-1 rounded text-white" style={{ backgroundColor: '#1D5C8F' }}>A</button>
+          <button type="button" onClick={function () { onElegirNivelMaximo(submission.id, cap.id, 'AD') }} className="text-xs font-semibold px-2 py-1 rounded text-white" style={{ backgroundColor: '#2F7A1F' }}>AD</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function getLetterColorHex(score) {
+  const letra = getLetterGrade(score)
+  return { AD: '#2F7A1F', A: '#1D5C8F', B: '#B45309', C: '#B91C1C' }[letra] || '#94A3B8'
 }
 
 function FolderIcon({ big }) {
