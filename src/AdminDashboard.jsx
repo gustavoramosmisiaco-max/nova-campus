@@ -26,6 +26,7 @@ const PlanesVerano = lazy(function () { return import('./PlanesVerano') })
 const PromotoresManager = lazy(function () { return import('./PromotoresManager') })
 const FinancieroVerano = lazy(function () { return import('./FinancieroVerano') })
 const CalificacionesVerano = lazy(function () { return import('./CalificacionesVerano') })
+const AsesoriaFinanciera = lazy(function () { return import('./AsesoriaFinanciera') })
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
@@ -57,6 +58,7 @@ export default function AdminDashboard() {
     { id: 'recreos', label: 'Recreos', icon: CoffeeIcon },
     { id: 'feriados', label: 'Feriados', icon: CalendarIcon },
     { id: 'periodo', label: 'Cierre de Periodo', icon: CalendarIcon },
+    { id: 'asesoria-financiera', label: 'Asesoría Financiera (IA)', icon: SparkleIcon },
     { divider: true, label: 'Cursos de Verano' },
     { id: 'verano', label: 'Cursos de Verano', icon: SunIcon },
     { id: 'paquetes-verano', label: 'Paquetes Verano', icon: LayersIcon },
@@ -254,6 +256,7 @@ export default function AdminDashboard() {
               {tab === 'vaciar-periodo' && <VaciarPeriodo />}
               {tab === 'recreos' && <RecreosManager />}
             {tab === 'feriados' && <FeriadosManager />}
+            {tab === 'asesoria-financiera' && <AsesoriaFinanciera />}
             {tab === 'verano' && <TalleresVeranoManager />}
             {tab === 'paquetes-verano' && <PaquetesVeranoManager />}
             {tab === 'aulas-verano' && <AulasVerano />}
@@ -408,6 +411,15 @@ function SunIcon() {
       <line x1="21" y1="12" x2="23" y2="12" />
       <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
       <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+    </svg>
+  )
+}
+
+function SparkleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z" />
+      <path d="M19 15l0.8 2.2L22 18l-2.2 0.8L19 21l-0.8-2.2L16 18l2.2-0.8L19 15z" />
     </svg>
   )
 }
