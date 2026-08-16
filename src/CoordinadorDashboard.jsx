@@ -141,6 +141,8 @@ export default function CoordinadorDashboard() {
   const [siagieGenerandoConclusiones, setSiagieGenerandoConclusiones] = useState(false)
   const [siagieProgresoConclusiones, setSiagieProgresoConclusiones] = useState({ hechas: 0, total: 0 })
   const [siagieDescargando, setSiagieDescargando] = useState(false)
+  const [reporteDesempenoTexto, setReporteDesempenoTexto] = useState('')
+  const [generandoReporteDesempeno, setGenerandoReporteDesempeno] = useState(false)
   const [registrosRecibidos, setRegistrosRecibidos] = useState([])
   const [registrosCargando, setRegistrosCargando] = useState(false)
   const [registrosCargados, setRegistrosCargados] = useState(false)
@@ -687,6 +689,7 @@ export default function CoordinadorDashboard() {
   async function abrirNotasDocente(docenteId) {
     setNotasDocenteAbierto(docenteId)
     setNotaTexto('')
+    setReporteDesempenoTexto('')
     setNotasCargando(true)
     const result = await supabase
       .from('notas_acompanamiento')
@@ -696,6 +699,38 @@ export default function CoordinadorDashboard() {
       .order('created_at', { ascending: false })
     setNotasLista(result.data || [])
     setNotasCargando(false)
+  }
+
+  async function generarReporteDesempeno(docenteId, docenteNombre) {
+    setGenerandoReporteDesempeno(true)
+    try {
+      // Ejes: el resumen de cada curso de este docente ya está en monitoreoEjes — se resume por eje (peor color gana)
+      const cursosDelDocente = cursos.filter(function (c) { return c.docente?.id === docenteId })
+      const ejesResumen = {}
+      ;['progreso', 'formativa', 'cierre', 'asistencia', 'instrumentos', 'materialesEje'].forEach(function (key) {
+        const valores = cursosDelDocente.map(function (c) { return monitoreoEjes[c.id]?.[key] }).filter(Boolean)
+        if (valores.length === 0) { ejesResumen[key] = 'gris'; return }
+        if (valores.includes('rojo')) ejesResumen[key] = 'rojo'
+        else if (valores.includes('ambar')) ejesResumen[key] = 'ambar'
+        else if (valores.every(function (v) { return v === 'gris' })) ejesResumen[key] = 'gris'
+        else ejesResumen[key] = 'verde'
+      })
+
+      const resultado = await llamarIA('reporte_desempeno_docente', {
+        docenteNombre: docenteNombre,
+        ejes: ejesResumen,
+        notasBitacora: notasLista.map(function (n) { return { fecha: n.created_at, texto: n.texto } }),
+      })
+
+      if (resultado.error) {
+        alert('Error al generar el reporte: ' + resultado.error)
+      } else {
+        setReporteDesempenoTexto(resultado.data.reporte)
+      }
+    } catch (err) {
+      alert('Error al generar el reporte: ' + err.message)
+    }
+    setGenerandoReporteDesempeno(false)
   }
 
   async function guardarNota(docenteId) {
@@ -1816,6 +1851,22 @@ export default function CoordinadorDashboard() {
                       >
                         {guardandoNota ? 'Guardando...' : '+ Agregar nota'}
                       </button>
+                    </div>
+
+                    <div className="mb-4">
+                      <button
+                        onClick={function () { generarReporteDesempeno(notasDocenteAbierto, listaDocentes.find(function (g) { return g.docente.id === notasDocenteAbierto })?.docente.full_name || '') }}
+                        disabled={generandoReporteDesempeno}
+                        className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90 disabled:opacity-50"
+                        style={{ backgroundColor: '#7C3AED' }}
+                      >
+                        {generandoReporteDesempeno ? 'Analizando...' : '🤖 Generar reporte de desempeño con IA'}
+                      </button>
+                      {reporteDesempenoTexto && (
+                        <div className="mt-3 rounded-lg p-3 whitespace-pre-line text-sm" style={{ backgroundColor: '#F0F0FF', border: '1px solid #D6D0FA', color: '#4A2E9E' }}>
+                          {reporteDesempenoTexto}
+                        </div>
+                      )}
                     </div>
 
                     <p className="text-xs font-bold mb-2" style={{ color: NAVY_DARK }}>Historial</p>
