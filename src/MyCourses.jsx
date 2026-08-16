@@ -7,6 +7,7 @@ import CourseZoomStudent from './CourseZoomStudent'
 import { getLetterGrade, getLetterColor } from './gradeUtils'
 import GruposEstudiante from './GruposEstudiante'
 import IconoAsignatura from './IconoAsignatura'
+import PracticaEstudiante from './PracticaEstudiante'
 
 const DIAS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
@@ -294,7 +295,7 @@ function ActividadContenidoStudent({ actividad, onBack }) {
       </h3>
 
       <div className="flex gap-2 mb-6 border-b" style={{ borderColor: '#E5E9F0' }}>
-        {[{ id: 'materiales', label: 'Materiales' }, { id: 'tareas', label: 'Tareas' }].map(function (t) {
+        {[{ id: 'materiales', label: 'Materiales' }, { id: 'tareas', label: 'Tareas' }, { id: 'practica', label: 'Práctica' }].map(function (t) {
           const active = tab === t.id
           return (
             <button key={t.id} onClick={function () { setTab(t.id) }}
@@ -308,6 +309,7 @@ function ActividadContenidoStudent({ actividad, onBack }) {
 
       {tab === 'materiales' && <CourseMaterials courseId={actividad.course_id} actividadId={actividad.id} canUpload={false} />}
       {tab === 'tareas' && <CourseAssignmentsStudent courseId={actividad.course_id} actividadId={actividad.id} />}
+      {tab === 'practica' && <PracticaEstudiante actividad={actividad} />}
     </div>
   )
 }
