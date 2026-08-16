@@ -6,6 +6,7 @@ import { compararPorApellido } from './gradeUtils'
 import PreviewModal from './PreviewModal'
 import CourseMaterials from './CourseMaterials'
 import EvaluacionCierre from './EvaluacionCierre'
+import ImportarUnidadWord from './ImportarUnidadWord'
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
@@ -72,6 +73,7 @@ function UnidadesList({ courseId, onSelectUnidad }) {
   const [nombre, setNombre] = useState('')
   const [fechaInicio, setFechaInicio] = useState('')
   const [fechaFin, setFechaFin] = useState('')
+  const [mostrarImportarWord, setMostrarImportarWord] = useState(false)
 
   useEffect(function () {
     cargarAulaYUnidades()
@@ -195,17 +197,37 @@ function UnidadesList({ courseId, onSelectUnidad }) {
     <div>
       <div className="flex justify-between items-center mb-1">
         <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>Unidades y Experiencias de Aprendizaje</h3>
-        <button
-          onClick={function () { if (showForm) setShowForm(false); else openNew() }}
-          className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90"
-          style={{ backgroundColor: GREEN }}
-        >
-          {showForm ? 'Cancelar' : '+ Nueva carpeta'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={function () { setMostrarImportarWord(!mostrarImportarWord); setShowForm(false) }}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90"
+            style={{ backgroundColor: '#7C3AED' }}
+          >
+            {mostrarImportarWord ? 'Cancelar' : '📄 Importar desde Word'}
+          </button>
+          <button
+            onClick={function () { if (showForm) setShowForm(false); else { openNew(); setMostrarImportarWord(false) } }}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90"
+            style={{ backgroundColor: GREEN }}
+          >
+            {showForm ? 'Cancelar' : '+ Nueva carpeta'}
+          </button>
+        </div>
       </div>
       <p className="text-xs text-slate-400 mb-4">
         Estas carpetas se comparten entre todas las asignaturas de esta Área para este Grado y Sección (ej. Biología, Química y Física). Si otra asignatura ya creó "Experiencia 5", aparecerá aquí — solo agrega tus propias actividades adentro.
       </p>
+
+      {mostrarImportarWord && aula && (
+        <ImportarUnidadWord
+          areaId={aula.areaId}
+          grado={aula.grado}
+          grupo={aula.grupo}
+          courseId={courseId}
+          onCerrar={function () { setMostrarImportarWord(false) }}
+          onImportado={function () { setMostrarImportarWord(false); loadUnidades(aula) }}
+        />
+      )}
 
       {showForm && (
         <form
