@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { useAuth } from './AuthContext'
 import IconoAsignatura from './IconoAsignatura'
+import { llamarIA } from './aiClient'
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
@@ -40,6 +41,8 @@ export default function PanelInicioEstudiante({ onNavegar }) {
   const [notifNoLeidas, setNotifNoLeidas] = useState(0)
   const [examenesProgramados, setExamenesProgramados] = useState(0)
   const [error, setError] = useState('')
+  const [resumenIA, setResumenIA] = useState('')
+  const [cargandoResumenIA, setCargandoResumenIA] = useState(false)
 
   useEffect(function () {
     cargar()
@@ -144,6 +147,22 @@ export default function PanelInicioEstudiante({ onNavegar }) {
     }
   }
 
+  async function generarResumenIA() {
+    setCargandoResumenIA(true)
+    const resultado = await llamarIA('recordatorio_estudiante', {
+      estudianteNombre: profile?.full_name || 'Estudiante',
+      tareasPendientes: proximasEntregas.map(function (t) { return { titulo: t.titulo, fechaEntrega: t.fecha_entrega } }),
+      comunicadosSinLeer: notifNoLeidas,
+      justificacionesPendientes: 0,
+    })
+    if (resultado.error) {
+      alert('No se pudo generar el resumen: ' + resultado.error)
+    } else {
+      setResumenIA(resultado.data.mensaje)
+    }
+    setCargandoResumenIA(false)
+  }
+
   if (loading) return <p className="text-slate-400 text-sm">Cargando...</p>
   if (error) return <p className="text-red-500 text-sm">{error}</p>
 
@@ -154,9 +173,25 @@ export default function PanelInicioEstudiante({ onNavegar }) {
       <p className="text-lg font-medium mb-1" style={{ color: NAVY_DARK }}>
         {saludoSegunHora()}, {primerNombre} 👋
       </p>
-      <p className="text-sm text-slate-400 mb-6">
+      <p className="text-sm text-slate-400 mb-3">
         {tareasPendientes > 0 ? `Tienes ${tareasPendientes} tarea(s) pendiente(s).` : '¡Estás al día con tus tareas!'}
       </p>
+
+      {resumenIA ? (
+        <div className="rounded-2xl p-4 mb-6 flex items-start gap-3" style={{ backgroundColor: '#F0F0FF', border: '1px solid #D6D0FA' }}>
+          <span className="text-lg flex-shrink-0">✨</span>
+          <p className="text-sm" style={{ color: '#4A2E9E' }}>{resumenIA}</p>
+        </div>
+      ) : (
+        <button
+          onClick={generarResumenIA}
+          disabled={cargandoResumenIA}
+          className="text-xs font-semibold px-3 py-1.5 rounded-lg mb-6 transition hover:opacity-90 disabled:opacity-50"
+          style={{ backgroundColor: '#F0F0FF', color: '#4A2E9E', border: '1px solid #D6D0FA' }}
+        >
+          {cargandoResumenIA ? 'Pensando...' : '✨ Ver resumen inteligente'}
+        </button>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
         <button onClick={function () { if (onNavegar) onNavegar('pendientes') }} className="text-left bg-white rounded-2xl p-4 transition duration-200 hover:-translate-y-0.5" style={{ border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
