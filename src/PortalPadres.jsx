@@ -111,9 +111,12 @@ export default function PortalPadres({ onBack }) {
     setLoading(false)
   }
 
+  const logoSrc = datos?.institucion?.logo_url || '/logo.png'
+  const nombreMarca = datos?.institucion?.nombre || 'Nexoris Academy'
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#F4F6F9' }}>
-      {datos && <WelcomeAnimation role="padre" nombre="" />}
+      {datos && <WelcomeAnimation role="padre" nombre="" institucionNombre={datos?.institucion?.nombre} />}
       <FarewellAnimation visible={despidiendo} role="padre" nombre="" onComplete={onBack} />
 
       {datos && datos.comunicados && comunicadoIndice < datos.comunicados.length && (function () {
@@ -148,9 +151,9 @@ export default function PortalPadres({ onBack }) {
 
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
-          <img src="/logo.png" alt="Nexoris Academy" className="w-14 h-14 object-contain rounded-full bg-white p-1 mx-auto mb-3" style={{ boxShadow: '0 2px 8px rgba(15,42,74,0.15)' }} />
-          <h1 className="text-lg font-bold" style={{ color: NAVY_DARK }}>Portal de Padres de Familia</h1>
-          <p className="text-sm text-slate-400 mt-1">Ingresa el código de tu hijo(a) para ver su progreso</p>
+          <img src={logoSrc} alt={nombreMarca} className="w-14 h-14 object-contain rounded-full bg-white p-1 mx-auto mb-3" style={{ boxShadow: '0 2px 8px rgba(15,42,74,0.15)' }} />
+          <h1 className="text-lg font-bold" style={{ color: NAVY_DARK }}>{datos ? nombreMarca : 'Portal de Padres de Familia'}</h1>
+          <p className="text-sm text-slate-400 mt-1">{datos ? 'Portal de Padres de Familia' : 'Ingresa el código de tu hijo(a) para ver su progreso'}</p>
         </div>
 
         {!datos ? (
@@ -441,3 +444,4 @@ function IconoAlertaPortal() {
     </svg>
   )
 }
+

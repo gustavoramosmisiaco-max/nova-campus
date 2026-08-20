@@ -78,7 +78,7 @@ function IconoPadre({ color }) {
 
 const ICONOS = { admin: IconoAdmin, docente: IconoDocente, estudiante: IconoEstudiante, padre: IconoPadre }
 
-export default function WelcomeAnimation({ role, nombre }) {
+export default function WelcomeAnimation({ role, nombre, institucionNombre }) {
   const [visible, setVisible] = useState(false)
 
   useEffect(function () {
@@ -95,6 +95,9 @@ export default function WelcomeAnimation({ role, nombre }) {
   const Icono = ICONOS[config.icono]
   const primerNombre = nombre ? nombre.split(' ')[0] : ''
 
+  // Para el rol "padre", el título se personaliza con el nombre de la institución del estudiante
+  const titulo = role === 'padre' && institucionNombre ? `Bienvenido, familia ${institucionNombre}` : config.titulo
+
   return (
     <div
       className="fixed inset-0 z-[10001] flex items-center justify-center"
@@ -106,7 +109,7 @@ export default function WelcomeAnimation({ role, nombre }) {
           <Icono color={config.color} />
         </div>
         <h2 className="text-2xl font-bold text-white mb-1">
-          {config.titulo}{primerNombre ? `, ${primerNombre}` : ''}
+          {titulo}{primerNombre ? `, ${primerNombre}` : ''}
         </h2>
         <p className="text-sm" style={{ color: '#B9C4D3' }}>{config.subtitulo}</p>
       </div>
