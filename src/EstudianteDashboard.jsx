@@ -42,7 +42,19 @@ export default function EstudianteDashboard() {
       .single()
     if (!result.error && result.data?.institucion) {
       setInstitucionEstudiante(result.data.institucion)
+      return
     }
+
+    // Respaldo para estudiantes viejos sin institucion_id guardado directo en el perfil:
+    // se busca a través de cualquiera de sus cursos matriculados.
+    const enrollResult = await supabase
+      .from('enrollments')
+      .select('course:courses(institucion:instituciones_educativas(id, nombre, logo_url))')
+      .eq('student_id', session.user.id)
+      .eq('status', 'activo')
+      .limit(1)
+    const institucionRespaldo = enrollResult.data?.[0]?.course?.institucion
+    if (institucionRespaldo) setInstitucionEstudiante(institucionRespaldo)
   }
 
   function handleLogoutConDespedida() {
