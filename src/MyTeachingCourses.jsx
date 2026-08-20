@@ -25,8 +25,14 @@ function scheduleText(schedules) {
   return schedules.map(function (s) { return `${DIAS[s.dia_semana]} ${s.hora_inicio.slice(0, 5)}-${s.hora_fin.slice(0, 5)}` }).join(' · ')
 }
 
-function CourseDetailTeacher({ course, onBack }) {
+// ============================================================
+// Vista de un Área completa para el Docente — Actividades combinadas de todas
+// sus asignaturas (ej. Biología + Física y Química). Videoclases, Grupos de
+// Trabajo y el Instrumento completo siguen siendo por asignatura, con selector.
+// ============================================================
+function CourseDetailTeacherArea({ areaNombre, grado, grupo, cursos, onBack }) {
   const [tab, setTab] = useState('actividades')
+  const [cursoParaTab, setCursoParaTab] = useState(null)
   const [verInstrumento, setVerInstrumento] = useState(false)
 
   const tabs = [
@@ -34,6 +40,12 @@ function CourseDetailTeacher({ course, onBack }) {
     { id: 'zoom', label: 'Videoclases' },
     { id: 'grupos', label: 'Grupos de Trabajo' },
   ]
+
+  function cambiarTab(id) {
+    setTab(id)
+    setCursoParaTab(null)
+    setVerInstrumento(false)
+  }
 
   return (
     <div>
@@ -46,18 +58,16 @@ function CourseDetailTeacher({ course, onBack }) {
       </button>
 
       <div className="flex items-center gap-3 mb-1 flex-wrap">
-        <h2 className="text-2xl font-bold" style={{ color: NAVY_DARK }}>
-          {course.nombre} <span className="text-slate-400 text-lg font-medium">(Sección {course.grupo})</span>
-        </h2>
+        <h2 className="text-2xl font-bold" style={{ color: NAVY_DARK }}>{areaNombre}</h2>
         <span
           className="text-xs font-semibold px-3 py-1 rounded-full"
           style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}
         >
-          {gradoLabel(course.grado)}
+          {gradoLabel(grado)} · Sección {grupo}
         </span>
       </div>
       <p className="text-sm font-medium mb-4" style={{ color: GREEN_DARK }}>
-        {scheduleText(course.course_schedules)}
+        {cursos.map(function (c) { return c.nombre }).join(' · ')}
       </p>
 
       <div className="flex justify-between items-center flex-wrap gap-3 mb-6 border-b" style={{ borderColor: '#E5E9F0' }}>
@@ -67,7 +77,7 @@ function CourseDetailTeacher({ course, onBack }) {
             return (
               <button
                 key={t.id}
-                onClick={function () { setTab(t.id); setVerInstrumento(false) }}
+                onClick={function () { cambiarTab(t.id) }}
                 className="px-4 py-2.5 text-sm font-semibold border-b-2 transition"
                 style={
                   active && !verInstrumento
@@ -82,7 +92,7 @@ function CourseDetailTeacher({ course, onBack }) {
         </div>
         {tab === 'actividades' && (
           <button
-            onClick={function () { setVerInstrumento(true) }}
+            onClick={function () { setVerInstrumento(!verInstrumento); setCursoParaTab(null) }}
             className="text-xs font-semibold px-3 py-1.5 rounded-lg mb-1 transition hover:opacity-90"
             style={{ backgroundColor: verInstrumento ? NAVY : '#F4F6F9', color: verInstrumento ? 'white' : NAVY }}
           >
@@ -92,17 +102,63 @@ function CourseDetailTeacher({ course, onBack }) {
       </div>
 
       <div className="bg-white rounded-2xl p-6" style={{ border: '1px solid #E5E9F0' }}>
-        {tab === 'actividades' && !verInstrumento && <CourseActivities courseId={course.id} />}
-        {tab === 'actividades' && verInstrumento && (
-          <InstrumentoEvaluacion
-            courseId={course.id}
-            courseNombre={course.nombre}
-            courseGrado={course.grado}
-            courseGrupo={course.grupo}
-          />
+        {tab === 'actividades' && !verInstrumento && <CourseActivities cursos={cursos} />}
+
+        {(tab === 'zoom' || tab === 'grupos' || (tab === 'actividades' && verInstrumento)) && !cursoParaTab && (
+          <div>
+            <p className="text-sm text-slate-400 mb-4">Elige la asignatura</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {cursos.map(function (c) {
+                return (
+                  <button
+                    key={c.id}
+                    onClick={function () { setCursoParaTab(c) }}
+                    className="text-left rounded-xl p-4 transition hover:-translate-y-0.5"
+                    style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <IconoAsignatura nombre={c.nombre} size={24} />
+                      <span className="text-sm font-bold" style={{ color: NAVY_DARK }}>{c.nombre}</span>
+                    </div>
+                    <p className="text-xs text-slate-500">{c.enrollments?.[0]?.count ?? 0} alumno(s) matriculado(s)</p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         )}
-        {tab === 'zoom' && <CourseZoomTeacher courseId={course.id} />}
-        {tab === 'grupos' && <GruposTrabajo courseId={course.id} />}
+
+        {tab === 'actividades' && verInstrumento && cursoParaTab && (
+          <div>
+            <button onClick={function () { setCursoParaTab(null) }} className="text-sm font-semibold mb-4 hover:underline flex items-center gap-1" style={{ color: NAVY }}>
+              ← Cambiar de asignatura
+            </button>
+            <InstrumentoEvaluacion
+              courseId={cursoParaTab.id}
+              courseNombre={cursoParaTab.nombre}
+              courseGrado={grado}
+              courseGrupo={grupo}
+            />
+          </div>
+        )}
+
+        {tab === 'zoom' && cursoParaTab && (
+          <div>
+            <button onClick={function () { setCursoParaTab(null) }} className="text-sm font-semibold mb-4 hover:underline flex items-center gap-1" style={{ color: NAVY }}>
+              ← Cambiar de asignatura
+            </button>
+            <CourseZoomTeacher courseId={cursoParaTab.id} />
+          </div>
+        )}
+
+        {tab === 'grupos' && cursoParaTab && (
+          <div>
+            <button onClick={function () { setCursoParaTab(null) }} className="text-sm font-semibold mb-4 hover:underline flex items-center gap-1" style={{ color: NAVY }}>
+              ← Cambiar de asignatura
+            </button>
+            <GruposTrabajo courseId={cursoParaTab.id} />
+          </div>
+        )}
       </div>
     </div>
   )
@@ -114,7 +170,6 @@ export default function MyTeachingCourses() {
   const [courses, setCourses] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [selectedCourse, setSelectedCourse] = useState(null)
   const [verRegistroDirecto, setVerRegistroDirecto] = useState(false)
   const [verUnidadesArea, setVerUnidadesArea] = useState(false)
   const [unidadesArea, setUnidadesArea] = useState([])
@@ -171,10 +226,6 @@ export default function MyTeachingCourses() {
 
   if (loading) return <p className="text-slate-400">Cargando tus cursos...</p>
   if (error) return <p className="text-red-500">Error: {error}</p>
-
-  if (selectedCourse) {
-    return <CourseDetailTeacher course={selectedCourse} onBack={function () { setSelectedCourse(null) }} />
-  }
 
   if (verRegistroDirecto && aulaSel && areaId) {
     const [gradoReg, grupoReg] = aulaSel.split('__')
@@ -252,6 +303,45 @@ export default function MyTeachingCourses() {
   const institucionesUnicas = [...new Map(
     courses.map(function (c) { return [c.institucion_id || 'sin-institucion', c.instituciones_educativas?.nombre || 'Sin institución asignada'] })
   ).entries()]
+
+  if (aulaSel && areaId) {
+    const [grado, grupo] = aulaSel.split('__')
+    const cursosFinal = courses.filter(function (c) {
+      return String(c.grado) === grado && c.grupo === grupo
+        && (c.institucion_id || 'sin-institucion') === institucionSel
+        && c.asignaturas?.area_id === areaId
+    })
+
+    if (cursosFinal.length > 0) {
+      return (
+        <div>
+          <div className="flex gap-2 flex-wrap mb-3">
+            <button
+              onClick={function () { handleAbrirUnidadesArea() }}
+              className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+              style={{ backgroundColor: '#B45309' }}
+            >
+              📝 Evaluación de Cierre / Examen por Unidad
+            </button>
+            <button
+              onClick={function () { setVerRegistroDirecto(true) }}
+              className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
+              style={{ backgroundColor: NAVY }}
+            >
+              📋 Ver Registro Auxiliar de esta Área
+            </button>
+          </div>
+          <CourseDetailTeacherArea
+            areaNombre={areaNombre}
+            grado={cursosFinal[0].grado}
+            grupo={cursosFinal[0].grupo}
+            cursos={cursosFinal}
+            onBack={function () { elegirArea('', '') }}
+          />
+        </div>
+      )
+    }
+  }
 
   return (
     <div>
@@ -369,7 +459,8 @@ export default function MyTeachingCourses() {
             return (
               <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
                 {areasUnicas.map(function ([id, nombre]) {
-                  const cantidad = cursosAula.filter(function (c) { return c.asignaturas?.area_id === id }).length
+                  const itemsDelArea = cursosAula.filter(function (c) { return c.asignaturas?.area_id === id })
+                  const nombresAsignaturas = [...new Set(itemsDelArea.map(function (c) { return c.nombre }))]
                   return (
                     <button
                       key={id}
@@ -389,10 +480,11 @@ export default function MyTeachingCourses() {
                           </div>
                         </div>
                         <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
-                          {cantidad} asignatura(s)
+                          {itemsDelArea.length} asignatura(s)
                         </span>
                       </div>
                       <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>{nombre}</h3>
+                      <p className="text-xs text-slate-500">{nombresAsignaturas.join(' · ')}</p>
                     </button>
                   )
                 })}
@@ -400,69 +492,7 @@ export default function MyTeachingCourses() {
             )
           })()}
         </>
-      ) : (
-        <>
-          <button onClick={function () { elegirArea('', '') }} className="text-sm font-semibold mb-2 hover:underline" style={{ color: NAVY }}>← Volver a Áreas</button>
-          <p className="text-xs font-bold uppercase tracking-wide mb-3" style={{ color: GREEN_DARK }}>
-            {institucionesUnicas.find(function (i) { return i[0] === institucionSel })?.[1] || ''}
-          </p>
-          <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
-            <p className="text-sm text-slate-400">{areaNombre}</p>
-            <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={function () { handleAbrirUnidadesArea() }}
-                className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
-                style={{ backgroundColor: '#B45309' }}
-              >
-                📝 Evaluación de Cierre / Examen por Unidad
-              </button>
-              <button
-                onClick={function () { setVerRegistroDirecto(true) }}
-                className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition hover:opacity-90"
-                style={{ backgroundColor: NAVY }}
-              >
-                📋 Ver Registro Auxiliar de esta Área
-              </button>
-            </div>
-          </div>
-          {(function () {
-            const [grado, grupo] = aulaSel.split('__')
-            const cursosFinal = courses.filter(function (c) {
-              return String(c.grado) === grado && c.grupo === grupo
-                && (c.institucion_id || 'sin-institucion') === institucionSel
-                && c.asignaturas?.area_id === areaId
-            })
-            return (
-              <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-                {cursosFinal.map(function (c) {
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={function () { setSelectedCourse(c) }}
-                      className="text-left bg-white rounded-2xl p-5 space-y-2 transition hover:-translate-y-0.5"
-                      style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <IconoAsignatura nombre={c.nombre} size={34} />
-                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
-                          {gradoLabel(c.grado)}
-                        </span>
-                      </div>
-                      <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>
-                        {c.nombre} <span className="text-slate-400 text-sm font-medium">(Sección {c.grupo})</span>
-                      </h3>
-                      <p className="text-sm text-slate-500">{scheduleText(c.course_schedules)}</p>
-                      <p className="text-sm font-medium" style={{ color: GREEN_DARK }}>
-                        {c.enrollments?.[0]?.count ?? 0} alumno(s) matriculado(s)
-                      </p>
-                    </button>
-                  )
-                })}
-              </div>
-            )
-          })()}
-        </>
-      )}
+      ) : null}
     </div>
   )
 }

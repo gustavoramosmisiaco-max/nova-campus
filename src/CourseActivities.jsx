@@ -23,16 +23,23 @@ function getArea(nombreCurso) {
   return nombreCurso === 'Matematica' ? 'Matematica' : 'Ciencia y Tecnologia'
 }
 
-export default function CourseActivities({ courseId }) {
-  const [courseNombre, setCourseNombre] = useState('')
+export default function CourseActivities({ cursos }) {
+  const [areaId, setAreaId] = useState(null)
   const [selectedUnidad, setSelectedUnidad] = useState(null)
   const [selectedActividad, setSelectedActividad] = useState(null)
 
+  const cursoIds = cursos.map(function (c) { return c.id })
+  const grado = cursos[0]?.grado
+  const grupo = cursos[0]?.grupo
+
   useEffect(function () {
-    supabase.from('courses').select('nombre').eq('id', courseId).single().then(function (r) {
-      if (!r.error) setCourseNombre(r.data.nombre)
+    if (!cursos[0]) return
+    supabase.from('courses').select('asignaturas(area_id)').eq('id', cursos[0].id).single().then(function (r) {
+      if (!r.error) setAreaId(r.data.asignaturas?.area_id)
     })
-  }, [courseId])
+  }, [cursos[0]?.id])
+
+  if (!areaId) return <p className="text-slate-400 text-sm">Cargando...</p>
 
   if (selectedActividad) {
     return (
@@ -47,23 +54,21 @@ export default function CourseActivities({ courseId }) {
     return (
       <UnidadActividades
         unidad={selectedUnidad}
-        courseId={courseId}
-        courseNombre={courseNombre}
+        cursos={cursos}
         onBack={function () { setSelectedUnidad(null) }}
         onSelectActividad={setSelectedActividad}
       />
     )
   }
 
-  return <UnidadesList courseId={courseId} onSelectUnidad={setSelectedUnidad} />
+  return <UnidadesList areaId={areaId} grado={grado} grupo={grupo} cursos={cursos} onSelectUnidad={setSelectedUnidad} />
 }
 
 // ============================================================
 // NIVEL 1: Lista de carpetas (Unidades / Experiencias)
 // ============================================================
-function UnidadesList({ courseId, onSelectUnidad }) {
+function UnidadesList({ areaId, grado, grupo, cursos, onSelectUnidad }) {
   const { session } = useAuth()
-  const [aula, setAula] = useState(null)
   const [unidades, setUnidades] = useState([])
   const [conteoPropio, setConteoPropio] = useState({})
   const [loading, setLoading] = useState(true)
@@ -77,40 +82,21 @@ function UnidadesList({ courseId, onSelectUnidad }) {
   const [fechaFin, setFechaFin] = useState('')
   const [mostrarImportarWord, setMostrarImportarWord] = useState(false)
 
+  const cursoIds = cursos.map(function (c) { return c.id })
+  const aula = { areaId: areaId, grado: grado, grupo: grupo }
+
   useEffect(function () {
-    cargarAulaYUnidades()
-  }, [courseId])
+    loadUnidades()
+  }, [areaId, grado, grupo])
 
-  async function cargarAulaYUnidades() {
-    setLoading(true)
-    const courseResult = await supabase
-      .from('courses')
-      .select('grado, grupo, asignaturas(area_id)')
-      .eq('id', courseId)
-      .single()
-
-    if (courseResult.error || !courseResult.data?.asignaturas) {
-      setError('No se pudo determinar el Área de este curso.')
-      setLoading(false)
-      return
-    }
-    const infoAula = {
-      areaId: courseResult.data.asignaturas.area_id,
-      grado: courseResult.data.grado,
-      grupo: courseResult.data.grupo,
-    }
-    setAula(infoAula)
-    await loadUnidades(infoAula)
-  }
-
-  async function loadUnidades(infoAula) {
+  async function loadUnidades() {
     setLoading(true)
     const result = await supabase
       .from('unidades')
       .select('*')
-      .eq('area_id', infoAula.areaId)
-      .eq('grado', infoAula.grado)
-      .eq('grupo', infoAula.grupo)
+      .eq('area_id', areaId)
+      .eq('grado', grado)
+      .eq('grupo', grupo)
       .order('numero', { ascending: true })
     if (result.error) {
       setError(result.error.message)
@@ -119,13 +105,13 @@ function UnidadesList({ courseId, onSelectUnidad }) {
     }
     setUnidades(result.data)
 
-    // Cuántas actividades tiene ESTA asignatura (no las otras) dentro de cada carpeta compartida
+    // Cuántas actividades tiene esta área (todas sus asignaturas) dentro de cada carpeta compartida
     const unidadIds = result.data.map(function (u) { return u.id })
     if (unidadIds.length > 0) {
       const actResult = await supabase
         .from('actividades')
         .select('unidad_id')
-        .eq('course_id', courseId)
+        .in('course_id', cursoIds)
         .in('unidad_id', unidadIds)
       if (!actResult.error) {
         const conteo = {}
@@ -183,14 +169,14 @@ function UnidadesList({ courseId, onSelectUnidad }) {
     }
     resetForm()
     setShowForm(false)
-    loadUnidades(aula)
+    loadUnidades()
   }
 
   async function handleDelete(id) {
     if (!confirm('¿Eliminar esta carpeta? Es compartida por TODAS las asignaturas de esta área (Biología, Química, Física, etc.) — se eliminarán también sus actividades, materiales y tareas de todas ellas.')) return
     const result = await supabase.from('unidades').delete().eq('id', id)
     if (result.error) alert('Error: ' + result.error.message)
-    else loadUnidades(aula)
+    else loadUnidades()
   }
 
   if (loading) return <p className="text-slate-400 text-sm">Cargando carpetas...</p>
@@ -220,14 +206,14 @@ function UnidadesList({ courseId, onSelectUnidad }) {
         Estas carpetas se comparten entre todas las asignaturas de esta Área para este Grado y Sección (ej. Biología, Química y Física). Si otra asignatura ya creó "Experiencia 5", aparecerá aquí — solo agrega tus propias actividades adentro.
       </p>
 
-      {mostrarImportarWord && aula && (
+      {mostrarImportarWord && (
         <ImportarUnidadWord
-          areaId={aula.areaId}
-          grado={aula.grado}
-          grupo={aula.grupo}
-          courseId={courseId}
+          areaId={areaId}
+          grado={grado}
+          grupo={grupo}
+          cursos={cursos}
           onCerrar={function () { setMostrarImportarWord(false) }}
-          onImportado={function () { setMostrarImportarWord(false); loadUnidades(aula) }}
+          onImportado={function () { setMostrarImportarWord(false); loadUnidades() }}
         />
       )}
 
@@ -373,7 +359,7 @@ function UnidadesList({ courseId, onSelectUnidad }) {
 // ============================================================
 // NIVEL 2: Actividades dentro de una carpeta (Unidad)
 // ============================================================
-function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectActividad }) {
+function UnidadActividades({ unidad, cursos, onBack, onSelectActividad }) {
   const { session } = useAuth()
   const [subTab, setSubTab] = useState('actividades')
   const [activities, setActivities] = useState([])
@@ -383,6 +369,9 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
+  const [abiertos, setAbiertos] = useState(new Set())
+
+  const cursoIds = cursos.map(function (c) { return c.id })
 
   const [nombre, setNombre] = useState('')
   const [fechaClase, setFechaClase] = useState('')
@@ -391,6 +380,7 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
   const [competenciaId, setCompetenciaId] = useState('')
   const [detalles, setDetalles] = useState({})
   const [completandoRubricaId, setCompletandoRubricaId] = useState(null)
+  const [actividadCursoId, setActividadCursoId] = useState(cursos.length === 1 ? cursos[0].id : '')
 
   useEffect(function () {
     init()
@@ -401,10 +391,10 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
     const courseResult = await supabase
       .from('courses')
       .select('asignaturas(area_id, areas_curriculares(nombre))')
-      .eq('id', courseId)
+      .eq('id', cursos[0].id)
       .single()
 
-    const areaNombre = courseResult.data?.asignaturas?.areas_curriculares?.nombre || getArea(courseNombre)
+    const areaNombre = courseResult.data?.asignaturas?.areas_curriculares?.nombre || ''
     const compResult = await supabase.from('competencias').select('*').eq('area', areaNombre).order('codigo')
     setCompetencias(compResult.data || [])
     await loadActivities()
@@ -414,9 +404,9 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
   async function loadActivities() {
     const result = await supabase
       .from('actividades')
-      .select('*, competencia:competencias(nombre, codigo), actividad_capacidades(criterio, desempeno, desc_ad, desc_a, desc_b, desc_c, capacidad:capacidades(id, nombre, orden))')
+      .select('*, competencia:competencias(nombre, codigo), course:courses(nombre, docente:profiles(full_name)), actividad_capacidades(criterio, desempeno, desc_ad, desc_a, desc_b, desc_c, capacidad:capacidades(id, nombre, orden))')
       .eq('unidad_id', unidad.id)
-      .eq('course_id', courseId)
+      .in('course_id', cursoIds)
       .order('created_at', { ascending: true })
     if (result.error) setError(result.error.message)
     else setActivities(result.data)
@@ -437,6 +427,7 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
     setCompetenciaId('')
     setDetalles({})
     setCapacidadesDisponibles([])
+    setActividadCursoId(cursos.length === 1 ? cursos[0].id : '')
   }
 
   function openNew() {
@@ -446,6 +437,7 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
 
   async function openEdit(a) {
     setEditingId(a.id)
+    setActividadCursoId(a.course_id)
     setNombre(a.nombre)
     setFechaClase(a.fecha_clase || '')
     setTipoInstrumento(a.tipo_instrumento || 'Lista de cotejo')
@@ -540,11 +532,17 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
     e.preventDefault()
     setError('')
 
+    if (!actividadCursoId) {
+      setError('Elige a qué asignatura pertenece esta actividad.')
+      return
+    }
+
     const existing = editingId ? activities.find(function (a) { return a.id === editingId }) : null
-    const numeroActividad = existing ? existing.numero_actividad : (activities.length + 1)
+    const actividadesDeEstaAsignatura = activities.filter(function (a) { return a.course_id === actividadCursoId })
+    const numeroActividad = existing ? existing.numero_actividad : (actividadesDeEstaAsignatura.length + 1)
 
     const payload = {
-      course_id: courseId,
+      course_id: actividadCursoId,
       unidad_id: unidad.id,
       tipo_unidad: unidad.tipo,
       numero_unidad: String(unidad.numero),
@@ -642,7 +640,7 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
       </div>
 
       {subTab === 'cierre' && (
-        <EvaluacionCierre unidad={{ ...unidad, course_id: courseId }} />
+        <EvaluacionCierre unidad={{ ...unidad, course_id: cursos[0].id }} />
       )}
 
       {subTab === 'actividades' && (
@@ -660,8 +658,25 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
       {showForm && (
         <form onSubmit={handleSubmit} className="rounded-xl p-4 mb-5 space-y-3" style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}>
           <h4 className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{editingId ? 'Editar actividad' : 'Nueva actividad'}</h4>
-          {!editingId && (
-            <p className="text-xs font-semibold" style={{ color: GREEN_DARK }}>Esta será la Actividad N.° {activities.length + 1} de esta carpeta</p>
+          {cursos.length > 1 && (
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Asignatura</label>
+              <select
+                value={actividadCursoId}
+                onChange={function (e) { setActividadCursoId(e.target.value) }}
+                disabled={!!editingId}
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={inputStyle}
+              >
+                <option value="">-- Elige la asignatura --</option>
+                {cursos.map(function (c) { return <option key={c.id} value={c.id}>{c.nombre}</option> })}
+              </select>
+            </div>
+          )}
+          {!editingId && actividadCursoId && (
+            <p className="text-xs font-semibold" style={{ color: GREEN_DARK }}>
+              Esta será la Actividad N.° {activities.filter(function (a) { return a.course_id === actividadCursoId }).length + 1} de esta asignatura en la carpeta
+            </p>
           )}
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: NAVY_DARK }}>Nombre de la actividad</label>
@@ -785,25 +800,72 @@ function UnidadActividades({ unidad, courseId, courseNombre, onBack, onSelectAct
       {activities.length === 0 ? (
         <p className="text-slate-400 text-sm">Aún no hay actividades en esta carpeta.</p>
       ) : (
-        <ul className="space-y-3">
-          {activities.map(function (a) {
-            return (
-              <li key={a.id} className="rounded-xl p-4" style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}>
-                <div className="flex justify-between items-start flex-wrap gap-3">
-                  <button onClick={function () { onSelectActividad(a) }} className="text-left flex-1">
-                    <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>Actividad {a.numero_actividad} · {a.nombre}</p>
-                    {a.competencia && <p className="text-xs text-slate-500 mt-1">{a.competencia.codigo} — {a.competencia.nombre}</p>}
-                    <p className="text-xs mt-1" style={{ color: GREEN_DARK }}>Ver materiales y tareas →</p>
-                  </button>
-                  <div className="flex gap-2">
-                    <button onClick={function () { openEdit(a) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>Editar</button>
-                    <button onClick={function () { handleDelete(a.id) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: '#B91C1C' }}>Eliminar</button>
+        (function () {
+          const grupos = []
+          activities.forEach(function (a) {
+            let grupo = grupos.find(function (g) { return g.courseId === a.course_id })
+            if (!grupo) {
+              grupo = { courseId: a.course_id, courseNombre: a.course?.nombre || 'Asignatura', docenteNombre: a.course?.docente?.full_name || 'Sin asignar', actividades: [] }
+              grupos.push(grupo)
+            }
+            grupo.actividades.push(a)
+          })
+
+          function toggleGrupo(courseId) {
+            setAbiertos(function (prev) {
+              const next = new Set(prev)
+              if (next.has(courseId)) next.delete(courseId); else next.add(courseId)
+              return next
+            })
+          }
+
+          return (
+            <div className="space-y-3">
+              {grupos.map(function (g) {
+                const abierto = cursos.length === 1 || abiertos.has(g.courseId)
+                return (
+                  <div key={g.courseId} className="rounded-xl overflow-hidden" style={{ border: '1px solid #E5E9F0' }}>
+                    {cursos.length > 1 && (
+                      <button
+                        onClick={function () { toggleGrupo(g.courseId) }}
+                        className="w-full flex justify-between items-center px-4 py-3 text-left transition"
+                        style={{ backgroundColor: '#F4F6F9' }}
+                      >
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-bold" style={{ color: NAVY_DARK }}>{g.courseNombre}</span>
+                          <span className="text-xs text-slate-400">Prof. {g.docenteNombre}</span>
+                          <span className="text-xs text-slate-400">({g.actividades.length})</span>
+                        </div>
+                        <span className="text-sm" style={{ color: NAVY_DARK, transform: abierto ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>▾</span>
+                      </button>
+                    )}
+                    {abierto && (
+                      <ul className="p-3 space-y-3" style={{ backgroundColor: cursos.length > 1 ? 'white' : 'transparent' }}>
+                        {g.actividades.map(function (a) {
+                          return (
+                            <li key={a.id} className="rounded-xl p-4" style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}>
+                              <div className="flex justify-between items-start flex-wrap gap-3">
+                                <button onClick={function () { onSelectActividad(a) }} className="text-left flex-1">
+                                  <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>Actividad {a.numero_actividad} · {a.nombre}</p>
+                                  {a.competencia && <p className="text-xs text-slate-500 mt-1">{a.competencia.codigo} — {a.competencia.nombre}</p>}
+                                  <p className="text-xs mt-1" style={{ color: GREEN_DARK }}>Ver materiales y tareas →</p>
+                                </button>
+                                <div className="flex gap-2">
+                                  <button onClick={function () { openEdit(a) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg transition" style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}>Editar</button>
+                                  <button onClick={function () { handleDelete(a.id) }} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90" style={{ backgroundColor: '#B91C1C' }}>Eliminar</button>
+                                </div>
+                              </div>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
                   </div>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+                )
+              })}
+            </div>
+          )
+        })()
       )}
         </>
       )}

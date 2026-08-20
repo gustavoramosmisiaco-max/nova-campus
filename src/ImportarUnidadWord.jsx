@@ -16,7 +16,8 @@ const inputStyle = { backgroundColor: 'white', border: '1px solid #D6DCE5', colo
 // (necesitan que la Actividad tenga sus Capacidades asignadas primero), se muestran
 // como sugerencia para que el docente las cree en un paso aparte, ya bien configuradas.
 // ============================================================
-export default function ImportarUnidadWord({ areaId, grado, grupo, courseId, onImportado, onCerrar }) {
+export default function ImportarUnidadWord({ areaId, grado, grupo, cursos, onImportado, onCerrar }) {
+  const [cursoId, setCursoId] = useState(cursos.length === 1 ? cursos[0].id : '')
   const { session } = useAuth()
   const [archivo, setArchivo] = useState(null)
   const [extrayendo, setExtrayendo] = useState(false)
@@ -75,6 +76,11 @@ export default function ImportarUnidadWord({ areaId, grado, grupo, courseId, onI
   async function confirmarCreacion() {
     if (!estructura) return
 
+    if (!cursoId) {
+      alert('Elige a qué asignatura pertenecen estas actividades.')
+      return
+    }
+
     const actividadesSinCompetencia = estructura.actividades.filter(function (_a, i) { return !competenciaPorActividad[i] })
     if (actividadesSinCompetencia.length > 0) {
       alert('Falta elegir la Competencia de ' + actividadesSinCompetencia.length + ' actividad(es) antes de crear.')
@@ -123,14 +129,14 @@ export default function ImportarUnidadWord({ areaId, grado, grupo, courseId, onI
 
       // 2. Crear cada Actividad
       let numeroActividadInicial = 1
-      const conteoResult = await supabase.from('actividades').select('id', { count: 'exact', head: true }).eq('unidad_id', unidadId).eq('course_id', courseId)
+      const conteoResult = await supabase.from('actividades').select('id', { count: 'exact', head: true }).eq('unidad_id', unidadId).eq('course_id', cursoId)
       numeroActividadInicial = (conteoResult.count || 0) + 1
 
       let creadas = 0
       for (let i = 0; i < estructura.actividades.length; i++) {
         const act = estructura.actividades[i]
         const payload = {
-          course_id: courseId,
+          course_id: cursoId,
           unidad_id: unidadId,
           tipo_unidad: tipoUnidad,
           numero_unidad: String(numeroUnidad || 1),
@@ -182,6 +188,21 @@ export default function ImportarUnidadWord({ areaId, grado, grupo, courseId, onI
 
       {estructura && (
         <div className="space-y-4">
+          {cursos.length > 1 && (
+            <div className="bg-white rounded-lg p-3" style={{ border: '1px solid #D6D0FA' }}>
+              <label className="block text-xs font-bold mb-1" style={{ color: NAVY_DARK }}>¿Para cuál asignatura son estas actividades?</label>
+              <select
+                value={cursoId}
+                onChange={function (e) { setCursoId(e.target.value) }}
+                className="w-full rounded-lg px-2 py-1.5 text-xs outline-none"
+                style={inputStyle}
+              >
+                <option value="">-- Elige --</option>
+                {cursos.map(function (c) { return <option key={c.id} value={c.id}>{c.nombre}</option> })}
+              </select>
+            </div>
+          )}
+
           <div className="bg-white rounded-lg p-3" style={{ border: '1px solid #D6D0FA' }}>
             <p className="text-xs font-bold mb-2" style={{ color: NAVY_DARK }}>Unidad detectada</p>
             <p className="text-xs text-slate-500">
