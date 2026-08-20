@@ -4,7 +4,7 @@ import { useAuth } from './AuthContext'
 import CourseMaterials from './CourseMaterials'
 import CourseAssignmentsStudent from './CourseAssignmentsStudent'
 import CourseZoomStudent from './CourseZoomStudent'
-import { getLetterGrade, getLetterColor } from './gradeUtils'
+import { getLetterGrade, getLetterColor, compararPorApellido } from './gradeUtils'
 import GruposEstudiante from './GruposEstudiante'
 import IconoAsignatura from './IconoAsignatura'
 import PracticaEstudiante from './PracticaEstudiante'
@@ -28,10 +28,24 @@ function gradoLabel(g) {
   return g ? `${g}° de Secundaria` : 'Sin grado'
 }
 
-function CourseDetailStudent({ course, onBack }) {
+// ============================================================
+// Vista de un Área completa — combina las Actividades de TODAS sus Asignaturas
+// (ej. Biología + Física y Química) en una sola línea de tiempo, para que el
+// estudiante no tenga que entrar asignatura por asignatura. Notas / Videoclases /
+// Grupos de Trabajo siguen siendo por Asignatura, con un selector chiquito.
+// ============================================================
+function CourseDetailStudentArea({ areaNombre, grado, grupo, cursos, onBack }) {
   const [tab, setTab] = useState('actividades')
   const [selectedUnidad, setSelectedUnidad] = useState(null)
   const [selectedActividad, setSelectedActividad] = useState(null)
+  const [cursoParaTab, setCursoParaTab] = useState(null)
+
+  const cursoIds = cursos.map(function (c) { return c.id })
+
+  function cambiarTab(id) {
+    setTab(id)
+    setCursoParaTab(null)
+  }
 
   return (
     <div>
@@ -40,22 +54,20 @@ function CourseDetailStudent({ course, onBack }) {
         className="text-sm font-semibold mb-4 hover:underline flex items-center gap-1"
         style={{ color: NAVY }}
       >
-        ← Volver a mis asignaturas
+        ← Volver a Áreas
       </button>
 
       <div className="flex items-center gap-3 mb-1 flex-wrap">
-        <h2 className="text-2xl font-bold" style={{ color: NAVY_DARK }}>
-          {course.nombre} <span className="text-slate-400 text-lg font-medium">(Sección {course.grupo})</span>
-        </h2>
+        <h2 className="text-2xl font-bold" style={{ color: NAVY_DARK }}>{areaNombre}</h2>
         <span
           className="text-xs font-semibold px-3 py-1 rounded-full"
           style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}
         >
-          {gradoLabel(course.grado)}
+          {gradoLabel(grado)} · Sección {grupo}
         </span>
       </div>
-      <p className="text-sm font-medium mb-4" style={{ color: GREEN_DARK }}>
-        {scheduleText(course.course_schedules)}
+      <p className="text-sm text-slate-400 mb-4">
+        {cursos.map(function (c) { return c.nombre }).join(' · ')}
       </p>
 
       {!selectedUnidad && !selectedActividad && (
@@ -65,7 +77,7 @@ function CourseDetailStudent({ course, onBack }) {
             return (
               <button
                 key={t.id}
-                onClick={function () { setTab(t.id) }}
+                onClick={function () { cambiarTab(t.id) }}
                 className="px-4 py-2.5 text-sm font-semibold border-b-2 transition"
                 style={active ? { borderColor: GREEN, color: NAVY_DARK } : { borderColor: 'transparent', color: '#94A3B8' }}
               >
@@ -77,16 +89,55 @@ function CourseDetailStudent({ course, onBack }) {
       )}
 
       <div className="bg-white rounded-2xl p-6" style={{ border: '1px solid #E5E9F0' }}>
-        {tab === 'zoom' && !selectedUnidad && !selectedActividad && (
-          <CourseZoomStudent courseId={course.id} />
+        {(tab === 'notas' || tab === 'grupos' || tab === 'zoom') && !cursoParaTab && (
+          <div>
+            <p className="text-sm text-slate-400 mb-4">Elige la asignatura</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {cursos.map(function (c) {
+                return (
+                  <button
+                    key={c.id}
+                    onClick={function () { setCursoParaTab(c) }}
+                    className="text-left rounded-xl p-4 transition hover:-translate-y-0.5"
+                    style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <IconoAsignatura nombre={c.nombre} size={24} />
+                      <span className="text-sm font-bold" style={{ color: NAVY_DARK }}>{c.nombre}</span>
+                    </div>
+                    <p className="text-xs text-slate-500">Docente: {c.docente?.full_name || 'Sin asignar'}</p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         )}
 
-        {tab === 'notas' && !selectedUnidad && !selectedActividad && (
-          <NotasDeAsignatura courseId={course.id} />
+        {tab === 'notas' && cursoParaTab && (
+          <div>
+            <button onClick={function () { setCursoParaTab(null) }} className="text-sm font-semibold mb-4 hover:underline flex items-center gap-1" style={{ color: NAVY }}>
+              ← Cambiar de asignatura
+            </button>
+            <NotasDeAsignatura courseId={cursoParaTab.id} />
+          </div>
         )}
 
-        {tab === 'grupos' && !selectedUnidad && !selectedActividad && (
-          <GruposEstudiante courseId={course.id} />
+        {tab === 'zoom' && cursoParaTab && (
+          <div>
+            <button onClick={function () { setCursoParaTab(null) }} className="text-sm font-semibold mb-4 hover:underline flex items-center gap-1" style={{ color: NAVY }}>
+              ← Cambiar de asignatura
+            </button>
+            <CourseZoomStudent courseId={cursoParaTab.id} />
+          </div>
+        )}
+
+        {tab === 'grupos' && cursoParaTab && (
+          <div>
+            <button onClick={function () { setCursoParaTab(null) }} className="text-sm font-semibold mb-4 hover:underline flex items-center gap-1" style={{ color: NAVY }}>
+              ← Cambiar de asignatura
+            </button>
+            <GruposEstudiante courseId={cursoParaTab.id} />
+          </div>
         )}
 
         {tab === 'actividades' && (
@@ -97,14 +148,15 @@ function CourseDetailStudent({ course, onBack }) {
                 onBack={function () { setSelectedActividad(null) }}
               />
             ) : selectedUnidad ? (
-              <UnidadActividadesStudent
+              <UnidadActividadesAreaStudent
                 unidad={selectedUnidad}
-                courseId={course.id}
+                areaNombre={areaNombre}
+                cursoIds={cursoIds}
                 onBack={function () { setSelectedUnidad(null) }}
                 onSelectActividad={setSelectedActividad}
               />
             ) : (
-              <UnidadesListStudent courseId={course.id} onSelectUnidad={setSelectedUnidad} />
+              <UnidadesListStudent grado={grado} grupo={grupo} cursoIds={cursoIds} onSelectUnidad={setSelectedUnidad} />
             )}
           </>
         )}
@@ -113,26 +165,24 @@ function CourseDetailStudent({ course, onBack }) {
   )
 }
 
-function UnidadesListStudent({ courseId, onSelectUnidad }) {
+function UnidadesListStudent({ grado, grupo, cursoIds, onSelectUnidad }) {
   const [unidades, setUnidades] = useState([])
-  const [conteoPropio, setConteoPropio] = useState({})
+  const [conteo, setConteo] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(function () {
     loadUnidades()
-  }, [courseId])
+  }, [grado, grupo, cursoIds.join(',')])
 
   async function loadUnidades() {
     setLoading(true)
-    const courseResult = await supabase
-      .from('courses')
-      .select('grado, grupo, asignaturas(area_id)')
-      .eq('id', courseId)
-      .single()
 
+    // El área de estas unidades se determina por cualquiera de sus cursos, ya que
+    // las carpetas se comparten entre todas las asignaturas de la misma área.
+    const courseResult = await supabase.from('courses').select('asignaturas(area_id)').eq('id', cursoIds[0]).single()
     if (courseResult.error || !courseResult.data?.asignaturas) {
-      setError('No se pudo determinar el Área de este curso.')
+      setError('No se pudo determinar el Área.')
       setLoading(false)
       return
     }
@@ -141,8 +191,8 @@ function UnidadesListStudent({ courseId, onSelectUnidad }) {
       .from('unidades')
       .select('*')
       .eq('area_id', courseResult.data.asignaturas.area_id)
-      .eq('grado', courseResult.data.grado)
-      .eq('grupo', courseResult.data.grupo)
+      .eq('grado', grado)
+      .eq('grupo', grupo)
       .order('numero', { ascending: true })
     if (result.error) {
       setError(result.error.message)
@@ -156,12 +206,12 @@ function UnidadesListStudent({ courseId, onSelectUnidad }) {
       const actResult = await supabase
         .from('actividades')
         .select('unidad_id')
-        .eq('course_id', courseId)
+        .in('course_id', cursoIds)
         .in('unidad_id', unidadIds)
       if (!actResult.error) {
-        const conteo = {}
-        actResult.data.forEach(function (a) { conteo[a.unidad_id] = (conteo[a.unidad_id] || 0) + 1 })
-        setConteoPropio(conteo)
+        const c = {}
+        actResult.data.forEach(function (a) { c[a.unidad_id] = (c[a.unidad_id] || 0) + 1 })
+        setConteo(c)
       }
     }
     setLoading(false)
@@ -174,7 +224,7 @@ function UnidadesListStudent({ courseId, onSelectUnidad }) {
     <div>
       <h3 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>Unidades y Experiencias de Aprendizaje</h3>
       {unidades.length === 0 ? (
-        <p className="text-slate-400 text-sm">Aún no hay carpetas creadas por tu docente.</p>
+        <p className="text-slate-400 text-sm">Aún no hay carpetas creadas por tus docentes.</p>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {unidades.map(function (u) {
@@ -190,7 +240,7 @@ function UnidadesListStudent({ courseId, onSelectUnidad }) {
                   <span className="text-xs font-semibold" style={{ color: GREEN_DARK }}>{u.tipo} {u.numero}</span>
                 </div>
                 <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>{u.nombre || `${u.tipo} ${u.numero}`}</p>
-                <p className="text-xs text-slate-400 mt-1">{conteoPropio[u.id] || 0} actividad(es)</p>
+                <p className="text-xs text-slate-400 mt-1">{conteo[u.id] || 0} actividad(es) de esta área</p>
               </button>
             )
           })}
@@ -200,7 +250,11 @@ function UnidadesListStudent({ courseId, onSelectUnidad }) {
   )
 }
 
-function UnidadActividadesStudent({ unidad, courseId, onBack, onSelectActividad }) {
+// ============================================================
+// Actividades de TODAS las asignaturas de esta área, dentro de una Unidad —
+// mezcladas y ordenadas por fecha de clase, cada una con su docente y asignatura.
+// ============================================================
+function UnidadActividadesAreaStudent({ unidad, areaNombre, cursoIds, onBack, onSelectActividad }) {
   const [subTab, setSubTab] = useState('actividades')
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
@@ -214,10 +268,10 @@ function UnidadActividadesStudent({ unidad, courseId, onBack, onSelectActividad 
     setLoading(true)
     const result = await supabase
       .from('actividades')
-      .select('*, competencia:competencias(nombre, codigo)')
+      .select('*, competencia:competencias(nombre, codigo), course:courses(nombre, docente:profiles(full_name))')
       .eq('unidad_id', unidad.id)
-      .eq('course_id', courseId)
-      .order('created_at', { ascending: true })
+      .in('course_id', cursoIds)
+      .order('fecha_clase', { ascending: false, nullsFirst: false })
     if (result.error) setError(result.error.message)
     else setActivities(result.data)
     setLoading(false)
@@ -256,7 +310,7 @@ function UnidadActividadesStudent({ unidad, courseId, onBack, onSelectActividad 
         })}
       </div>
 
-      {subTab === 'notas-tareas' && <NotasDeTareasUnidad unidad={unidad} courseId={courseId} />}
+      {subTab === 'notas-tareas' && <NotasDeTareasUnidad unidad={unidad} areaNombre={areaNombre} cursoIds={cursoIds} />}
 
       {subTab === 'actividades' && (
       activities.length === 0 ? (
@@ -267,6 +321,13 @@ function UnidadActividadesStudent({ unidad, courseId, onBack, onSelectActividad 
             return (
               <li key={a.id} style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }} className="rounded-xl p-4">
                 <button onClick={function () { onSelectActividad(a) }} className="text-left w-full">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
+                      {a.course?.nombre || 'Asignatura'}
+                    </span>
+                    <span className="text-xs text-slate-400">Prof. {a.course?.docente?.full_name || 'Sin asignar'}</span>
+                    {a.fecha_clase && <span className="text-xs text-slate-400">· {new Date(a.fecha_clase + 'T00:00:00').toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'short' })}</span>}
+                  </div>
                   <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>Actividad {a.numero_actividad} · {a.nombre}</p>
                   {a.competencia && <p className="text-xs text-slate-500 mt-1">{a.competencia.codigo} — {a.competencia.nombre}</p>}
                   <p className="text-xs mt-1" style={{ color: GREEN_DARK }}>Ver materiales y tareas →</p>
@@ -290,9 +351,12 @@ function ActividadContenidoStudent({ actividad, onBack }) {
         ← Volver a la carpeta
       </button>
 
-      <h3 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>
+      <h3 className="text-lg font-bold mb-1" style={{ color: NAVY_DARK }}>
         Actividad {actividad.numero_actividad} · {actividad.nombre}
       </h3>
+      <p className="text-xs text-slate-400 mb-4">
+        {actividad.course?.nombre ? `${actividad.course.nombre} · ` : ''}Prof. {actividad.course?.docente?.full_name || 'Sin asignar'}
+      </p>
 
       <div className="flex gap-2 mb-6 border-b" style={{ borderColor: '#E5E9F0' }}>
         {[{ id: 'materiales', label: 'Materiales' }, { id: 'tareas', label: 'Tareas' }, { id: 'practica', label: 'Práctica' }].map(function (t) {
@@ -328,7 +392,6 @@ export default function MyCourses() {
   const [courses, setCourses] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [selectedCourse, setSelectedCourse] = useState(null)
   const [institucionSel, setInstitucionSel] = useState(null)
   const [areaSel, setAreaSel] = useState(null)
 
@@ -359,10 +422,6 @@ export default function MyCourses() {
   if (loading) return <p className="text-slate-400">Cargando tus cursos...</p>
   if (error) return <p className="text-red-500">Error: {error}</p>
 
-  if (selectedCourse) {
-    return <CourseDetailStudent course={selectedCourse} onBack={function () { setSelectedCourse(null) }} />
-  }
-
   const miCurso = courses.find(function (e) { return e.course.grado })
   const miGrado = miCurso?.course.grado
   const miSeccion = miCurso?.course.grupo
@@ -370,6 +429,24 @@ export default function MyCourses() {
   const institucionesUnicas = [...new Map(
     courses.map(function (e) { return [e.course.institucion_id || 'sin-institucion', e.course.instituciones_educativas?.nombre || 'Sin institución asignada'] })
   ).entries()]
+
+  if (areaSel != null && institucionSel != null) {
+    const cursosFinal = courses.filter(function (e) {
+      return (e.course.institucion_id || 'sin-institucion') === institucionSel
+        && (e.course.asignaturas?.areas_curriculares?.nombre || 'Otras') === areaSel
+    })
+    if (cursosFinal.length > 0) {
+      return (
+        <CourseDetailStudentArea
+          areaNombre={areaSel}
+          grado={cursosFinal[0].course.grado}
+          grupo={cursosFinal[0].course.grupo}
+          cursos={cursosFinal.map(function (e) { return e.course })}
+          onBack={function () { setAreaSel(null) }}
+        />
+      )
+    }
+  }
 
   return (
     <div>
@@ -430,7 +507,7 @@ export default function MyCourses() {
             })}
           </div>
         </>
-      ) : areaSel == null ? (
+      ) : (
         <>
           {institucionesUnicas.length > 1 && (
             <button onClick={function () { setInstitucionSel(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Instituciones</button>
@@ -442,7 +519,8 @@ export default function MyCourses() {
             return (
               <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
                 {areasUnicas.map(function (areaNombre) {
-                  const cantidad = cursosInst.filter(function (e) { return (e.course.asignaturas?.areas_curriculares?.nombre || 'Otras') === areaNombre }).length
+                  const itemsDelArea = cursosInst.filter(function (e) { return (e.course.asignaturas?.areas_curriculares?.nombre || 'Otras') === areaNombre })
+                  const nombresAsignaturas = [...new Set(itemsDelArea.map(function (e) { return e.course.nombre }))]
                   return (
                     <button
                       key={areaNombre}
@@ -462,49 +540,11 @@ export default function MyCourses() {
                           </div>
                         </div>
                         <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
-                          {cantidad} asignatura(s)
+                          {itemsDelArea.length} asignatura(s)
                         </span>
                       </div>
                       <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>{areaNombre}</h3>
-                    </button>
-                  )
-                })}
-              </div>
-            )
-          })()}
-        </>
-      ) : (
-        <>
-          <button onClick={function () { setAreaSel(null) }} className="text-sm font-semibold mb-4 hover:underline" style={{ color: NAVY }}>← Volver a Áreas</button>
-          <p className="text-sm text-slate-400 mb-5">{areaSel}</p>
-          {(function () {
-            const cursosFinal = courses.filter(function (e) {
-              return (e.course.institucion_id || 'sin-institucion') === institucionSel
-                && (e.course.asignaturas?.areas_curriculares?.nombre || 'Otras') === areaSel
-            })
-            return (
-              <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-                {cursosFinal.map(function (e) {
-                  return (
-                    <button
-                      key={e.id}
-                      onClick={function () { setSelectedCourse(e.course) }}
-                      className="text-left bg-white rounded-2xl p-5 space-y-2 transition hover:-translate-y-0.5"
-                      style={{ border: '1px solid #E5E9F0', boxShadow: '0 1px 3px rgba(15,42,74,0.06)' }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <IconoAsignatura nombre={e.course.nombre} size={34} />
-                        {e.course.grado && (
-                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
-                            {gradoLabel(e.course.grado)}
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>
-                        {e.course.nombre} <span className="text-slate-400 text-sm font-medium">(Sección {e.course.grupo})</span>
-                      </h3>
-                      <p className="text-sm text-slate-500">Docente: {e.course.docente?.full_name || 'Sin asignar'}</p>
-                      <p className="text-sm font-medium" style={{ color: GREEN_DARK }}>{scheduleText(e.course.course_schedules)}</p>
+                      <p className="text-xs text-slate-500">{nombresAsignaturas.join(' · ')}</p>
                     </button>
                   )
                 })}
@@ -527,9 +567,10 @@ function BookIcon() {
 }
 
 // ============================================================
-// Notas de Tareas de una Unidad específica (estudiante, solo lectura)
+// Notas de Tareas de una Unidad específica (estudiante, solo lectura) —
+// combina las Capacidades trabajadas por TODAS las asignaturas del área.
 // ============================================================
-function NotasDeTareasUnidad({ unidad, courseId }) {
+function NotasDeTareasUnidad({ unidad, areaNombre, cursoIds }) {
   const { session } = useAuth()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -538,7 +579,7 @@ function NotasDeTareasUnidad({ unidad, courseId }) {
 
   useEffect(function () {
     cargar()
-  }, [unidad.id, courseId])
+  }, [unidad.id, cursoIds.join(',')])
 
   function average(numbers) {
     const validos = numbers.filter(function (n) { return n != null })
@@ -550,18 +591,6 @@ function NotasDeTareasUnidad({ unidad, courseId }) {
     setLoading(true)
     setError('')
 
-    const courseResult = await supabase
-      .from('courses')
-      .select('asignaturas(areas_curriculares(nombre))')
-      .eq('id', courseId)
-      .single()
-    const areaNombre = courseResult.data?.asignaturas?.areas_curriculares?.nombre
-    if (!areaNombre) {
-      setError('No se pudo determinar el Área de este curso.')
-      setLoading(false)
-      return
-    }
-
     const compResult = await supabase.from('competencias').select('*').eq('area', areaNombre).order('codigo')
     const competencias = compResult.error ? [] : compResult.data
     const competenciaIds = competencias.map(function (c) { return c.id })
@@ -571,9 +600,9 @@ function NotasDeTareasUnidad({ unidad, courseId }) {
 
     const actResult = await supabase
       .from('actividades')
-      .select('id, nombre, numero_actividad, fecha_clase, actividad_capacidades(capacidad_id, criterio, desempeno)')
+      .select('id, nombre, numero_actividad, fecha_clase, course:courses(nombre), actividad_capacidades(capacidad_id, criterio, desempeno)')
       .eq('unidad_id', unidad.id)
-      .eq('course_id', courseId)
+      .in('course_id', cursoIds)
     const actividades = actResult.error ? [] : actResult.data
     const actIds = actividades.map(function (a) { return a.id })
 
@@ -656,6 +685,7 @@ function NotasDeTareasUnidad({ unidad, courseId }) {
             assignmentId: a.id,
             tituloTarea: a.titulo,
             actividadNumero: actividad?.numero_actividad,
+            asignaturaNombre: actividad?.course?.nombre || '',
             criterio: detalle?.criterio || '',
             desempeno: detalle?.desempeno || '',
             nota: notaFinal,
@@ -706,7 +736,7 @@ function NotasDeTareasUnidad({ unidad, courseId }) {
                           <li key={inst.assignmentId + '_' + cap.id} className="text-xs">
                             <div className="flex justify-between items-center gap-2">
                               <span style={{ color: '#5F5E5A' }}>
-                                Act.{inst.actividadNumero} · {inst.tituloTarea}{' '}
+                                {inst.asignaturaNombre ? `[${inst.asignaturaNombre}] ` : ''}Act.{inst.actividadNumero} · {inst.tituloTarea}{' '}
                                 <button className="underline decoration-dotted" style={{ color: NAVY }} onClick={function () { toggle(keyC) }}>Criterio</button>
                                 {' · '}
                                 <button className="underline decoration-dotted" style={{ color: '#8a5cb0' }} onClick={function () { toggle(keyD) }}>Desempeño</button>
