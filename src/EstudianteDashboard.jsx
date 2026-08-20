@@ -1,5 +1,6 @@
-import { useState, lazy, Suspense } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { useAuth } from './AuthContext'
+import { supabase } from './supabaseClient'
 import NotificationBell from './NotificationBell'
 import BloqueoPanel from './BloqueoPanel'
 import WelcomeAnimation from './WelcomeAnimation'
@@ -23,10 +24,26 @@ const GREEN = '#22C55E'
 const GREEN_DARK = '#16A34A'
 
 export default function EstudianteDashboard() {
-  const { profile, logout } = useAuth()
+  const { session, profile, logout } = useAuth()
   const [activeSection, setActiveSection] = useState('inicio')
   const [despidiendo, setDespidiendo] = useState(false)
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false)
+  const [institucionEstudiante, setInstitucionEstudiante] = useState(null)
+
+  useEffect(function () {
+    cargarInstitucion()
+  }, [])
+
+  async function cargarInstitucion() {
+    const result = await supabase
+      .from('profiles')
+      .select('institucion:instituciones_educativas!profiles_institucion_id_fkey(id, nombre, logo_url)')
+      .eq('id', session.user.id)
+      .single()
+    if (!result.error && result.data?.institucion) {
+      setInstitucionEstudiante(result.data.institucion)
+    }
+  }
 
   function handleLogoutConDespedida() {
     setDespidiendo(true)
@@ -51,6 +68,9 @@ export default function EstudianteDashboard() {
     .join('')
     .toUpperCase()
 
+  const logoSrc = institucionEstudiante?.logo_url || '/logo.png'
+  const nombreMarca = institucionEstudiante?.nombre || 'Nexoris Academy'
+
   return (
     <>
     <WelcomeAnimation role="estudiante" nombre={profile?.full_name} />
@@ -66,9 +86,9 @@ export default function EstudianteDashboard() {
       >
         <FondoEstrellas variante="oscuro" />
         <div className="relative flex items-center gap-3 px-6 py-6 border-b border-white/10" style={{ zIndex: 1 }}>
-          <img src="/logo.png" alt="Nexoris Academy" className="w-10 h-10 object-contain rounded-full bg-white p-1" />
+          <img src={logoSrc} alt={nombreMarca} className="w-10 h-10 object-contain rounded-full bg-white p-1" />
           <div>
-            <p className="text-white font-bold leading-tight">Nexoris Academy</p>
+            <p className="text-white font-bold leading-tight">{nombreMarca}</p>
             <p className="text-xs" style={{ color: GREEN }}>Panel Estudiante</p>
           </div>
         </div>
@@ -113,9 +133,9 @@ export default function EstudianteDashboard() {
             style={{ backgroundColor: NAVY_DARK }}
           >
             <div className="flex items-center gap-3 px-6 py-6 border-b border-white/10">
-              <img src="/logo.png" alt="Nexoris Academy" className="w-10 h-10 object-contain rounded-full bg-white p-1" />
+              <img src={logoSrc} alt={nombreMarca} className="w-10 h-10 object-contain rounded-full bg-white p-1" />
               <div>
-                <p className="text-white font-bold leading-tight">Nexoris Academy</p>
+                <p className="text-white font-bold leading-tight">{nombreMarca}</p>
                 <p className="text-xs" style={{ color: GREEN }}>Panel Estudiante</p>
               </div>
             </div>
@@ -169,8 +189,8 @@ export default function EstudianteDashboard() {
                 <line x1="3" y1="18" x2="21" y2="18" />
               </svg>
             </button>
-            <img src="/logo.png" alt="Nexoris Academy" className="w-8 h-8 object-contain rounded-full" />
-            <span className="font-bold" style={{ color: NAVY_DARK }}>Nexoris Academy</span>
+            <img src={logoSrc} alt={nombreMarca} className="w-8 h-8 object-contain rounded-full" />
+            <span className="font-bold" style={{ color: NAVY_DARK }}>{nombreMarca}</span>
           </div>
 
           <div className="hidden md:block">
