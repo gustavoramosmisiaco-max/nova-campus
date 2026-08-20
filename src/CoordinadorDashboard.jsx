@@ -6,6 +6,8 @@ import ImportarEstudiantes from './ImportarEstudiantes'
 import ExcelJS from 'exceljs'
 import { compararPorApellido } from './gradeUtils'
 import { llamarIA } from './aiClient'
+import WelcomeAnimation from './WelcomeAnimation'
+import FarewellAnimation from './FarewellAnimation'
 
 const CoursesManager = lazy(function () { return import('./CoursesManager') })
 const ImportarDocentes = lazy(function () { return import('./ImportarDocentes') })
@@ -48,6 +50,7 @@ async function consultarEnBloques(supabase, tabla, campos, columnaFiltro, valore
 export default function CoordinadorDashboard() {
   const { session, profile, logout } = useAuth()
   const [loading, setLoading] = useState(true)
+  const [despidiendo, setDespidiendo] = useState(false)
   const [institucion, setInstitucion] = useState(null)
   const [cursos, setCursos] = useState([])
   const [conducta, setConducta] = useState([])
@@ -1443,6 +1446,8 @@ export default function CoordinadorDashboard() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#F4F6F9' }}>
+      <WelcomeAnimation role="coordinador" nombre={profile?.full_name} />
+      <FarewellAnimation visible={despidiendo} role="coordinador" nombre={profile?.full_name} onComplete={logout} />
       <header className="flex items-center justify-between px-6 py-4 bg-white" style={{ borderBottom: '1px solid #E5E9F0' }}>
         <div className="flex items-center gap-3">
           {institucion.logo_url && (
@@ -1453,7 +1458,7 @@ export default function CoordinadorDashboard() {
             <p className="text-xs" style={{ color: GREEN_DARK }}>Panel del Coordinador · {profile?.full_name}</p>
           </div>
         </div>
-        <button onClick={logout} className="text-xs font-semibold px-4 py-2 rounded-lg transition" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #D6DCE5' }}>Salir</button>
+        <button onClick={function () { setDespidiendo(true) }} className="text-xs font-semibold px-4 py-2 rounded-lg transition" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #D6DCE5' }}>Salir</button>
       </header>
 
       <main className="p-6 max-w-5xl mx-auto">

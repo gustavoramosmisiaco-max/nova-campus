@@ -11,6 +11,12 @@ const CONFIG_POR_ROL = {
     titulo: 'Bienvenido, Administrador',
     subtitulo: 'Todo el colegio en tus manos, listo para gestionar.',
   },
+  coordinador: {
+    icono: 'admin',
+    color: '#7C3AED',
+    titulo: 'Bienvenido, Coordinador',
+    subtitulo: 'Tu institución está lista para que la supervises hoy.',
+  },
   docente: {
     icono: 'docente',
     color: GREEN,
