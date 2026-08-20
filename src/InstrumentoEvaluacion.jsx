@@ -36,6 +36,15 @@ const RGB_CAPACIDAD = [84, 130, 53]
 const RGB_TABLA_HEAD = [31, 78, 121]
 const RGB_NIVEL = { AD: [47, 122, 31], A: [29, 92, 143], B: [180, 83, 9], C: [185, 28, 28] }
 
+// Texto de "Criterio(s)" a mostrar — si la Actividad ya tiene varios criterios individuales
+// (Lista de Cotejo nueva), los enumera; si no, cae al campo de texto libre de siempre.
+function textoCriterios(cap) {
+  if (cap.criteriosLista && cap.criteriosLista.length > 0) {
+    return cap.criteriosLista.map(function (c, i) { return `${i + 1}. ${c.texto}` }).join('  ·  ')
+  }
+  return cap.criterio || '—'
+}
+
 function coloredBlock(doc, y, text, fillColor, textColor, fontSize, bold, pageWidth, align) {
   doc.setFontSize(fontSize)
   doc.setFont(undefined, bold ? 'bold' : 'normal')
@@ -146,6 +155,17 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
     const capacidades = (actividad.actividad_capacidades || [])
       .slice()
       .sort(function (x, y) { return (x.capacidad.orden || 0) - (y.capacidad.orden || 0) })
+
+    // Criterios individuales de la Lista de Cotejo (si esta Actividad ya los tiene, con el sistema nuevo)
+    if (actividad.tipo_instrumento === 'Lista de cotejo') {
+      const critResult = await supabase.from('criterios_cotejo').select('capacidad_id, texto, orden').eq('actividad_id', actividad.id).order('orden')
+      const criteriosPorCapacidad = {}
+      ;(critResult.data || []).forEach(function (c) {
+        if (!criteriosPorCapacidad[c.capacidad_id]) criteriosPorCapacidad[c.capacidad_id] = []
+        criteriosPorCapacidad[c.capacidad_id].push(c)
+      })
+      capacidades.forEach(function (cap) { cap.criteriosLista = criteriosPorCapacidad[cap.capacidad.id] || [] })
+    }
 
     const assignResult = await supabase
       .from('assignments')
@@ -359,10 +379,12 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
     m.capacidades.forEach(function (cap) {
       mergedRow(r, cap.capacidad.nombre, COLOR_CAPACIDAD, 'FFFFFFFF', 12, true)
       r++
-      mergedRow(r, `Criterio: ${cap.criterio || '—'}`, null, 'FF000000', 10, false)
+      mergedRow(r, `Criterio(s): ${textoCriterios(cap)}`, null, 'FF000000', 10, false)
       r++
-      mergedRow(r, `Desempeño: ${cap.desempeno || '—'}`, null, 'FF000000', 10, false)
-      r++
+      if (!(cap.criteriosLista && cap.criteriosLista.length > 0)) {
+        mergedRow(r, `Desempeño: ${cap.desempeno || '—'}`, null, 'FF000000', 10, false)
+        r++
+      }
     })
     r++
 
@@ -508,8 +530,10 @@ export default function InstrumentoEvaluacion({ courseId, courseNombre, courseGr
     m.capacidades.forEach(function (cap) {
       if (y > doc.internal.pageSize.getHeight() - 50) { doc.addPage(); y = 4 }
       y = coloredBlock(doc, y, cap.capacidad.nombre, RGB_CAPACIDAD, [255, 255, 255], 10, true, pageWidth)
-      y = coloredBlock(doc, y, `Criterio: ${cap.criterio || '—'}`, null, [0, 0, 0], 8, false, pageWidth)
-      y = coloredBlock(doc, y, `Desempeño: ${cap.desempeno || '—'}`, null, [0, 0, 0], 8, false, pageWidth)
+      y = coloredBlock(doc, y, `Criterio(s): ${textoCriterios(cap)}`, null, [0, 0, 0], 8, false, pageWidth)
+      if (!(cap.criteriosLista && cap.criteriosLista.length > 0)) {
+        y = coloredBlock(doc, y, `Desempeño: ${cap.desempeno || '—'}`, null, [0, 0, 0], 8, false, pageWidth)
+      }
     })
     y += 1.5
 
@@ -891,6 +915,7 @@ function ListaCotejoView({ matrix, courseGrado, courseGrupo }) {
           </tr>
           <tr>
             {matrix.capacidades.map(function (cap) {
+              const tieneListaCriterios = cap.criteriosLista && cap.criteriosLista.length > 0
               return (
                 <td
                   key={cap.capacidad.id}
@@ -903,8 +928,18 @@ function ListaCotejoView({ matrix, courseGrado, courseGrupo }) {
                     whiteSpace: 'normal',
                   }}
                 >
-                  <p style={{ marginBottom: 4 }}><strong>Criterio:</strong> {cap.criterio || '—'}</p>
-                  <p style={{ color: NAVY_DARK }}><strong>Desempeño:</strong> {cap.desempeno || '—'}</p>
+                  {tieneListaCriterios ? (
+                    <ul style={{ margin: 0, paddingLeft: 16 }}>
+                      {cap.criteriosLista.map(function (c, i) {
+                        return <li key={i} style={{ marginBottom: 2 }}>{c.texto}</li>
+                      })}
+                    </ul>
+                  ) : (
+                    <>
+                      <p style={{ marginBottom: 4 }}><strong>Criterio:</strong> {cap.criterio || '—'}</p>
+                      <p style={{ color: NAVY_DARK }}><strong>Desempeño:</strong> {cap.desempeno || '—'}</p>
+                    </>
+                  )}
                 </td>
               )
             })}
