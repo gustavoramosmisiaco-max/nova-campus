@@ -259,6 +259,7 @@ function UnidadActividadesAreaStudent({ unidad, areaNombre, cursoIds, onBack, on
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [abiertos, setAbiertos] = useState(new Set())
 
   useEffect(function () {
     loadActivities()
@@ -272,13 +273,55 @@ function UnidadActividadesAreaStudent({ unidad, areaNombre, cursoIds, onBack, on
       .eq('unidad_id', unidad.id)
       .in('course_id', cursoIds)
       .order('fecha_clase', { ascending: false, nullsFirst: false })
-    if (result.error) setError(result.error.message)
-    else setActivities(result.data)
+    if (result.error) {
+      setError(result.error.message)
+      setLoading(false)
+      return
+    }
+    setActivities(result.data)
+
+    // La asignatura con la actividad creada más recientemente arranca abierta,
+    // para que lo nuevo salte a la vista apenas se entra a la carpeta.
+    if (result.data.length > 0) {
+      const masReciente = result.data.slice().sort(function (a, b) { return new Date(b.created_at) - new Date(a.created_at) })[0]
+      setAbiertos(new Set([masReciente.course_id]))
+    }
     setLoading(false)
+  }
+
+  function toggleAsignatura(courseId) {
+    setAbiertos(function (prev) {
+      const next = new Set(prev)
+      if (next.has(courseId)) next.delete(courseId); else next.add(courseId)
+      return next
+    })
+  }
+
+  function esNueva(actividad) {
+    if (!actividad.created_at) return false
+    const dias = (Date.now() - new Date(actividad.created_at).getTime()) / (1000 * 60 * 60 * 24)
+    return dias <= 7
   }
 
   if (loading) return <p className="text-slate-400 text-sm">Cargando...</p>
   if (error) return <p className="text-red-500 text-sm">{error}</p>
+
+  // Agrupar por Asignatura, y cada grupo ordenado por fecha (ya viene ordenado el total)
+  const grupos = []
+  activities.forEach(function (a) {
+    let grupo = grupos.find(function (g) { return g.courseId === a.course_id })
+    if (!grupo) {
+      grupo = { courseId: a.course_id, courseNombre: a.course?.nombre || 'Asignatura', docenteNombre: a.course?.docente?.full_name || 'Sin asignar', actividades: [] }
+      grupos.push(grupo)
+    }
+    grupo.actividades.push(a)
+  })
+  // La asignatura con la actividad más nueva primero
+  grupos.sort(function (g1, g2) {
+    const masNuevo1 = g1.actividades[0]?.created_at || ''
+    const masNuevo2 = g2.actividades[0]?.created_at || ''
+    return new Date(masNuevo2) - new Date(masNuevo1)
+  })
 
   return (
     <div>
@@ -313,29 +356,55 @@ function UnidadActividadesAreaStudent({ unidad, areaNombre, cursoIds, onBack, on
       {subTab === 'notas-tareas' && <NotasDeTareasUnidad unidad={unidad} areaNombre={areaNombre} cursoIds={cursoIds} />}
 
       {subTab === 'actividades' && (
-      activities.length === 0 ? (
+      grupos.length === 0 ? (
         <p className="text-slate-400 text-sm">Aún no hay actividades en esta carpeta.</p>
       ) : (
-        <ul className="space-y-3">
-          {activities.map(function (a) {
+        <div className="space-y-3">
+          {grupos.map(function (g) {
+            const abierto = abiertos.has(g.courseId)
+            const hayNuevas = g.actividades.some(esNueva)
             return (
-              <li key={a.id} style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }} className="rounded-xl p-4">
-                <button onClick={function () { onSelectActividad(a) }} className="text-left w-full">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#E7F3E4', color: GREEN_DARK }}>
-                      {a.course?.nombre || 'Asignatura'}
-                    </span>
-                    <span className="text-xs text-slate-400">Prof. {a.course?.docente?.full_name || 'Sin asignar'}</span>
-                    {a.fecha_clase && <span className="text-xs text-slate-400">· {new Date(a.fecha_clase + 'T00:00:00').toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'short' })}</span>}
+              <div key={g.courseId} className="rounded-xl overflow-hidden" style={{ border: '1px solid #E5E9F0' }}>
+                <button
+                  onClick={function () { toggleAsignatura(g.courseId) }}
+                  className="w-full flex justify-between items-center px-4 py-3 text-left transition"
+                  style={{ backgroundColor: '#F4F6F9' }}
+                >
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-bold" style={{ color: NAVY_DARK }}>{g.courseNombre}</span>
+                    <span className="text-xs text-slate-400">Prof. {g.docenteNombre}</span>
+                    {hayNuevas && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: GREEN }}>🆕 Nueva esta semana</span>
+                    )}
+                    <span className="text-xs text-slate-400">({g.actividades.length})</span>
                   </div>
-                  <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>Actividad {a.numero_actividad} · {a.nombre}</p>
-                  {a.competencia && <p className="text-xs text-slate-500 mt-1">{a.competencia.codigo} — {a.competencia.nombre}</p>}
-                  <p className="text-xs mt-1" style={{ color: GREEN_DARK }}>Ver materiales y tareas →</p>
+                  <span className="text-sm" style={{ color: NAVY_DARK, transform: abierto ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>▾</span>
                 </button>
-              </li>
+                {abierto && (
+                  <ul className="p-3 space-y-3" style={{ backgroundColor: 'white' }}>
+                    {g.actividades.map(function (a) {
+                      return (
+                        <li key={a.id} style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }} className="rounded-xl p-4">
+                          <button onClick={function () { onSelectActividad(a) }} className="text-left w-full">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              {esNueva(a) && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: GREEN }}>🆕 Nueva</span>
+                              )}
+                              {a.fecha_clase && <span className="text-xs text-slate-400">{new Date(a.fecha_clase + 'T00:00:00').toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'short' })}</span>}
+                            </div>
+                            <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>Actividad {a.numero_actividad} · {a.nombre}</p>
+                            {a.competencia && <p className="text-xs text-slate-500 mt-1">{a.competencia.codigo} — {a.competencia.nombre}</p>}
+                            <p className="text-xs mt-1" style={{ color: GREEN_DARK }}>Ver materiales y tareas →</p>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
             )
           })}
-        </ul>
+        </div>
       )
       )}
     </div>
