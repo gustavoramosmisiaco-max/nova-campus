@@ -16,6 +16,7 @@ const FeriadosManager = lazy(function () { return import('./FeriadosManager') })
 const EnrollmentsManager = lazy(function () { return import('./EnrollmentsManager') })
 const DocentesList = lazy(function () { return import('./DocentesList') })
 const EstudiantesList = lazy(function () { return import('./EstudiantesList') })
+const MiInstitucion = lazy(function () { return import('./MiInstitucion') })
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
@@ -905,7 +906,7 @@ export default function CoordinadorDashboard() {
 
   async function cargar() {
     setLoading(true)
-    const instResult = await supabase.from('profiles').select('institucion_id, instituciones_educativas!profiles_institucion_id_fkey(id, nombre)').eq('id', session.user.id).single()
+    const instResult = await supabase.from('profiles').select('institucion_id, instituciones_educativas!profiles_institucion_id_fkey(id, nombre, logo_url)').eq('id', session.user.id).single()
     const institucionId = instResult.data?.institucion_id
     setInstitucion(instResult.data?.instituciones_educativas || null)
 
@@ -1443,9 +1444,14 @@ export default function CoordinadorDashboard() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#F4F6F9' }}>
       <header className="flex items-center justify-between px-6 py-4 bg-white" style={{ borderBottom: '1px solid #E5E9F0' }}>
-        <div>
-          <p className="font-bold text-sm" style={{ color: NAVY_DARK }}>Nexoris Academy — Coordinador</p>
-          <p className="text-xs" style={{ color: GREEN_DARK }}>{institucion.nombre} · {profile?.full_name}</p>
+        <div className="flex items-center gap-3">
+          {institucion.logo_url && (
+            <img src={institucion.logo_url} alt={institucion.nombre} className="w-10 h-10 rounded-full object-contain bg-white" style={{ border: '1px solid #E5E9F0' }} />
+          )}
+          <div>
+            <p className="font-bold text-sm" style={{ color: NAVY_DARK }}>Nexoris Academy — Coordinador</p>
+            <p className="text-xs" style={{ color: GREEN_DARK }}>{institucion.nombre} · {profile?.full_name}</p>
+          </div>
         </div>
         <button onClick={logout} className="text-xs font-semibold px-4 py-2 rounded-lg transition" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #D6DCE5' }}>Salir</button>
       </header>
@@ -1474,6 +1480,7 @@ export default function CoordinadorDashboard() {
               { id: 'asistencia', label: 'Asistencia' },
               { id: 'monitoreo', label: 'Monitoreo' },
               { id: 'siagie', label: 'Formato SIAGIE' },
+              { id: 'mi-institucion', label: '🏫 Mi Institución' },
             ]
             return pestañas.map(function (t) {
               const active = tab === t.id
@@ -1530,6 +1537,7 @@ export default function CoordinadorDashboard() {
                 { id: 'asistencia', label: 'Asistencia' },
                 { id: 'monitoreo', label: 'Monitoreo' },
                 { id: 'siagie', label: 'Formato SIAGIE' },
+                { id: 'mi-institucion', label: '🏫 Mi Institución' },
               ].map(function (t) {
                 const active = tab === t.id
                 return (
@@ -2127,6 +2135,12 @@ export default function CoordinadorDashboard() {
         {tab === 'lista-estudiantes' && (
           <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
             <EstudiantesList institucionFija={institucion.id} institucionFijaNombre={institucion.nombre} />
+          </Suspense>
+        )}
+
+        {tab === 'mi-institucion' && (
+          <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
+            <MiInstitucion institucion={institucion} onActualizada={cargar} />
           </Suspense>
         )}
 
