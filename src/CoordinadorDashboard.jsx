@@ -1449,8 +1449,8 @@ export default function CoordinadorDashboard() {
             <img src={institucion.logo_url} alt={institucion.nombre} className="w-10 h-10 rounded-full object-contain bg-white" style={{ border: '1px solid #E5E9F0' }} />
           )}
           <div>
-            <p className="font-bold text-sm" style={{ color: NAVY_DARK }}>Nexoris Academy — Coordinador</p>
-            <p className="text-xs" style={{ color: GREEN_DARK }}>{institucion.nombre} · {profile?.full_name}</p>
+            <p className="font-bold text-sm" style={{ color: NAVY_DARK }}>{institucion.nombre}</p>
+            <p className="text-xs" style={{ color: GREEN_DARK }}>Panel del Coordinador · {profile?.full_name}</p>
           </div>
         </div>
         <button onClick={logout} className="text-xs font-semibold px-4 py-2 rounded-lg transition" style={{ backgroundColor: '#F4F6F9', color: NAVY_DARK, border: '1px solid #D6DCE5' }}>Salir</button>
