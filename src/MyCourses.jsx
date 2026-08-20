@@ -170,6 +170,7 @@ function UnidadesListStudent({ grado, grupo, cursoIds, onSelectUnidad }) {
   const [conteo, setConteo] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [bimestreAbierto, setBimestreAbierto] = useState(null)
 
   useEffect(function () {
     loadUnidades()
@@ -201,6 +202,12 @@ function UnidadesListStudent({ grado, grupo, cursoIds, onSelectUnidad }) {
     }
     setUnidades(result.data)
 
+    // Abre solo el Bimestre de la carpeta con el número más alto (el más reciente en avanzar)
+    if (result.data.length > 0) {
+      const numeroMasAlto = Math.max.apply(null, result.data.map(function (u) { return u.numero }))
+      setBimestreAbierto(Math.ceil(numeroMasAlto / 2))
+    }
+
     const unidadIds = result.data.map(function (u) { return u.id })
     if (unidadIds.length > 0) {
       const actResult = await supabase
@@ -220,28 +227,52 @@ function UnidadesListStudent({ grado, grupo, cursoIds, onSelectUnidad }) {
   if (loading) return <p className="text-slate-400 text-sm">Cargando...</p>
   if (error) return <p className="text-red-500 text-sm">{error}</p>
 
+  const NOMBRE_BIMESTRE = { 1: 'I Bimestre', 2: 'II Bimestre', 3: 'III Bimestre', 4: 'IV Bimestre' }
+  const bimestres = [1, 2, 3, 4].map(function (b) {
+    return { numero: b, unidades: unidades.filter(function (u) { return Math.ceil(u.numero / 2) === b }) }
+  }).filter(function (grupo) { return grupo.unidades.length > 0 })
+
   return (
     <div>
       <h3 className="text-lg font-bold mb-4" style={{ color: NAVY_DARK }}>Unidades y Experiencias de Aprendizaje</h3>
       {unidades.length === 0 ? (
         <p className="text-slate-400 text-sm">Aún no hay carpetas creadas por tus docentes.</p>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {unidades.map(function (u) {
+        <div className="space-y-3">
+          {bimestres.map(function (b) {
+            const abierto = bimestreAbierto === b.numero
             return (
-              <button
-                key={u.id}
-                onClick={function () { onSelectUnidad(u) }}
-                className="text-left rounded-xl p-4 transition hover:-translate-y-0.5"
-                style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <FolderIcon />
-                  <span className="text-xs font-semibold" style={{ color: GREEN_DARK }}>{u.tipo} {u.numero}</span>
-                </div>
-                <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>{u.nombre || `${u.tipo} ${u.numero}`}</p>
-                <p className="text-xs text-slate-400 mt-1">{conteo[u.id] || 0} actividad(es) de esta área</p>
-              </button>
+              <div key={b.numero} className="rounded-xl overflow-hidden" style={{ border: '1px solid #E5E9F0' }}>
+                <button
+                  onClick={function () { setBimestreAbierto(abierto ? null : b.numero) }}
+                  className="w-full flex justify-between items-center px-4 py-3 text-left transition"
+                  style={{ backgroundColor: '#F4F6F9' }}
+                >
+                  <span className="text-sm font-bold" style={{ color: NAVY_DARK }}>{NOMBRE_BIMESTRE[b.numero]} <span className="text-xs font-normal text-slate-400">({b.unidades.length})</span></span>
+                  <span className="text-sm" style={{ color: NAVY_DARK, transform: abierto ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>▾</span>
+                </button>
+                {abierto && (
+                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 p-3" style={{ backgroundColor: 'white' }}>
+                    {b.unidades.map(function (u) {
+                      return (
+                        <button
+                          key={u.id}
+                          onClick={function () { onSelectUnidad(u) }}
+                          className="text-left rounded-xl p-4 transition hover:-translate-y-0.5"
+                          style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <FolderIcon />
+                            <span className="text-xs font-semibold" style={{ color: GREEN_DARK }}>{u.tipo} {u.numero}</span>
+                          </div>
+                          <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>{u.nombre || `${u.tipo} ${u.numero}`}</p>
+                          <p className="text-xs text-slate-400 mt-1">{conteo[u.id] || 0} actividad(es) de esta área</p>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             )
           })}
         </div>

@@ -81,6 +81,7 @@ function UnidadesList({ areaId, grado, grupo, cursos, onSelectUnidad }) {
   const [fechaInicio, setFechaInicio] = useState('')
   const [fechaFin, setFechaFin] = useState('')
   const [mostrarImportarWord, setMostrarImportarWord] = useState(false)
+  const [bimestreAbierto, setBimestreAbierto] = useState(null)
 
   const cursoIds = cursos.map(function (c) { return c.id })
   const aula = { areaId: areaId, grado: grado, grupo: grupo }
@@ -104,6 +105,12 @@ function UnidadesList({ areaId, grado, grupo, cursos, onSelectUnidad }) {
       return
     }
     setUnidades(result.data)
+
+    // Abre solo el Bimestre de la carpeta con el número más alto (el más reciente en avanzar)
+    if (result.data.length > 0) {
+      const numeroMasAlto = Math.max.apply(null, result.data.map(function (u) { return u.numero }))
+      setBimestreAbierto(Math.ceil(numeroMasAlto / 2))
+    }
 
     // Cuántas actividades tiene esta área (todas sus asignaturas) dentro de cada carpeta compartida
     const unidadIds = result.data.map(function (u) { return u.id })
@@ -310,47 +317,75 @@ function UnidadesList({ areaId, grado, grupo, cursos, onSelectUnidad }) {
       {unidades.length === 0 ? (
         <p className="text-slate-400 text-sm">Aún no hay carpetas creadas.</p>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {unidades.map(function (u) {
-            return (
-              <div
-                key={u.id}
-                className="rounded-xl p-4"
-                style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}
-              >
-                <button
-                  onClick={function () { onSelectUnidad(u) }}
-                  className="text-left w-full mb-2"
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <FolderIcon />
-                    <span className="text-xs font-semibold" style={{ color: GREEN_DARK }}>{u.tipo} {u.numero}</span>
+        (function () {
+          const NOMBRE_BIMESTRE = { 1: 'I Bimestre', 2: 'II Bimestre', 3: 'III Bimestre', 4: 'IV Bimestre' }
+          const bimestres = [1, 2, 3, 4].map(function (b) {
+            return { numero: b, unidades: unidades.filter(function (u) { return Math.ceil(u.numero / 2) === b }) }
+          }).filter(function (g) { return g.unidades.length > 0 })
+
+          return (
+            <div className="space-y-3">
+              {bimestres.map(function (b) {
+                const abierto = bimestreAbierto === b.numero
+                return (
+                  <div key={b.numero} className="rounded-xl overflow-hidden" style={{ border: '1px solid #E5E9F0' }}>
+                    <button
+                      onClick={function () { setBimestreAbierto(abierto ? null : b.numero) }}
+                      className="w-full flex justify-between items-center px-4 py-3 text-left transition"
+                      style={{ backgroundColor: '#F4F6F9' }}
+                    >
+                      <span className="text-sm font-bold" style={{ color: NAVY_DARK }}>{NOMBRE_BIMESTRE[b.numero]} <span className="text-xs font-normal text-slate-400">({b.unidades.length})</span></span>
+                      <span className="text-sm" style={{ color: NAVY_DARK, transform: abierto ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>▾</span>
+                    </button>
+                    {abierto && (
+                      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 p-3" style={{ backgroundColor: 'white' }}>
+                        {b.unidades.map(function (u) {
+                          return (
+                            <div
+                              key={u.id}
+                              className="rounded-xl p-4"
+                              style={{ backgroundColor: '#F4F6F9', border: '1px solid #E5E9F0' }}
+                            >
+                              <button
+                                onClick={function () { onSelectUnidad(u) }}
+                                className="text-left w-full mb-2"
+                              >
+                                <div className="flex items-center gap-2 mb-1">
+                                  <FolderIcon />
+                                  <span className="text-xs font-semibold" style={{ color: GREEN_DARK }}>{u.tipo} {u.numero}</span>
+                                </div>
+                                <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>{u.nombre || `${u.tipo} ${u.numero}`}</p>
+                                <p className="text-xs text-slate-400 mt-1">
+                                  {conteoPropio[u.id] || 0} actividad(es) de esta asignatura
+                                </p>
+                              </button>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={function () { openEdit(u) }}
+                                  className="text-xs font-semibold px-3 py-1 rounded-lg transition"
+                                  style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  onClick={function () { handleDelete(u.id) }}
+                                  className="text-xs font-semibold px-3 py-1 rounded-lg text-white transition hover:opacity-90"
+                                  style={{ backgroundColor: '#B91C1C' }}
+                                >
+                                  Eliminar
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
-                  <p className="text-sm font-bold" style={{ color: NAVY_DARK }}>{u.nombre || `${u.tipo} ${u.numero}`}</p>
-                  <p className="text-xs text-slate-400 mt-1">
-                    {conteoPropio[u.id] || 0} actividad(es) de esta asignatura
-                  </p>
-                </button>
-                <div className="flex gap-2">
-                  <button
-                    onClick={function () { openEdit(u) }}
-                    className="text-xs font-semibold px-3 py-1 rounded-lg transition"
-                    style={{ backgroundColor: 'white', color: NAVY, border: '1px solid #D6DCE5' }}
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={function () { handleDelete(u.id) }}
-                    className="text-xs font-semibold px-3 py-1 rounded-lg text-white transition hover:opacity-90"
-                    style={{ backgroundColor: '#B91C1C' }}
-                  >
-                    Eliminar
-                  </button>
-                </div>
-              </div>
-            )
-          })}
-        </div>
+                )
+              })}
+            </div>
+          )
+        })()
       )}
     </div>
   )
