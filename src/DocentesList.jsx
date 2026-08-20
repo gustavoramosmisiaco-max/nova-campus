@@ -32,7 +32,7 @@ export default function DocentesList({ institucionFija } = {}) {
 
   useEffect(function () {
     loadDocentes()
-  }, [])
+  }, [institucionFija])
 
   async function loadDocentes() {
     setLoading(true)
@@ -51,7 +51,11 @@ export default function DocentesList({ institucionFija } = {}) {
       return
     }
 
-    setInstituciones(instResult.error ? [] : instResult.data)
+    // Si hay una institución fija (Coordinador), solo se trabaja con esa — nunca con las demás
+    const institucionesFiltradas = institucionFija
+      ? (instResult.data || []).filter(function (i) { return i.id === institucionFija })
+      : (instResult.error ? [] : instResult.data)
+    setInstituciones(institucionesFiltradas)
 
     const institucionesPorDocente = {} // docenteId -> [institucionId, ...]
     if (!relResult.error) {
@@ -71,7 +75,7 @@ export default function DocentesList({ institucionFija } = {}) {
       })
     }
 
-    const enriched = profilesResult.data.map(function (d) {
+    let enriched = profilesResult.data.map(function (d) {
       return {
         ...d,
         area: areaMap[d.id] || null,
@@ -79,6 +83,12 @@ export default function DocentesList({ institucionFija } = {}) {
         institucionIds: institucionesPorDocente[d.id] || [],
       }
     })
+
+    // Con institución fija, solo se muestran los docentes que realmente pertenecen a ella
+    if (institucionFija) {
+      enriched = enriched.filter(function (d) { return d.institucionIds.includes(institucionFija) })
+    }
+
     enriched.sort(function (a, b) { return compararPorApellido(a.full_name, b.full_name) })
 
     setDocentes(enriched)
