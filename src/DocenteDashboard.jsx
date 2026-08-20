@@ -1,5 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { useAuth } from './AuthContext'
+import { supabase } from './supabaseClient'
 import NotificationBell from './NotificationBell'
 import WelcomeAnimation from './WelcomeAnimation'
 import FarewellAnimation from './FarewellAnimation'
@@ -22,10 +23,27 @@ const GREEN = '#22C55E'
 const GREEN_DARK = '#16A34A'
 
 export default function DocenteDashboard() {
-  const { profile, logout } = useAuth()
+  const { session, profile, logout } = useAuth()
   const [despidiendo, setDespidiendo] = useState(false)
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false)
   const [tareaDestacadaId, setTareaDestacadaId] = useState(null)
+  const [institucionDocente, setInstitucionDocente] = useState(null)
+
+  useEffect(function () {
+    cargarInstitucion()
+  }, [])
+
+  // Si el docente trabaja en UNA sola institución, se muestra su logo/nombre.
+  // Si trabaja en varias, se deja el logo de Nexoris Academy (no hay una sola que representar).
+  async function cargarInstitucion() {
+    const result = await supabase
+      .from('docente_instituciones')
+      .select('institucion:instituciones_educativas(id, nombre, logo_url)')
+      .eq('docente_id', session.user.id)
+    if (!result.error && result.data.length === 1) {
+      setInstitucionDocente(result.data[0].institucion)
+    }
+  }
 
   function handleNavigate(tab, referenciaId) {
     setActiveSection(tab)
@@ -80,6 +98,9 @@ export default function DocenteDashboard() {
     .join('')
     .toUpperCase()
 
+  const logoSrc = institucionDocente?.logo_url || '/logo.png'
+  const nombreMarca = institucionDocente?.nombre || 'Nexoris Academy'
+
   return (
     <DocenteContextoActivoProvider>
     <div className="min-h-screen flex" style={{ backgroundColor: '#F4F6F9' }}>
@@ -93,9 +114,9 @@ export default function DocenteDashboard() {
       >
         <FondoEstrellas variante="oscuro" />
         <div className="relative flex items-center gap-3 px-6 py-6 border-b border-white/10" style={{ zIndex: 1 }}>
-          <img src="/logo.png" alt="Nexoris Academy" className="w-10 h-10 object-contain rounded-full bg-white p-1" />
+          <img src={logoSrc} alt={nombreMarca} className="w-10 h-10 object-contain rounded-full bg-white p-1" />
           <div>
-            <p className="text-white font-bold leading-tight">Nexoris Academy</p>
+            <p className="text-white font-bold leading-tight">{nombreMarca}</p>
             <p className="text-xs" style={{ color: GREEN }}>Panel Docente</p>
           </div>
         </div>
@@ -140,9 +161,9 @@ export default function DocenteDashboard() {
             style={{ backgroundColor: NAVY_DARK }}
           >
             <div className="flex items-center gap-3 px-6 py-6 border-b border-white/10">
-              <img src="/logo.png" alt="Nexoris Academy" className="w-10 h-10 object-contain rounded-full bg-white p-1" />
+              <img src={logoSrc} alt={nombreMarca} className="w-10 h-10 object-contain rounded-full bg-white p-1" />
               <div>
-                <p className="text-white font-bold leading-tight">Nexoris Academy</p>
+                <p className="text-white font-bold leading-tight">{nombreMarca}</p>
                 <p className="text-xs" style={{ color: GREEN }}>Panel Docente</p>
               </div>
             </div>
@@ -196,8 +217,8 @@ export default function DocenteDashboard() {
                 <line x1="3" y1="18" x2="21" y2="18" />
               </svg>
             </button>
-            <img src="/logo.png" alt="Nexoris Academy" className="w-8 h-8 object-contain rounded-full" />
-            <span className="font-bold" style={{ color: NAVY_DARK }}>Nexoris Academy</span>
+            <img src={logoSrc} alt={nombreMarca} className="w-8 h-8 object-contain rounded-full" />
+            <span className="font-bold" style={{ color: NAVY_DARK }}>{nombreMarca}</span>
           </div>
 
           <div className="hidden md:block">
