@@ -2,94 +2,110 @@ import { useState, useEffect, lazy, Suspense } from 'react'
 import { useAuth } from './AuthContext'
 import { supabase } from './supabaseClient'
 import NotificationBell from './NotificationBell'
-import BloqueoPanel from './BloqueoPanel'
 import WelcomeAnimation from './WelcomeAnimation'
 import FarewellAnimation from './FarewellAnimation'
-import ComunicadoPopup from './ComunicadoPopup'
 import ErrorBoundary from './ErrorBoundary'
+import { DocenteContextoActivoProvider } from './DocenteContextoActivo'
 import FondoEstrellas from './FondoEstrellas'
 
-const MyCourses = lazy(function () { return import('./MyCourses') })
-const StudentGrades = lazy(function () { return import('./StudentGrades') })
-const TareasPendientes = lazy(function () { return import('./TareasPendientes') })
-const MisAsistencias = lazy(function () { return import('./MisAsistencias') })
+const MyTeachingCourses = lazy(function () { return import('./MyTeachingCourses') })
+const MisTareas = lazy(function () { return import('./MisTareas') })
+const RegistroAsistencia = lazy(function () { return import('./RegistroAsistencia') })
 const Mensajes = lazy(function () { return import('./Mensajes') })
-const ExamenesEstudiante = lazy(function () { return import('./ExamenesEstudiante') })
-const HorarioEstudiante = lazy(function () { return import('./HorarioEstudiante') })
-const PanelInicioEstudiante = lazy(function () { return import('./PanelInicioEstudiante') })
+const RegistroConducta = lazy(function () { return import('./RegistroConducta') })
+const ComunicadoDocente = lazy(function () { return import('./ComunicadoDocente') })
+const HorarioDocente = lazy(function () { return import('./HorarioDocente') })
+const PanelInicioDocente = lazy(function () { return import('./PanelInicioDocente') })
 
 const NAVY_DARK = '#0F172A'
 const NAVY = '#2563EB'
 const GREEN = '#22C55E'
 const GREEN_DARK = '#16A34A'
 
-export default function EstudianteDashboard() {
+export default function DocenteDashboard() {
   const { session, profile, logout } = useAuth()
-  const [activeSection, setActiveSection] = useState('inicio')
   const [despidiendo, setDespidiendo] = useState(false)
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false)
-  const [institucionEstudiante, setInstitucionEstudiante] = useState(null)
+  const [tareaDestacadaId, setTareaDestacadaId] = useState(null)
+  const [institucionDocente, setInstitucionDocente] = useState(null)
 
   useEffect(function () {
     cargarInstitucion()
   }, [])
 
+  // Si el docente trabaja en UNA sola institución, se muestra su logo/nombre.
+  // Si trabaja en varias, se deja el logo de Nexoris Academy (no hay una sola que representar).
   async function cargarInstitucion() {
     const result = await supabase
-      .from('profiles')
-      .select('institucion:instituciones_educativas!profiles_institucion_id_fkey(id, nombre, logo_url)')
-      .eq('id', session.user.id)
-      .single()
-    if (!result.error && result.data?.institucion) {
-      setInstitucionEstudiante(result.data.institucion)
-      return
+      .from('docente_instituciones')
+      .select('institucion:instituciones_educativas(id, nombre, logo_url)')
+      .eq('docente_id', session.user.id)
+    if (!result.error && result.data.length === 1) {
+      setInstitucionDocente(result.data[0].institucion)
     }
+  }
 
-    // Respaldo para estudiantes viejos sin institucion_id guardado directo en el perfil:
-    // se busca a través de cualquiera de sus cursos matriculados.
-    const enrollResult = await supabase
-      .from('enrollments')
-      .select('course:courses(institucion:instituciones_educativas(id, nombre, logo_url))')
-      .eq('student_id', session.user.id)
-      .eq('status', 'activo')
-      .limit(1)
-    const institucionRespaldo = enrollResult.data?.[0]?.course?.institucion
-    if (institucionRespaldo) setInstitucionEstudiante(institucionRespaldo)
+  function handleNavigate(tab, referenciaId) {
+    setActiveSection(tab)
+    if (referenciaId) setTareaDestacadaId(referenciaId)
   }
 
   function handleLogoutConDespedida() {
     setDespidiendo(true)
   }
+  const [activeSection, setActiveSection] = useState('inicio')
+  const [errorVisible, setErrorVisible] = useState('')
+
+  useEffect(function () {
+    function handleError(event) {
+      setErrorVisible(String(event.error?.stack || event.message || event))
+    }
+    function handleRejection(event) {
+      setErrorVisible(String(event.reason?.stack || event.reason || event))
+    }
+    window.addEventListener('error', handleError)
+    window.addEventListener('unhandledrejection', handleRejection)
+    return function () {
+      window.removeEventListener('error', handleError)
+      window.removeEventListener('unhandledrejection', handleRejection)
+    }
+  }, [])
+
+  if (errorVisible) {
+    return (
+      <div style={{ padding: 24, fontFamily: 'monospace', backgroundColor: '#FDECEC', color: '#B91C1C', minHeight: '100vh', whiteSpace: 'pre-wrap' }}>
+        <h2 style={{ marginBottom: 12 }}>Se encontró un error (copia todo este texto):</h2>
+        {errorVisible}
+      </div>
+    )
+  }
 
   const menuItems = [
     { id: 'inicio', label: 'Inicio', icon: HomeIcon },
     { id: 'cursos', label: 'Mis Asignaturas', icon: BookIcon },
-    { id: 'pendientes', label: 'Tareas Pendientes', icon: ClipboardIcon },
-    { id: 'asistencia', label: 'Mi Asistencia', icon: AsistenciaIcon },
-    { id: 'examenes', label: 'Exámenes', icon: ExamIcon },
-    { id: 'notas', label: 'Notas', icon: ChartIcon },
+    { id: 'tareas', label: 'Mis Tareas', icon: ClipboardIcon },
+    { id: 'asistencia', label: 'Asistencia', icon: CalendarIcon },
     { id: 'mensajes', label: 'Mensajes', icon: MessageIcon },
     { id: 'horario', label: 'Mi Horario', icon: CalendarIcon },
-    { id: 'zoom', label: 'Clases en vivo', icon: VideoIcon },
+    { id: 'conducta', label: 'Registro de Conducta', icon: AlertIcon },
+    { id: 'comunicados', label: 'Comunicados', icon: MegaphoneIcon },
   ]
 
-  const initials = (profile?.full_name || 'AL')
+  const initials = (profile?.full_name || 'DO')
     .split(' ')
     .map(function (w) { return w[0] })
     .slice(0, 2)
     .join('')
     .toUpperCase()
 
-  const logoSrc = institucionEstudiante?.logo_url || '/logo.png'
-  const nombreMarca = institucionEstudiante?.nombre || 'Nexoris Academy'
+  const logoSrc = institucionDocente?.logo_url || '/logo.png'
+  const nombreMarca = institucionDocente?.nombre || 'Nexoris Academy'
 
   return (
-    <>
-    <WelcomeAnimation role="estudiante" nombre={profile?.full_name} />
-    <ComunicadoPopup />
-    <FarewellAnimation visible={despidiendo} role="estudiante" nombre={profile?.full_name} onComplete={logout} />
-    <BloqueoPanel>
+    <DocenteContextoActivoProvider>
     <div className="min-h-screen flex" style={{ backgroundColor: '#F4F6F9' }}>
+      <WelcomeAnimation role="docente" nombre={profile?.full_name} />
+      <FarewellAnimation visible={despidiendo} role="docente" nombre={profile?.full_name} onComplete={logout} />
 
       {/* Sidebar de escritorio — siempre visible, sin ninguna condición */}
       <aside
@@ -101,7 +117,7 @@ export default function EstudianteDashboard() {
           <img src={logoSrc} alt={nombreMarca} className="w-10 h-10 object-contain rounded-full bg-white p-1" />
           <div>
             <p className="text-white font-bold leading-tight">{nombreMarca}</p>
-            <p className="text-xs" style={{ color: GREEN }}>Panel Estudiante</p>
+            <p className="text-xs" style={{ color: GREEN }}>Panel Docente</p>
           </div>
         </div>
         <nav className="relative flex-1 px-3 py-6 space-y-1 overflow-y-auto" style={{ zIndex: 1 }}>
@@ -148,7 +164,7 @@ export default function EstudianteDashboard() {
               <img src={logoSrc} alt={nombreMarca} className="w-10 h-10 object-contain rounded-full bg-white p-1" />
               <div>
                 <p className="text-white font-bold leading-tight">{nombreMarca}</p>
-                <p className="text-xs" style={{ color: GREEN }}>Panel Estudiante</p>
+                <p className="text-xs" style={{ color: GREEN }}>Panel Docente</p>
               </div>
             </div>
             <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
@@ -207,16 +223,16 @@ export default function EstudianteDashboard() {
 
           <div className="hidden md:block">
             <h2 className="text-lg font-bold" style={{ color: NAVY_DARK }}>
-              Hola, {profile?.full_name?.split(' ')[0] || 'Alumno'} 👋
+              Hola, {profile?.full_name?.split(' ')[0] || 'Docente'} 👋
             </h2>
-            <p className="text-sm text-slate-400">Bienvenido de vuelta a tu aula virtual</p>
+            <p className="text-sm text-slate-400">Bienvenido de vuelta a tu panel de docente</p>
           </div>
 
           <div className="flex items-center gap-3">
-            <NotificationBell onNavigate={setActiveSection} />
+            <NotificationBell onNavigate={handleNavigate} />
             <div className="text-right hidden sm:block">
               <p className="text-sm font-semibold" style={{ color: NAVY_DARK }}>{profile?.full_name}</p>
-              <p className="text-xs" style={{ color: GREEN_DARK }}>Estudiante</p>
+              <p className="text-xs" style={{ color: GREEN_DARK }}>Docente</p>
             </div>
             <div
               className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
@@ -243,34 +259,26 @@ export default function EstudianteDashboard() {
           <div className="relative" style={{ zIndex: 1 }}>
           <ErrorBoundary key={activeSection}>
             <Suspense fallback={<p className="text-slate-400 text-sm">Cargando...</p>}>
-              {activeSection === 'inicio' && <PanelInicioEstudiante onNavegar={function (tab) { setActiveSection(tab) }} />}
-              {activeSection === 'cursos' && <MyCourses />}
-              {activeSection === 'horario' && <HorarioEstudiante />}
-              {activeSection === 'pendientes' && <TareasPendientes />}
-              {activeSection === 'asistencia' && <MisAsistencias />}
-              {activeSection === 'examenes' && <ExamenesEstudiante />}
-              {activeSection === 'notas' && <StudentGrades />}
-              {activeSection === 'mensajes' && <Mensajes />}
-              {activeSection === 'zoom' && (
-                <EmptyState title="Clases en vivo" subtitle="Aquí aparecerán tus próximas sesiones de Zoom." />
+              {activeSection === 'inicio' && <PanelInicioDocente onNavegar={function (tab) { setActiveSection(tab) }} />}
+              {activeSection === 'cursos' && <MyTeachingCourses />}
+              {activeSection === 'horario' && <HorarioDocente />}
+              {activeSection === 'tareas' && (
+                <MisTareas
+                  tareaDestacadaId={tareaDestacadaId}
+                  onTareaDestacadaAtendida={function () { setTareaDestacadaId(null) }}
+                />
               )}
+              {activeSection === 'asistencia' && <RegistroAsistencia />}
+              {activeSection === 'conducta' && <RegistroConducta />}
+              {activeSection === 'comunicados' && <ComunicadoDocente />}
+              {activeSection === 'mensajes' && <Mensajes />}
             </Suspense>
           </ErrorBoundary>
           </div>
         </main>
       </div>
     </div>
-    </BloqueoPanel>
-    </>
-  )
-}
-
-function EmptyState({ title, subtitle }) {
-  return (
-    <div className="flex flex-col items-center justify-center text-center py-20 rounded-2xl bg-white" style={{ border: '1px dashed #D6DCE5' }}>
-      <h3 className="text-lg font-bold" style={{ color: NAVY_DARK }}>{title}</h3>
-      <p className="text-sm text-slate-400 mt-1">{subtitle}</p>
-    </div>
+    </DocenteContextoActivoProvider>
   )
 }
 
@@ -283,22 +291,11 @@ function BookIcon() {
   )
 }
 
-function ChartIcon() {
+function TaskIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 3v18h18" />
-      <path d="M18 17V9" />
-      <path d="M13 17V5" />
-      <path d="M8 17v-3" />
-    </svg>
-  )
-}
-
-function VideoIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M23 7l-7 5 7 5V7z" />
-      <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+      <path d="M9 11l3 3L22 4" />
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
     </svg>
   )
 }
@@ -334,12 +331,21 @@ function ClipboardIcon() {
   )
 }
 
-function ExamIcon() {
+function AlertIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 11l3 3L22 4" />
-      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9" />
-      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  )
+}
+
+function MegaphoneIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 11l18-5v12L3 13v-2z" />
+      <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
     </svg>
   )
 }
@@ -349,16 +355,6 @@ function MessageIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="5" width="20" height="14" rx="2" />
       <path d="M2 6l10 7 10-7" />
-    </svg>
-  )
-}
-
-function AsistenciaIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <polyline points="17 11 19 13 23 9" />
     </svg>
   )
 }
